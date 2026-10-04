@@ -15,6 +15,11 @@ describe('describeAuthError', () => {
     expect(raw.message).toBe('Server says no');
     expect(describeAuthError(null).message).toContain('gagal');
   });
+  test("INVALID_ORIGIN never shows Better Auth's raw English message", () => {
+    const n = describeAuthError({ code: 'INVALID_ORIGIN', message: 'Invalid origin' });
+    expect(n.message).toContain('Asal permintaan tidak dikenali');
+    expect(n.message).not.toContain('Invalid origin');
+  });
 });
 
 describe('loginNotice', () => {
@@ -24,6 +29,16 @@ describe('loginNotice', () => {
       'membatalkan',
     );
     expect(loginNotice(new URLSearchParams('notice=session'))?.kind).toBe('session');
+  });
+
+  test('closed sign-up via Google shows mapped copy, never the URL error_description', () => {
+    const closed = loginNotice(new URLSearchParams('error=signup_disabled&error_description=evil'));
+    expect(closed?.kind).toBe('error');
+    expect(closed?.message).toContain('Pendaftaran akun baru sedang ditutup');
+    expect(closed?.message).not.toContain('evil');
+    expect(loginNotice(new URLSearchParams('error=account_not_linked'))?.message).toContain(
+      'kata sandi',
+    );
     expect(loginNotice(new URLSearchParams(''))).toBeNull();
   });
 });

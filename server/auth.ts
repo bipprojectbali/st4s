@@ -12,7 +12,7 @@ import { RESOLVED_IP_HEADER } from './middleware/client-ip';
 import { describeClient, loginMethodFromPath } from './middleware/request-meta';
 import { normalizeIp } from './middleware/visitor';
 import { ac, ROLES, roles } from './permissions';
-import { emailAuthGate } from './settings-auth';
+import { emailAuthGate, socialSignUpAllowed } from './settings-auth';
 
 /** Public part of every key, e.g. mk_live_abc… — also how the header getter recognises a key. */
 export const API_KEY_PREFIX = 'mk_live_';
@@ -22,7 +22,8 @@ const MAX_KEY_TTL_DAYS = 365;
 /** Error codes the login page shows via the Better Auth error `message`. */
 export const AUTH_GATE_ERRORS = {
   SIGNUP_DISABLED: 'Pendaftaran akun baru ditutup. Hubungi administrator untuk dibuatkan akun.',
-  EMAIL_AUTH_DISABLED: 'Login dengan email dinonaktifkan. Gunakan tombol Google atau hubungi administrator.',
+  EMAIL_AUTH_DISABLED:
+    'Login dengan email dinonaktifkan. Gunakan tombol Google atau hubungi administrator.',
 } as const;
 
 /** Server-side enforcement of the login settings; the login form only mirrors it. */
@@ -140,6 +141,17 @@ export const auth = betterAuth({
     // Self-service account deletion from /profile. Credential accounts must
     // confirm with their password; the client asks for it before calling.
     deleteUser: { enabled: true },
+    // Closed sign-up also blocks NEW users via Google (existing users still sign in/link).
+    // A rejection makes the OAuth callback redirect to errorCallbackURL ?error=signup_disabled.
+    validateUserInfo: async ({ user, source }) => {
+      if (source.action !== 'create-user' || source.method !== 'oauth') return;
+      if (await socialSignUpAllowed(String(user.email ?? ''))) return;
+      logger.info(
+        { provider: source.oauth?.providerId },
+        'social sign-up rejected: sign-up closed',
+      );
+      return { error: 'signup_disabled', errorDescription: AUTH_GATE_ERRORS.SIGNUP_DISABLED };
+    },
   },
   socialProviders: hasGoogleAuth
     ? {

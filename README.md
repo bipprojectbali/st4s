@@ -206,11 +206,21 @@ Sistem role: `user` → `admin` → `super-admin`. Role tersimpan di tabel `user
 | `admin` | `/dashboard` | Dashboard, manajemen user (ban, role change), API key pribadi |
 | `super-admin` | `/dev` | Overview, users, sessions, posts, DB schema, visitor/login/rate-limit/server/audit logs, file health, tools & MCP, settings |
 
-Google OAuth: set `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`. Authorized redirect URI di Google Console: `${BETTER_AUTH_URL}/api/auth/callback/google`.
+**Login Google (OAuth).** Tombol "Lanjutkan dengan Google" muncul di `/login` (sebagai tombol utama) begitu kedua env di bawah di-set; tanpa keduanya Google mati dan email+password jadi satu-satunya jalan masuk.
 
-**Super-admin & sign-up di produksi.** Role `super-admin` dari `SUPER_ADMIN_EMAILS` hanya diberikan ke email yang **terverifikasi**. Template ini tidak mengirim email verifikasi, jadi di produksi super-admin masuk lewat Google, atau operator menjalankan `bun run admin:verify <email>` (lihat checklist di bawah). Sign-up email+password tertutup saat `NODE_ENV=production` (termasuk binary) kecuali `AUTH_DISABLE_SIGNUP=false` (kosong = belum di-set); login user lama dan Google OAuth tetap jalan.
+1. Google Cloud Console → *APIs & Services* → *Credentials* → *Create OAuth client ID* → tipe **Web application**.
+2. **Authorized redirect URI**: `${BETTER_AUTH_URL}/api/auth/callback/google` — harus sama persis dengan origin tempat app diakses (skema, host, port). Contoh dev: `http://localhost:<PORT>/api/auth/callback/google`; produksi: `https://<domain-anda>/api/auth/callback/google`. Daftarkan keduanya bila satu client dipakai untuk dev dan produksi.
+3. Env: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `BETTER_AUTH_URL` (origin publik app; juga satu-satunya trusted origin default Better Auth), dan `SUPER_ADMIN_EMAILS`.
+4. Restart server.
 
-**Toggle "Login email" & "Pendaftaran" di `/dev/settings` ditegakkan server.** `POST /api/auth/sign-in/email` dan `/sign-up/email` yang dinonaktifkan dijawab `403` (`EMAIL_AUTH_DISABLED` / `SIGNUP_DISABLED`) dengan pesan bahasa Indonesia; Google tidak terpengaruh. Aturan efektifnya (satu helper `server/settings-auth.ts`, dipakai hook auth dan halaman login):
+Perilaku saat masuk lewat Google:
+
+- **Pendaftaran tertutup juga berlaku untuk Google.** Bila sign-up ditutup (`AUTH_DISABLE_SIGNUP` atau toggle "Pendaftaran" di `/dev/settings`), login Google yang akan **membuat user baru** ditolak dan kembali ke `/login?error=signup_disabled` dengan pesan "Pendaftaran akun baru sedang ditutup…". Pengecualian: email di `SUPER_ADMIN_EMAILS` (tanpa membedakan huruf besar/kecil) tetap boleh membuat akun, agar pemilik tidak pernah terkunci. Ditegakkan lewat hook `user.validateUserInfo` Better Auth sebelum user disimpan.
+- **User yang sudah ada tetap bisa masuk.** Bila email Google sudah terdaftar dan terverifikasi, akun Google ditautkan otomatis (default `accountLinking` Better Auth). Email yang terdaftar lewat kata sandi tapi **belum terverifikasi** tidak ditautkan (mencegah pengambilalihan akun) dan kembali ke `/login?error=account_not_linked`; user itu masuk dengan email + kata sandi.
+
+**Super-admin & sign-up di produksi.** Role `super-admin` dari `SUPER_ADMIN_EMAILS` hanya diberikan ke email yang **terverifikasi**. Template ini tidak mengirim email verifikasi, jadi di produksi super-admin masuk lewat Google, atau operator menjalankan `bun run admin:verify <email>` (lihat checklist di bawah). Sign-up tertutup saat `NODE_ENV=production` (termasuk binary) kecuali `AUTH_DISABLE_SIGNUP=false` (kosong = belum di-set); login user lama (email maupun Google) tetap jalan, dan akun baru lewat Google hanya untuk email di `SUPER_ADMIN_EMAILS`.
+
+**Toggle "Login email" & "Pendaftaran" di `/dev/settings` ditegakkan server.** `POST /api/auth/sign-in/email` dan `/sign-up/email` yang dinonaktifkan dijawab `403` (`EMAIL_AUTH_DISABLED` / `SIGNUP_DISABLED`) dengan pesan bahasa Indonesia; login Google user lama tidak terpengaruh, tetapi toggle "Pendaftaran" juga menutup akun baru lewat Google (lihat di atas). Aturan efektifnya (satu helper `server/settings-auth.ts`, dipakai hook auth dan halaman login):
 
 - Login email aktif bila toggle "Login email" menyala **atau Google tidak dikonfigurasi** — tanpa Google, email adalah satu-satunya jalan masuk sehingga tidak bisa dimatikan.
 - Sign-up aktif bila login email aktif **dan** toggle "Pendaftaran" menyala **dan** sign-up tidak ditutup env (`AUTH_DISABLE_SIGNUP`).

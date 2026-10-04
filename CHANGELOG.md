@@ -30,8 +30,13 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 - README menjelaskan bahwa bahasa default transkripsi adalah `id` (berbeda dari deteksi otomatis OpenAI) dan memberi rekomendasi limit untuk host 8 GB.
 - Server dev, production, dan binary kini menyiapkan engine suara saat boot dan mematikannya dengan rapi saat dihentikan (Ctrl+C atau SIGTERM).
 - Binary bisa menjalankan engine suara tanpa Bun terpasang. Untuk text-to-speech, letakkan library onnxruntime di samping binary (lihat README).
+- Tombol "Lanjutkan dengan Google" kini menjadi tombol utama di halaman login saat Google dikonfigurasi; login email tampil sebagai pilihan kedua. Halaman login juga punya deskripsi untuk mesin pencari.
+- README dan `.env.example` menjelaskan cara menyiapkan login Google: redirect URI yang perlu didaftarkan (`${BETTER_AUTH_URL}/api/auth/callback/google`), env yang dibutuhkan, dan aturan pendaftaran tertutup.
 
 ### Fixed
+- Saat pendaftaran ditutup (`AUTH_DISABLE_SIGNUP` atau toggle "Pendaftaran" di `/dev/settings`), login Google tidak lagi diam-diam membuat akun baru. Orang yang belum punya akun dikembalikan ke halaman login dengan pesan "Pendaftaran akun baru sedang ditutup"; user lama tetap bisa masuk, dan email di `SUPER_ADMIN_EMAILS` tetap boleh membuat akun.
+- Login Google untuk email yang sudah terdaftar dengan kata sandi tapi belum terverifikasi kini menampilkan petunjuk masuk dengan kata sandi, bukan kode error mentah.
+- Halaman login menampilkan pesan bahasa Indonesia saat aplikasi dibuka dari alamat yang tidak dikenali (sebelumnya "Invalid origin"), dan tombol Google tidak lagi berputar terus bila permintaan ditolak. Kolom email dan kata sandi kini 16px sehingga iPhone tidak lagi memperbesar layar saat diketuk.
 - Transkripsi tanpa model VAD kini memotong audio per `STT_MAX_CHUNK_SEC` alih-alih mendecode seluruh file sekaligus.
 - Klien yang memutus koneksi saat transkripsi berjalan kini menghentikan job di batas potongan berikutnya, sehingga request berikutnya di antrean tidak ikut menunggu.
 - Job transkripsi yang terhenti karena engine di-unload kini dijawab `503 engine_unavailable` + `Retry-After` (bukan 500), dan unload yang dipanggil bersamaan tidak lagi menggantung.

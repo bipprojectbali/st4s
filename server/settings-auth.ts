@@ -1,9 +1,10 @@
 /**
- * Email+password availability, shared by the Better Auth hook (server/auth.ts)
- * and the login page loader so the form and the API never disagree. Kept apart
+ * Email+password availability and the social sign-up rule, shared by the Better
+ * Auth hooks (server/auth.ts) and the login page loader so the form and the API never disagree. Kept apart
  * from settings.ts because that module imports auth (cycle).
  */
-import { hasGoogleAuth, signupDisabled } from './env';
+import { hasGoogleAuth, signupDisabled, superAdminEmails } from './env';
+import { isSuperAdminEmail } from './permissions';
 import { readSettingsRow } from './settings.core';
 
 export type AuthSettings = {
@@ -38,4 +39,22 @@ export async function emailAuthGate(): Promise<EmailAuthGate> {
     },
     { googleConfigured: hasGoogleAuth, signupClosedByEnv: signupDisabled },
   );
+}
+
+/**
+ * Pure rule: a social sign-in may create a NEW user only while sign-up is open,
+ * except for SUPER_ADMIN_EMAILS so the owner can never be locked out.
+ */
+export function maySocialSignUp(
+  email: string,
+  opts: { signupOpen: boolean; ownerEmails: ReadonlySet<string> },
+): boolean {
+  return opts.signupOpen || isSuperAdminEmail(email, opts.ownerEmails);
+}
+
+/** Whether a social sign-in for `email` may create a new user (DB toggle + AUTH_DISABLE_SIGNUP). */
+export async function socialSignUpAllowed(email: string): Promise<boolean> {
+  const row = await readSettingsRow();
+  const signupOpen = (row?.signupEnabled ?? AUTH_DEFAULTS.signupEnabled) && !signupDisabled;
+  return maySocialSignUp(email, { signupOpen, ownerEmails: superAdminEmails });
 }
