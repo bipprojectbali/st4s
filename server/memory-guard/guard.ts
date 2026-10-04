@@ -110,7 +110,8 @@ export function createMemoryGuard(deps: GuardDeps): MemoryGuard {
   });
 
   function logTransition(prev: MachineState, next: MachineState): void {
-    const ctx = { level: next.level, from: prev.level, freePct: next.freePct, pressure };
+    // Not `level`: that key would overwrite pino's numeric level.
+    const ctx = { guardLevel: next.level, fromLevel: prev.level, freePct: next.freePct, pressure };
     if (next.level !== prev.level) {
       if (SEVERITY[next.level] <= SEVERITY[prev.level])
         logger.info(ctx, 'memory guard: pressure eased');
@@ -134,7 +135,7 @@ export function createMemoryGuard(deps: GuardDeps): MemoryGuard {
     const ctx = {
       engine: u.engine,
       reason: u.reason,
-      level: state.level,
+      guardLevel: state.level,
       freePct: state.freePct,
       action: 'unload',
     };

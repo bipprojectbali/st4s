@@ -201,4 +201,20 @@ describe('actions', () => {
     expect(warmup).not.toHaveBeenCalled();
     warmup.mockRestore();
   });
+
+  test("log context never carries a `level` key that would clobber pino's level", async () => {
+    const h = harness({ tts: fakeEngine('ready'), freePct: 25 });
+    await h.guard.tick();
+    h.env.freePct = 18;
+    await h.guard.tick();
+    h.env.freePct = 80;
+    h.advance(60_000);
+    await h.guard.tick();
+    const ctxs = [logError, logWarn, logInfo]
+      .flatMap((s) => s.mock.calls.map((c) => c[0] as unknown))
+      .filter((c): c is Record<string, unknown> => typeof c === 'object' && c !== null);
+    expect(ctxs.length).toBeGreaterThanOrEqual(3);
+    for (const c of ctxs) expect(c).not.toHaveProperty('level');
+    expect(ctxs.some((c) => c.guardLevel === 'critical' && c.action === 'unload')).toBe(true);
+  });
 });
