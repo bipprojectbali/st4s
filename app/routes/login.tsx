@@ -11,7 +11,7 @@ import {
   Title,
 } from '@mantine/core';
 import { hasLength, isEmail, isNotEmpty, useForm } from '@mantine/form';
-import { hasGoogleAuth } from '@server/env';
+import { hasGoogleAuth, signupDisabled } from '@server/env';
 import { getSettings } from '@server/settings';
 import { getBranding } from '@server/settings-branding';
 import { useState } from 'react';
@@ -31,7 +31,12 @@ export async function loader() {
     getSettings(),
     getBranding(),
   ]);
-  return { googleEnabled: hasGoogleAuth, emailAuthEnabled, signupEnabled, branding };
+  return {
+    googleEnabled: hasGoogleAuth,
+    emailAuthEnabled,
+    signupEnabled: signupEnabled && !signupDisabled,
+    branding,
+  };
 }
 
 const MIN_PASSWORD = 8;
@@ -165,6 +170,12 @@ export default function Login({ loaderData }: Route.ComponentProps) {
                 </Button>
               </Stack>
             </form>
+          )}
+
+          {emailAuthEnabled && !signupEnabled && (
+            <Text c="dimmed" size="sm" ta="center">
+              Pendaftaran akun baru ditutup. Hubungi administrator untuk dibuatkan akun.
+            </Text>
           )}
 
           {!googleEnabled && !emailAuthEnabled && (
