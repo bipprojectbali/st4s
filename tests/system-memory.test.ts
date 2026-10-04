@@ -1,5 +1,5 @@
 /** Available RAM: darwin uses kern.memorystatus_level × total; bad sysctl output falls back to freemem with a warn. */
-import { afterEach, describe, expect, spyOn, test } from 'bun:test';
+import { afterAll, afterEach, describe, expect, spyOn, test } from 'bun:test';
 import { logger } from '../server/logger';
 import { readAvailableMemory } from '../server/system-memory';
 
@@ -7,6 +7,8 @@ const GB = 1024 ** 3;
 const base = { totalmem: () => 8 * GB, freemem: () => 100 * 1024 ** 2 };
 const warn = spyOn(logger, 'warn');
 afterEach(() => warn.mockClear());
+// Bun's spyOn reuses a live spy, so leaving it would leak calls into later files.
+afterAll(() => warn.mockRestore());
 
 describe('readAvailableMemory', () => {
   test('darwin: percent from sysctl times total memory', () => {
