@@ -1,7 +1,7 @@
 /** Multipart parsing + validation for POST /api/v1/audio/transcriptions (OpenAI field names). */
-import { isSttModel } from './aliases';
+import { isSttModel, isTtsModel, STT_MODEL_ID } from './aliases';
 import { v1Config } from './config';
-import { v1Error } from './errors';
+import { v1Error, v1ModelNotFound } from './errors';
 
 export const RESPONSE_FORMATS = ['json', 'text', 'srt', 'vtt', 'verbose_json'] as const;
 export type ResponseFormat = (typeof RESPONSE_FORMATS)[number];
@@ -86,8 +86,12 @@ export async function readTranscriptionForm(
 
   const model = text(form, 'model');
   if (!model) return bad('Parameter `model` wajib diisi.', 'model', 'missing_required_parameter');
-  if (!isSttModel(model))
-    return bad(`Model '${model}' tidak mendukung transkripsi.`, 'model', 'model_not_found');
+  if (isTtsModel(model))
+    return bad(
+      `Model '${model}' adalah model TTS dan tidak mendukung transkripsi. Pakai ${STT_MODEL_ID} atau whisper-1.`,
+      'model',
+    );
+  if (!isSttModel(model)) return v1ModelNotFound(model);
 
   const responseFormat = (text(form, 'response_format') ?? 'json') as ResponseFormat;
   if (!RESPONSE_FORMATS.includes(responseFormat))

@@ -1,8 +1,8 @@
 /** Validation of the POST /v1/audio/speech JSON body into engine-ready parameters. */
 import { SPEECH_FORMATS, type SpeechFormat } from '../audio/encode';
 import { isTtsLanguage } from '../engines/tts/text';
-import { isTtsModel, resolveVoice } from './aliases';
-import { v1Error } from './errors';
+import { isSttModel, isTtsModel, resolveVoice, TTS_MODEL_ID } from './aliases';
+import { v1Error, v1ModelNotFound } from './errors';
 import { speechConfig } from './speech-config';
 
 export type SpeechParams = {
@@ -25,18 +25,20 @@ const NO_SSE_MODELS = ['tts-1', 'tts-1-hd'];
 const bad = (message: string, param: string, code = 'invalid_value') =>
   v1Error(400, message, { code, param });
 
-/** Parsed params, or a 400 OpenAI-shaped Response naming the offending `param`. */
+/** Parsed params, or an OpenAI-shaped 400 (404 for an unknown model) naming the offending `param`. */
 export function parseSpeechParams(body: unknown): SpeechParams | Response {
   if (!body || typeof body !== 'object' || Array.isArray(body))
     return bad('Body harus berupa objek JSON.', 'body', 'invalid_request');
   const b = body as Record<string, unknown>;
 
-  if (typeof b.model !== 'string' || !isTtsModel(b.model))
+  if (typeof b.model !== 'string' || !b.model)
+    return bad('Parameter `model` wajib diisi.', 'model', 'missing_required_parameter');
+  if (isSttModel(b.model))
     return bad(
-      `Model TTS tidak dikenal: ${String(b.model)}. Pakai supertonic-3 atau tts-1.`,
+      `Model '${b.model}' adalah model transkripsi. Pakai ${TTS_MODEL_ID} atau tts-1.`,
       'model',
-      'model_not_found',
     );
+  if (!isTtsModel(b.model)) return v1ModelNotFound(b.model);
 
   if (typeof b.input !== 'string' || b.input.trim().length === 0)
     return bad('`input` wajib berisi teks.', 'input');

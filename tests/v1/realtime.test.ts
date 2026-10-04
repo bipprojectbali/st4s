@@ -66,6 +66,7 @@ describe('session', () => {
         'unsupported_audio_format',
       ],
       [transcriptionUpdate(null, { model: 'nope-1' }), 'model_not_found'],
+      [transcriptionUpdate(null, { model: 'tts-1' }), 'invalid_value'],
       [transcriptionUpdate(null, { language: 'indonesian' }), 'invalid_value'],
       [transcriptionUpdate({ type: 'server_vad' }), 'vad_unavailable'],
       [transcriptionUpdate({ type: 'semantic_vad' }), 'unsupported_turn_detection'],

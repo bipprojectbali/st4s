@@ -95,7 +95,13 @@ describe('full app', () => {
     expect(one).toMatchObject({ id: 'whisper-1', object: 'model', owned_by: 'st4s' });
     expect(typeof one.created).toBe('number');
 
-    await expectV1(await call('/api/v1/models/gpt-9'), 404, 'not_found_error', 'model_not_found');
+    const notFound = await expectV1(
+      await call('/api/v1/models/gpt-9'),
+      404,
+      'invalid_request_error',
+      'model_not_found',
+    );
+    expect(notFound.param).toBe('model');
 
     const voices = await json(await call('/api/v1/audio/voices'));
     const data = voices.data as { id: string; voice: string }[];

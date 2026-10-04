@@ -112,12 +112,23 @@ describe('openai SDK — audio.transcriptions.create', () => {
     expect(vtt).toContain('00:00:00.500 --> 00:00:01.000\nApa kabar?');
   });
 
-  test('an unknown model is a BadRequestError on param model', async () => {
+  test('an unknown model is a NotFoundError with code model_not_found', async () => {
     const err = await sdk.audio.transcriptions
       .create({ file: await file(), model: 'gpt-4o' })
       .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(NotFoundError);
+    expect((err as NotFoundError).param).toBe('model');
+    expect((err as NotFoundError).code).toBe('model_not_found');
+    expect(fakeStt.last).toBeNull();
+  });
+
+  test('a TTS model is a BadRequestError invalid_value, not model_not_found', async () => {
+    const err = await sdk.audio.transcriptions
+      .create({ file: await file(), model: 'tts-1' })
+      .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(BadRequestError);
     expect((err as BadRequestError).param).toBe('model');
+    expect((err as BadRequestError).code).toBe('invalid_value');
     expect(fakeStt.last).toBeNull();
   });
 
@@ -186,6 +197,19 @@ describe('raw /api/v1/audio/transcriptions', () => {
       expect(err).toMatchObject({ type: 'invalid_request_error', param });
     }
     expect(fakeStt.last).toBeNull();
+  });
+
+  test('unknown model: raw 404 body in exact OpenAI shape', async () => {
+    const res = await post(form({ model: 'gpt-9' }, wav));
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({
+      error: {
+        message: expect.any(String),
+        type: 'invalid_request_error',
+        param: 'model',
+        code: 'model_not_found',
+      },
+    });
   });
 
   test('non-WAV audio without ffmpeg is 400 unsupported_format', async () => {

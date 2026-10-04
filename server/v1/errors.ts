@@ -32,22 +32,39 @@ export function v1ErrorBody(
   message: string,
   code: string | null = null,
   param: string | null = null,
+  type?: V1ErrorType,
 ) {
-  return { error: { message, type: TYPE_BY_STATUS[status] ?? 'server_error', param, code } };
+  return {
+    error: { message, type: type ?? TYPE_BY_STATUS[status] ?? 'server_error', param, code },
+  };
 }
 
 export function v1Error(
   status: number,
   message: string,
-  opts: { code?: string | null; param?: string | null; headers?: Record<string, string> } = {},
+  opts: {
+    code?: string | null;
+    param?: string | null;
+    type?: V1ErrorType;
+    headers?: Record<string, string>;
+  } = {},
 ): Response {
   return new Response(
-    JSON.stringify(v1ErrorBody(status, message, opts.code ?? null, opts.param ?? null)),
+    JSON.stringify(v1ErrorBody(status, message, opts.code ?? null, opts.param ?? null, opts.type)),
     {
       status,
       headers: { 'content-type': 'application/json', 'cache-control': 'no-store', ...opts.headers },
     },
   );
+}
+
+/** 404 model_not_found for any unknown model id; api.openai.com sends it with type invalid_request_error. */
+export function v1ModelNotFound(model: string): Response {
+  return v1Error(404, `Model '${model}' tidak ada. Lihat GET /api/v1/models.`, {
+    code: 'model_not_found',
+    param: 'model',
+    type: 'invalid_request_error',
+  });
 }
 
 /** 503 engine_unloaded + Retry-After: the job was dropped by an unload; a retry reloads the engine. */
