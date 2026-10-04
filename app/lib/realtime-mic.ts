@@ -1,4 +1,11 @@
 /** Microphone capture through an inline AudioWorklet that posts mono Float32 frames every ~100 ms. */
+import {
+  abortable,
+  isAbortError,
+  START_STAGE_TIMEOUT_MS,
+  StartAbortedError,
+  WORKLET_TIMEOUT_MESSAGE,
+} from './realtime-start';
 
 // Worklet → main messages: a Float32Array frame, or this marker answering one flush request.
 const FLUSHED = 'flushed';
@@ -82,6 +89,7 @@ export async function flushThenCommit(
 /** Readable Indonesian message for a getUserMedia / AudioWorklet failure. */
 export function micErrorMessage(e: unknown): string {
   const name = e instanceof Error ? e.name : '';
+  if (e instanceof Error && e.message === WORKLET_TIMEOUT_MESSAGE) return e.message;
   if (name === 'NotAllowedError' || name === 'SecurityError')
     return 'Izin mikrofon ditolak. Izinkan akses mikrofon untuk situs ini di pengaturan browser, lalu coba lagi.';
   if (name === 'NotFoundError' || name === 'OverconstrainedError')
@@ -92,14 +100,22 @@ export function micErrorMessage(e: unknown): string {
   return `Mikrofon tidak bisa dipakai: ${msg}`;
 }
 
+const stopTracks = (s: MediaStream) => {
+  for (const t of s.getTracks()) t.stop();
+};
+
 /**
  * Starts capture and calls `onFrames(samples, sampleRate)` per frame. The AudioContext is created
- * before the first await so it stays tied to the click (autoplay policy). Throws a readable Error.
+ * before the first await so it stays tied to the click (autoplay policy). Aborting `signal`
+ * releases everything acquired so far and rejects with an AbortError; other failures throw a
+ * readable Error. A worklet load that hangs past START_STAGE_TIMEOUT_MS fails with a hint.
  */
 export async function startMic(
   onFrames: (samples: Float32Array, rate: number) => void,
+  signal: AbortSignal,
   frameMs = 100,
 ): Promise<Mic> {
+  if (signal.aborted) throw new StartAbortedError();
   if (typeof AudioContext === 'undefined' || !navigator.mediaDevices?.getUserMedia)
     throw new Error(
       'Browser ini tidak mendukung perekaman mikrofon. Pakai Chrome, Edge, atau Safari terbaru.',
@@ -107,18 +123,25 @@ export async function startMic(
   const ctx = new AudioContext();
   let stream: MediaStream | null = null;
   const release = async () => {
-    for (const t of stream?.getTracks() ?? []) t.stop();
+    if (stream) stopTracks(stream);
     if (ctx.state !== 'closed') await ctx.close();
   };
   try {
     if (!ctx.audioWorklet)
       throw new Error('AudioWorklet tidak tersedia. Buka konsol lewat HTTPS atau localhost.');
-    stream = await navigator.mediaDevices.getUserMedia({
-      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
-    });
+    stream = await abortable(
+      navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+      }),
+      signal,
+      { release: stopTracks },
+    );
     const url = URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' }));
     try {
-      await ctx.audioWorklet.addModule(url);
+      await abortable(ctx.audioWorklet.addModule(url), signal, {
+        timeoutMs: START_STAGE_TIMEOUT_MS,
+        timeoutMessage: WORKLET_TIMEOUT_MESSAGE,
+      });
     } finally {
       URL.revokeObjectURL(url);
     }
@@ -136,7 +159,7 @@ export async function startMic(
     source.connect(node);
     // The node writes no output (silence); connecting it keeps every browser pulling the graph.
     node.connect(ctx.destination);
-    if (ctx.state === 'suspended') await ctx.resume();
+    if (ctx.state === 'suspended') await abortable(ctx.resume(), signal);
     return {
       rate: ctx.sampleRate,
       flush: port.flush,
@@ -150,6 +173,7 @@ export async function startMic(
     };
   } catch (e) {
     await release();
+    if (isAbortError(e)) throw e;
     throw new Error(micErrorMessage(e), { cause: e });
   }
 }

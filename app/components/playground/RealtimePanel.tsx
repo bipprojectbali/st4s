@@ -135,13 +135,7 @@ export function RealtimePanel({
         </SimpleGrid>
         <Group gap="xs" wrap="wrap">
           {active ? (
-            <Button
-              size="sm"
-              color="red"
-              leftSection={<FiSquare size={14} />}
-              onClick={stop}
-              loading={state.connection === 'connecting'}
-            >
+            <Button size="sm" color="red" leftSection={<FiSquare size={14} />} onClick={stop}>
               Hentikan
             </Button>
           ) : (

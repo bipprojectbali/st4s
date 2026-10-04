@@ -12,12 +12,13 @@ import {
   realtimeErrorMessage,
   realtimeUrl,
 } from '~/lib/realtime-protocol';
+import { isAbortError, openSocket, SocketClosedError } from '~/lib/realtime-start';
 import { type IncomingEvent, initialRealtimeState, realtimeReducer } from '~/lib/realtime-state';
 
 // A server `error` right before a close already explained it; skip the second notification.
 const ERROR_EXPLAINS_CLOSE_MS = 2000;
 
-type Live = { ws: WebSocket | null; mic: Mic | null; stopped: boolean; lastErrorAt: number };
+type Live = { ws: WebSocket | null; mic: Mic | null; abort: AbortController; lastErrorAt: number };
 
 const fail = (title: string, message: string) =>
   notifications.show({ color: 'red', title, message, autoClose: 8000 });
@@ -44,7 +45,8 @@ export function useRealtimeTranscription() {
 
   const teardown = useCallback((s: Live | null) => {
     if (!s) return;
-    s.stopped = true;
+    // Cancels any start stage still in flight; it releases what it acquired on its own.
+    s.abort.abort();
     if (s.ws) {
       s.ws.onopen = s.ws.onmessage = s.ws.onclose = null;
       if (s.ws.readyState <= WebSocket.OPEN) s.ws.close(1000, 'client stop');
@@ -55,7 +57,9 @@ export function useRealtimeTranscription() {
 
   useEffect(() => () => teardown(live.current), [teardown]);
 
+  // Works in `connecting` too: aborting the start sequence is the only exit from a hung browser API.
   const stop = useCallback(() => {
+    if (!live.current) return;
     teardown(live.current);
     dispatch({ type: 'local.closed', lost: false });
   }, [teardown]);
@@ -63,7 +67,8 @@ export function useRealtimeTranscription() {
   const start = useCallback(
     async (opts: RealtimeOptions) => {
       teardown(live.current);
-      const s: Live = { ws: null, mic: null, stopped: false, lastErrorAt: 0 };
+      const abort = new AbortController();
+      const s: Live = { ws: null, mic: null, abort, lastErrorAt: 0 };
       live.current = s;
       dispatch({ type: 'local.connecting' });
 
@@ -74,24 +79,33 @@ export function useRealtimeTranscription() {
         const pcm = floatToPcm16(resample(frame));
         if (pcm.length) s.ws.send(JSON.stringify(buildAppend(bytesToBase64(pcm))));
       };
-      try {
-        s.mic = await startMic(onFrames);
-        if (s.stopped) return teardown(s);
-      } catch (e) {
-        if (s.stopped) return;
+      const failStart = (title: string, message: string) => {
         teardown(s);
         dispatch({ type: 'local.closed', lost: false });
-        return fail('Mikrofon tidak bisa dipakai', (e as Error).message);
+        fail(title, message);
+      };
+      // After each stage: if stop() already ran, teardown(s) releases what that stage acquired.
+      try {
+        s.mic = await startMic(onFrames, abort.signal);
+        if (abort.signal.aborted) return teardown(s);
+      } catch (e) {
+        if (isAbortError(e) || abort.signal.aborted) return;
+        return failStart('Mikrofon tidak bisa dipakai', (e as Error).message);
       }
 
-      let opened = false;
-      const ws = new WebSocket(realtimeUrl(window.location));
-      s.ws = ws;
-      ws.onopen = () => {
-        opened = true;
-        dispatch({ type: 'local.open' });
-        ws.send(JSON.stringify(buildSessionUpdate(opts)));
-      };
+      let ws: WebSocket;
+      try {
+        ws = await openSocket(() => new WebSocket(realtimeUrl(window.location)), abort.signal);
+        s.ws = ws;
+        if (abort.signal.aborted) return teardown(s);
+      } catch (e) {
+        if (isAbortError(e) || abort.signal.aborted) return;
+        if (e instanceof SocketClosedError)
+          return failStart('Koneksi realtime berakhir', closeMessage(e.code, e.reason, false));
+        return failStart('Koneksi realtime gagal', (e as Error).message);
+      }
+      dispatch({ type: 'local.open' });
+      ws.send(JSON.stringify(buildSessionUpdate(opts)));
       ws.onmessage = (m) => {
         const ev = parse(m.data);
         if (!ev) return;
@@ -105,7 +119,7 @@ export function useRealtimeTranscription() {
         teardown(s);
         dispatch({ type: 'local.closed', lost: true });
         if (Date.now() - s.lastErrorAt > ERROR_EXPLAINS_CLOSE_MS)
-          fail('Koneksi realtime berakhir', closeMessage(e.code, e.reason, opened));
+          fail('Koneksi realtime berakhir', closeMessage(e.code, e.reason, true));
       };
     },
     [teardown],
