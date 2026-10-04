@@ -407,11 +407,11 @@ Engine dimuat malas: child process dan model baru dimuat pada request pertama (a
 
 Yang harus ada di mesin (path diatur lewat env, lihat komentar di `.env.example`):
 
-- **STT** — shared library `libcrispasr` (`CRISPASR_LIB`), model Qwen3-ASR GGUF (`STT_MODEL`), opsional Silero VAD (`STT_VAD_MODEL`) untuk memotong audio panjang dan model language-ID (`STT_LID_MODEL`). Tuning: `STT_THREADS`, `STT_MAX_CHUNK_SEC`.
+- **STT** — shared library `libcrispasr` (`CRISPASR_LIB`), model Qwen3-ASR GGUF (`STT_MODEL`), opsional Silero VAD (`STT_VAD_MODEL`) untuk memotong audio panjang dan model language-ID (`STT_LID_MODEL`). Tuning: `STT_THREADS`, `STT_MAX_CHUNK_SEC`, `STT_GPU` (default mati = decode CPU; `1` = Metal dengan fallback ke CPU).
 - **TTS** — direktori model Supertonic berisi `onnx/` dan `voice_styles/` (`TTS_MODEL_DIR`). Tuning: `TTS_STEPS`, `TTS_THREADS`, `TTS_MAX_UNIT_CHARS`.
 - **ffmpeg** — untuk decode upload non-WAV dan encode mp3/opus/aac/flac (`FFMPEG_PATH`); default `ffmpeg` di `PATH`.
 - **Cek saat boot** — server memeriksa semua path di atas dan ffmpeg sekali saat start; yang hilang dicatat satu baris log per item (`error` di production, `warn` di dev) dan tampil di field `deps` `GET /api/engines`. Server tetap jalan; engine baru gagal saat dipakai. Encode ffmpeg dihentikan setelah `TTS_FFMPEG_TIMEOUT_MS` tanpa audio baru (idle), bukan total durasi stream.
-- **Memori** — child STT memakai sekitar 3 GB RSS dan child TTS sekitar 0,5 GB, jadi mesin 8 GB cukup untuk keduanya. Tiap upload yang sedang didecode juga memegang file + PCM float32 (±230 MB untuk audio 30 menit) dan antrean STT menyimpan PCM tiap job. Untuk host 8 GB disarankan `STT_MAX_QUEUE=2`, `V1_MAX_AUDIO_SEC=600`, dan `V1_DECODE_CONCURRENCY=1`–`2`.
+- **Memori** — child STT (decode CPU) memakai ~1,6 GB footprint setelah model dimuat dan ~3,45 GB sejak request pertama, lalu datar untuk audio 15 dtk maupun 60 dtk. Lonjakan sekali jalan itu berasal dari `libcrispasr`, yang memuat GGUF kedua kalinya untuk encoder audio (+1,4 GB) ditambah KV/compute (~0,4 GB). Dengan `STT_GPU=1`, salinan itu ter-wire ke Metal di luar RSS dan bisa menghabiskan RAM bebas mesin 8 GB, jadi biarkan mati di host 8 GB. Child TTS sekitar 0,5 GB, jadi mesin 8 GB cukup untuk keduanya. Tiap upload yang sedang didecode juga memegang file + PCM float32 (±230 MB untuk audio 30 menit) dan antrean STT menyimpan PCM tiap job. Untuk host 8 GB disarankan `STT_MAX_QUEUE=2`, `V1_MAX_AUDIO_SEC=600`, dan `V1_DECODE_CONCURRENCY=1`–`2`.
 
 ## File health & penyelamat konteks agent
 

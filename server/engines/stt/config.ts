@@ -10,6 +10,8 @@ export interface SttConfig {
   /** Whisper ggml model used for language ID when language is 'auto'. */
   lidModelPath: string;
   threads: number;
+  /** Metal/GPU decode. Off by default: on Apple Silicon the GPU path wires both GGUF copies (see README Memori). */
+  useGpu: boolean;
   defaultLanguage: string;
   /** Upper bound of one VAD slice in seconds (bounds decoder memory). */
   maxChunkSec: number;
@@ -32,6 +34,7 @@ export function loadSttConfig(env: Record<string, string | undefined> = process.
     vadModelPath: env.STT_VAD_MODEL ?? path.join(CACHE, 'ggml-silero-v6.2.0.bin'),
     lidModelPath: env.STT_LID_MODEL || path.join(CACHE, 'ggml-tiny.bin'),
     threads: Math.max(1, int(env.STT_THREADS, 4)),
+    useGpu: /^(1|true|yes|on)$/i.test(env.STT_GPU ?? ''),
     defaultLanguage: env.STT_DEFAULT_LANGUAGE || 'id',
     maxChunkSec: Math.max(1, int(env.STT_MAX_CHUNK_SEC, 30)),
     maxQueue: int(env.STT_MAX_QUEUE, 4),
