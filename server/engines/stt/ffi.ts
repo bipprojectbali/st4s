@@ -58,8 +58,8 @@ export function openCrispasr(libPath: string) {
     threads: number,
     opts: { threshold?: number; minSilenceMs?: number; padMs?: number } = {},
   ): [number, number][] | null {
-    // Patched libcrispasr (scripts/crispasr/crisp-vad-load-error.patch) returns -3 for a model it cannot load or run;
-    // an unpatched build returns 0 ("no speech") then, so a missing file is still checked here.
+    // libcrispasr >= v0.8.41 returns -3 for a model it cannot load, and with scripts/crispasr/crisp-vad-inference-error.patch also when Silero fails;
+    // without the patch a failed inference still reads as 0 ("no speech"); older builds also need the missing-file check.
     if (!existsSync(vadModel)) return null;
     const out = new BigUint64Array(1);
     // Values <= 0 select libcrispasr defaults (threshold 0.5, min silence 100 ms); Silero ctx is cached per model.

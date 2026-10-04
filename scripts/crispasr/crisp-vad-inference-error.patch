@@ -1,3 +1,7 @@
+s4s's only libcrispasr patch, and the pending upstream submission (CrispStrobe/CrispASR, not sent yet).
+Made with git format-patch against upstream main 199de52d9; applies unchanged on the v0.8.41 pin in build.sh.
+Delete it, and drop it from PATCHES in build.sh, once upstream ships it.
+
 From 3d4b27dc411c2b908aca249a5aa759fa478c252b Mon Sep 17 00:00:00 2001
 From: bipproduction <bip.production.js@gmail.com>
 Date: Sun, 4 Oct 2026 22:42:09 +0800
