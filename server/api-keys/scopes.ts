@@ -161,6 +161,8 @@ export function requiredScope(method: string, pathname: string): Scope | null {
   if (p.startsWith('/api/logs')) return read ? 'logs:read' : null;
   if (p.startsWith('/api/file-health')) return read ? 'file-health:read' : null;
   if (p.startsWith('/api/ops/reset')) return null;
+  // Engine control loads/frees models: super-admin browser session only.
+  if (p.startsWith('/api/engines')) return null;
   if (p.startsWith('/api/ops')) return read ? 'ops:read' : null;
   if (p.startsWith('/api/me')) return read ? 'me:read' : null;
   if (p.startsWith('/api/posts')) return read ? null : 'posts:write';

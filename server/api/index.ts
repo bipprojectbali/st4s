@@ -13,6 +13,7 @@ import { analyticsApi } from './analytics';
 import { apiKeysApi } from './api-keys';
 import { apiKeysUsageApi } from './api-keys-usage';
 import { auditApi } from './audit';
+import { enginesApi } from './engines';
 import { fileHealthApi } from './file-health';
 import { logsApi } from './logs';
 import { meApi } from './me';
@@ -88,6 +89,8 @@ export const api = new Elysia({ prefix: '/api' })
   .use(settingsOpsApi)
   // Operational tools (status, MCP catalog, cache resets) — super-admin only.
   .use(opsApi)
+  // Speech engine status + warmup/unload (super-admin session only).
+  .use(enginesApi)
   // Current-user endpoints (profile page) + personal API keys.
   .use(meApiKeysApi)
   .use(meApi)

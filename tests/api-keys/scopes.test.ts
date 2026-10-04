@@ -38,6 +38,8 @@ describe('requiredScope', () => {
     expect(requiredScope('GET', '/api/me/api-keys')).toBeNull();
     expect(requiredScope('POST', '/api/me/api-keys/x/rotate')).toBeNull();
     expect(requiredScope('POST', '/api/ops/reset/limiter')).toBeNull();
+    expect(requiredScope('GET', '/api/engines')).toBeNull();
+    expect(requiredScope('POST', '/api/engines/stt/warmup')).toBeNull();
     expect(requiredScope('DELETE', '/api/logs')).toBeNull();
     expect(requiredScope('GET', '/api/posts')).toBeNull();
     expect(isPublicRead('GET', '/api/posts')).toBe(true);
