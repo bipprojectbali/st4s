@@ -64,6 +64,8 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 - `/dev/engines` kini selalu menampilkan ringkasan memory guard (level, sisa RAM, ambang menipis/kritis/darurat, budget STT/TTS). Judul peringatan mengikuti keadaan sebenarnya ("Request audio ditolak sampai RAM pulih", "STT di-unload otomatis", penolakan budget) dan tidak lagi berbunyi "RAM normal" dengan warna peringatan.
 - Waktu "Dimuat" di kartu engine tidak lagi terpotong di desktop; kolom input dan slider di `/dev/playground` memakai lebar penuh di layar ponsel; label kartu statistik (mis. `/dev/audit`) tidak lagi terpotong di layar 375 px.
 - Log memory guard di konsol dev tidak lagi tampil sebagai `USERLVL`, dan levelnya terbaca benar di Server Logs dan log JSON production.
+- Tombol "Hentikan" di panel Realtime `/dev/playground` kini bisa ditekan selama "Menghubungkan…" dan langsung membatalkan sesi (mikrofon dan koneksi dilepas), jadi sesi yang macet tidak lagi memaksa muat ulang halaman. Bila browser tidak bisa menyiapkan perekam audio atau server tidak merespons dalam 10 detik, panel menampilkan pesan error yang jelas alih-alih menunggu terus.
+- Audio hening atau tanpa ucapan kini menghasilkan transkrip kosong (`""`), bukan teks karangan seperti "okay.", baik di `/api/v1/audio/transcriptions` maupun giliran Realtime (event `completed` dengan `transcript: ""`, tanpa `delta` kosong). Bila model VAD tidak ada atau gagal dijalankan, transkripsi tetap berjalan seperti sebelumnya dan alasannya dicatat di log.
 
 ### Security
 - Body request di production dibatasi `V1_MAX_UPLOAD_MB` + 1 MiB (default 26 MiB) dan ditolak 413 sebelum dibaca, sehingga upload raksasa tidak lagi menghabiskan memori server sebelum autentikasi.

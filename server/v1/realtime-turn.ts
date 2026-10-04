@@ -81,12 +81,14 @@ export function createTurnRunner(d: TurnDeps) {
         signal: ctrl.signal,
       });
       const base = { item_id: itemId, content_index: 0 };
-      d.send(
-        serverEvent('conversation.item.input_audio_transcription.delta', {
-          ...base,
-          delta: r.text,
-        }),
-      );
+      // Silence transcribes to '': no empty delta, just a completed with transcript ''.
+      if (r.text)
+        d.send(
+          serverEvent('conversation.item.input_audio_transcription.delta', {
+            ...base,
+            delta: r.text,
+          }),
+        );
       d.send(
         serverEvent('conversation.item.input_audio_transcription.completed', {
           ...base,

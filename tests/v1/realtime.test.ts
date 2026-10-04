@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import { setEngines } from '../../server/engines/registry';
 import { fakeStt, resetFake, stubSession, TRANSCRIPT } from './fake-stt';
 import {
@@ -132,6 +132,24 @@ describe('manual turns', () => {
     expect(fakeStt.last?.audio.length).toBeGreaterThan(4_400);
     expect(fakeStt.last?.audio.length).toBeLessThan(4_900);
     expect(fakeStt.last?.language).toBe(undefined);
+    c.ws.close();
+  });
+
+  test('a silent turn (engine returns empty text) → completed with transcript "" and no delta', async () => {
+    const silent = spyOn(fakeStt, 'transcribe').mockResolvedValueOnce({
+      text: '',
+      segments: [],
+      duration: 0.3,
+      language: 'unknown',
+    });
+    const c = await open();
+    appendAll(c, pcmChunks(300, 0));
+    c.send({ type: 'input_audio_buffer.commit' });
+    const done = await c.next('conversation.item.input_audio_transcription.completed');
+    silent.mockRestore();
+    expect(done.transcript).toBe('');
+    expect(c.types()).not.toContain('conversation.item.input_audio_transcription.delta');
+    expect(c.types()).not.toContain('conversation.item.input_audio_transcription.failed');
     c.ws.close();
   });
 
