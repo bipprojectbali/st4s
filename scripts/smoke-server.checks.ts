@@ -98,6 +98,13 @@ export const SMOKE_CHECKS: SmokeCheck[] = [
     header: { name: 'etag' },
   },
   {
+    name: 'skill.md untuk agent',
+    path: '/skill.md',
+    status: 200,
+    contentType: 'text/markdown',
+    bodyIncludes: '/api/v1 and your API key',
+  },
+  {
     name: 'llms.txt',
     path: '/llms.txt',
     status: 200,

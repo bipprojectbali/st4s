@@ -34,6 +34,7 @@ const SKIP_PREFIXES = [
   '/README.md',
   '/readme.md',
   '/llms', // agent docs, see server/readme.ts
+  '/skill.md',
   '/robots.txt', // crawler files, see server/seo.ts
   '/sitemap.xml',
   '/site.webmanifest',

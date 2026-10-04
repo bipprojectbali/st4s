@@ -39,6 +39,7 @@ const EXEMPT_PREFIXES = [
   '/README.md',
   '/readme.md',
   '/llms',
+  '/skill.md',
   '/robots.txt',
   '/sitemap.xml',
   '/site.webmanifest',

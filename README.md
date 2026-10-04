@@ -19,7 +19,7 @@ Dokumentasi ini adalah satu-satunya sumber dan bisa dibaca tanpa JavaScript:
 - `GET /api/version` — `{ name, version, env, bun }`, publik.
 - API dipakai dengan header `X-API-Key: mk_live_…` atau `Authorization: Bearer mk_live_…`; scope per route ada di bagian **API keys**. Semua error API berbentuk JSON `{ error, code, status, requestId }`.
 - Server MCP di `/api/mcp` (Streamable HTTP) menerima API key ber-scope `mcp`; katalog tool ada di bagian **Dev console → Tools & MCP**.
-- Speech-to-text dan text-to-speech kompatibel OpenAI ada di `/api/v1` (`baseURL: <host>/api/v1` di SDK `openai`); error di bawah `/api/v1` berbentuk OpenAI `{ error: { message, type, param, code } }`. Lihat bagian **Speech API (kompatibel OpenAI)**.
+- Speech-to-text dan text-to-speech kompatibel OpenAI ada di `/api/v1` (`baseURL: <host>/api/v1` di SDK `openai`); panduan pemakaian untuk agent (auth, contoh, endpoint, kode error) di `GET /skill.md`.
 
 Untuk mesin pencari: `/robots.txt` (area login, konsol, dan API ditutup) dan `/sitemap.xml` dibangun dari `APP_URL`, sedangkan landing punya meta Open Graph/Twitter, `og:image` (`/og.png`, 1200×630), dan `canonical` — jadi set `APP_URL` ke origin publik di produksi.
 
@@ -313,127 +313,15 @@ Plugin `rateLimitPlugin()` harus didaftarkan **pertama** di `server/api/index.ts
 
 ## Speech API (kompatibel OpenAI)
 
-App ini juga speech server lokal: speech-to-text memakai **Qwen3-ASR 1.7B** (GGUF lewat `libcrispasr`) dan text-to-speech memakai **Supertonic 3** (ONNX lewat `onnxruntime-node`). Endpoint di `/api/v1` meniru API audio OpenAI, jadi SDK `openai` (dan klien lain yang kompatibel) cukup diarahkan ke `baseURL: <host>/api/v1`.
+App ini juga speech server lokal: speech-to-text memakai **Qwen3-ASR 1.7B** (GGUF lewat `libcrispasr`) dan text-to-speech memakai **Supertonic 3** (ONNX lewat `onnxruntime-node`). Endpoint di `/api/v1` meniru API audio OpenAI, jadi SDK `openai` cukup diarahkan ke `baseURL: <host>/api/v1`.
 
-**Auth.** Buat API key di `/profile` (kunci pribadi) atau `/dev/api-keys` dengan scope `stt:transcribe` (transkripsi) dan/atau `tts:speak` (sintesis), lalu kirim sebagai `Authorization: Bearer <key>` — SDK melakukannya dari `apiKey`. Sesi login browser juga diterima. Tanpa kredensial → `401 invalid_api_key`. `GET /models`, `/models/:id`, dan `/audio/voices` publik.
+**Panduan pemakaian lengkap** (auth, quickstart curl/Python/JS, parameter tiap endpoint, event SSE dan WebSocket, tabel kode error) ada di [`docs/skill.md`](docs/skill.md), dilayani publik di `GET /skill.md` dengan URL dasar diisi dari `APP_URL`. Test `tests/skill-doc.test.ts` memastikan setiap route `/api/v1` dan setiap kode error v1 di kode tercantum di sana.
 
-```js
-import OpenAI from 'openai';
-const client = new OpenAI({ apiKey: process.env.S4S_API_KEY, baseURL: 'https://your-host/api/v1' });
-```
-
-### Model & voice
-
-`GET /api/v1/models` mendaftar model beserta aliasnya; `GET /api/v1/models/:id` → `404 model_not_found` bila tidak dikenal. `GET /api/v1/audio/voices` (ekstensi s4s) → `{ object: 'list', data: [{ id, object: 'voice', voice }] }`.
-
-| Model asli | Alias OpenAI yang diterima |
-|---|---|
-| `qwen3-asr-1.7b` (STT) | `whisper-1`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe` |
-| `supertonic-3` (TTS) | `tts-1`, `tts-1-hd`, `gpt-4o-mini-tts` |
-
-Voice asli `F1`–`F5` dan `M1`–`M5`; nama voice OpenAI dipetakan (tidak peka huruf besar): `alloy`→F1, `coral`/`marin`→F2, `fable`→F3, `nova`→F4, `shimmer`/`sage`→F5, `ash`→M1, `ballad`→M2, `echo`→M3, `onyx`/`cedar`→M4, `verse`→M5.
-
-```bash
-curl https://your-host/api/v1/models
-curl https://your-host/api/v1/audio/voices
-```
-
-```js
-const models = await client.models.list();
-```
-
-### `POST /api/v1/audio/transcriptions`
-
-Multipart dengan `file` dan `model`. Opsi:
-
-- `response_format`: `json` (default), `text`, `srt`, `vtt`, `verbose_json` (+ `timestamp_granularities[]` = `word`/`segment`). `json` dan `verbose_json` membawa `usage: { type: 'duration', seconds }`; `language` di `verbose_json` berupa nama bahasa seperti whisper-1 (`"indonesian"`, `"english"`), bukan kode.
-- `stream=true` (hanya untuk `json`/`text`): SSE `transcript.text.delta` lalu `transcript.text.done` **tanpa** `usage` — SDK OpenAI hanya mengenal usage token di event itu dan s4s tidak menghitung token. Qwen3-ASR tidak punya callback per token, jadi delta datang **per potongan VAD**, bukan per kata — audio pendek bisa hanya satu delta.
-- `language`: kode ISO-639-1; kosong → `STT_DEFAULT_LANGUAGE` (default `id`). **Beda dari OpenAI:** OpenAI mendeteksi bahasa otomatis bila `language` kosong, s4s menganggapnya bahasa Indonesia. Untuk audio bahasa lain kirim `language`, atau set `STT_DEFAULT_LANGUAGE=auto` (butuh `STT_LID_MODEL`).
-- `prompt` dan ekstensi s4s `keywords` (dipisah koma) dikirim sebagai hotword ke decoder; gabungan maks. 50 istilah dan 1000 karakter, lebih dari itu → `400` dengan `param: 'keywords'`.
-- Audio: WAV didecode langsung (PCM 8/16/24/32-bit atau float32); `flac`, `mp3`, `mp4`, `mpeg`, `mpga`, `m4a`, `ogg`, `webm` lewat ffmpeg.
-- Batas: upload > `V1_MAX_UPLOAD_MB` (25) → `413 file_too_large`; durasi > `V1_MAX_AUDIO_SEC` (1800) → `400 audio_too_long`.
-- Decode audio dibatasi `V1_DECODE_CONCURRENCY` (2) upload sekaligus; request yang menunggu slot lebih dari `V1_DECODE_WAIT_MS` (5000) → `429 engine_busy`. Bila antrean STT sudah penuh, request ditolak `429` sebelum body upload dibaca.
-- Tanpa VAD (`STT_VAD_MODEL` kosong), audio dipotong rata per `STT_MAX_CHUNK_SEC`; VAD yang di-set tetapi gagal → 500 `vad_failed`. Klien yang memutus koneksi membatalkan job di batas potongan berikutnya (potongan yang sedang didecode tetap selesai), sehingga antrean langsung bergerak.
-
-```bash
-curl https://your-host/api/v1/audio/transcriptions \
-  -H "Authorization: Bearer $S4S_API_KEY" \
-  -F file=@rapat.m4a -F model=whisper-1 -F language=id -F keywords="Makuro,Supertonic"
-```
-
-```js
-import fs from 'node:fs';
-const stream = await client.audio.transcriptions.create({
-  file: fs.createReadStream('rapat.m4a'), model: 'whisper-1', stream: true,
-});
-for await (const ev of stream) if (ev.type === 'transcript.text.delta') process.stdout.write(ev.delta);
-```
-
-`POST /api/v1/audio/translations` tidak didukung → `400` dengan `code: 'unsupported'`.
-
-### `POST /api/v1/audio/speech`
-
-JSON `{ model, input, voice }`; `input` maks. 4096 karakter, `voice` berupa nama atau `{ id }`. Opsi:
-
-- `response_format`: `mp3` (default), `opus`, `aac`, `flac`, `wav`, `pcm`. Selain `wav`/`pcm` butuh ffmpeg; tanpa ffmpeg → `400 unsupported_format`.
-- `speed`: 0.25–4.
-- `stream_format`: `audio` (default, byte audio di-stream) atau `sse` (event `speech.audio.delta` berisi audio base64, lalu `speech.audio.done` dengan `usage`). `sse` ditolak untuk `tts-1`/`tts-1-hd`, sama seperti OpenAI — pakai `gpt-4o-mini-tts`.
-- Ekstensi s4s: `language` (ISO-639-1, default `TTS_DEFAULT_LANGUAGE` = `id`) dan `steps` (langkah denoising, di-clamp 1–20, default `TTS_STEPS` = 8).
-- Teks dipecah per unit (`TTS_MAX_UNIT_CHARS`, 400) dan tiap unit dikirim begitu selesai, jadi audio pertama datang sebelum seluruh teks selesai disintesis.
-
-```bash
-curl https://your-host/api/v1/audio/speech \
-  -H "Authorization: Bearer $S4S_API_KEY" -H "Content-Type: application/json" \
-  -d '{"model":"tts-1","voice":"alloy","input":"Selamat pagi.","response_format":"wav","language":"id"}' \
-  -o pagi.wav
-```
-
-```js
-const res = await client.audio.speech.create({
-  model: 'gpt-4o-mini-tts', voice: 'nova', input: 'Selamat pagi.', language: 'id', // language = ekstensi s4s
-});
-fs.writeFileSync('pagi.mp3', Buffer.from(await res.arrayBuffer()));
-```
-
-### Realtime `wss://<host>/api/v1/realtime` (transkripsi)
-
-WebSocket kompatibel OpenAI Realtime, **hanya sesi transkripsi** (`type: 'transcription'`). Sesi percakapan/respons tidak didukung. Auth sama dengan HTTP v1 (API key ber-scope `stt:transcribe` lewat `Authorization: Bearer`, atau cookie sesi login dari origin yang sama) dan dicek **sebelum** upgrade: tanpa kredensial `401`, Origin asing tanpa API key `403 origin_not_allowed`, RAM menipis `503 memory_pressure` + `Retry-After`, engine belum terdaftar `503 engine_unavailable`, sesi melebihi `RT_MAX_SESSIONS` `429 too_many_sessions`, request tanpa `Upgrade: websocket` `426 upgrade_required`. Query `?intent=transcription` opsional; intent lain dijawab `error` lalu ditutup 1008. Subprotocol `realtime` hanya dibalas bila klien menawarkannya.
-
-SDK `openai` (≥ 7) bisa dipakai apa adanya. Di Node, `OpenAIRealtimeWS` butuh paket `ws` (`npm i ws`):
-
-```js
-import { OpenAIRealtimeWS } from 'openai/realtime/ws';
-const rt = new OpenAIRealtimeWS({ intent: 'transcription' }, client); // client = new OpenAI({ baseURL: '<host>/api/v1' })
-rt.on('conversation.item.input_audio_transcription.completed', (e) => console.log(e.transcript));
-rt.socket.on('open', () => {
-  rt.send({ type: 'session.update', session: { type: 'transcription', audio: { input: {
-    format: { type: 'audio/pcm', rate: 24000 },
-    transcription: { model: 'whisper-1', language: 'id' },
-    turn_detection: { type: 'server_vad' },
-  } } } });
-  rt.send({ type: 'input_audio_buffer.append', audio: pcm16Base64 }); // potongan ±100 ms
-});
-```
-
-**Event klien:** `session.update`, `input_audio_buffer.append`, `input_audio_buffer.commit`, `input_audio_buffer.clear`. Audio wajib `audio/pcm` 24 kHz PCM16 mono base64 (server mengubahnya ke 16 kHz). `transcription.model` lewat tabel alias di atas, `language` ISO-639-1 (kosong → `STT_DEFAULT_LANGUAGE`), `prompt` jadi hotword. Event `transcription_session.update` (beta lama) tidak didukung.
-
-**Event server** (semua punya `event_id`, `item_id` tetap sama dari `speech_started` sampai `completed`): `session.created`, `session.updated`, `input_audio_buffer.speech_started`, `input_audio_buffer.speech_stopped`, `input_audio_buffer.committed` (`previous_item_id` merangkai giliran), `input_audio_buffer.cleared`, `conversation.item.added`, `conversation.item.input_audio_transcription.delta`, `conversation.item.input_audio_transcription.completed` (`usage: { type: 'duration', seconds }`), `conversation.item.input_audio_transcription.failed`, `error`. Qwen3-ASR tidak punya callback per token, jadi tiap giliran mendapat **satu** delta berisi teks penuh lalu `completed`.
-
-**Deteksi giliran.** `turn_detection: null` = commit manual. `{ type: 'server_vad' }` memakai Silero VAD asli di child STT (default `threshold` 0.5, `prefix_padding_ms` 300, `silence_duration_ms` 500); tidak ada VAD berbasis energi di proses utama. Default sesi = `server_vad` bila `STT_VAD_MODEL` ada di disk, selain itu `null`; minta `server_vad` tanpa model → `error vad_unavailable`. VAD yang gagal di tengah sesi → `error vad_failed` dan sesi beralih ke manual. Satu giliran dibatasi `RT_MAX_TURN_SEC`: dengan VAD giliran di-commit otomatis, tanpa VAD → `error turn_too_long` dan buffer dikosongkan.
-
-**Kode error** (`error.code`; sesi tetap terbuka kecuali disebut lain):
-- `session.update`: `unsupported_session_type`, `unsupported_audio_format`, `model_not_found`, `invalid_value`, `unsupported_turn_detection`, `vad_unavailable`.
-- frame/event: `invalid_json`, `invalid_event`, `unsupported_event`, `invalid_audio` (base64 rusak / jumlah byte ganjil), `input_audio_buffer_commit_empty` (< 100 ms), `turn_too_long`.
-- per giliran (di `…transcription.failed`): `engine_busy` (antrean penuh), `engine_unloaded`, `memory_pressure`, `vad_failed` (model VAD gagal memproses audio), `server_error`.
-- penutupan: `idle_timeout` (tak ada event selama `RT_IDLE_TIMEOUT_SEC`) dan `session_expired` (`RT_MAX_SESSION_SEC`) → close 1008; `memory_pressure` saat memory guard darurat → close 1013. Event `error` selalu dikirim sebelum close. Frame > 2 MB ditutup 1009.
-
-Batas lewat env (`RT_MAX_SESSIONS` 2, `RT_MAX_SESSION_SEC` 1800, `RT_IDLE_TIMEOUT_SEC` 120, `RT_MAX_TURN_SEC` 60). Tiap giliran yang di-commit tercatat sebagai pemakaian API key (`WS /api/v1/realtime`). Log hanya berisi id, ukuran, dan durasi — tidak pernah transkrip atau audio. Di belakang nginx, teruskan header `Upgrade`/`Connection` dan set `proxy_read_timeout` ≥ `RT_IDLE_TIMEOUT_SEC`.
-
-### Error, antrean, dan limit
-
-- Error di bawah `/api/v1` berbentuk OpenAI `{ error: { message, type, param, code } }` (termasuk 401, 404, 429 rate limit IP), sehingga SDK melempar exception yang tepat. Route `/api/*` lain tetap memakai `{ error, code, status, requestId }`.
-- Tiap engine memproses satu request sekaligus dengan antrean (`STT_MAX_QUEUE` 4, `TTS_MAX_QUEUE` 8). Antrean penuh → `429 engine_busy` + `Retry-After`; engine tidak tersedia, atau di-unload saat job berjalan (idle, `/dev/engines`, shutdown) → `503 engine_unavailable` (+ `Retry-After` untuk unload).
-- Rate limit IP global (lihat **Rate limiting**) juga berlaku untuk `/api/v1`.
+- **Endpoint:** `GET /api/v1/models`, `/models/:id`, `/audio/voices` (publik); `POST /api/v1/audio/transcriptions` (scope `stt:transcribe`, opsional SSE); `POST /api/v1/audio/speech` (scope `tts:speak`, stream audio atau SSE); WebSocket `/api/v1/realtime` (OpenAI Realtime, hanya sesi transkripsi, scope `stt:transcribe`); `POST /api/v1/audio/translations` → `400 unsupported`.
+- **Auth:** API key dari `/profile` atau `/dev/api-keys` sebagai `Authorization: Bearer` / `X-API-Key`, atau sesi login browser. Error di bawah `/api/v1` berbentuk OpenAI `{ error: { message, type, param, code } }`; route `/api/*` lain tetap `{ error, code, status, requestId }`.
+- **Beda utama dari OpenAI:** `language` kosong = `STT_DEFAULT_LANGUAGE` (default `id`), bukan deteksi otomatis (set `auto` + `STT_LID_MODEL` bila perlu); delta streaming per potongan VAD, bukan per token.
+- **Batas (env, default):** upload `V1_MAX_UPLOAD_MB` 25, durasi `V1_MAX_AUDIO_SEC` 1800, decode `V1_DECODE_CONCURRENCY` 2 / `V1_DECODE_WAIT_MS` 5000, antrean `STT_MAX_QUEUE` 4 / `TTS_MAX_QUEUE` 8, potongan teks TTS `TTS_MAX_UNIT_CHARS` 400, realtime `RT_MAX_SESSIONS` 2 / `RT_MAX_SESSION_SEC` 1800 / `RT_IDLE_TIMEOUT_SEC` 120 / `RT_MAX_TURN_SEC` 60. Rate limit IP global (lihat **Rate limiting**) juga berlaku.
+- **Realtime di belakang proxy:** teruskan header `Upgrade`/`Connection` dan set `proxy_read_timeout` ≥ `RT_IDLE_TIMEOUT_SEC`. SDK `openai` (`OpenAIRealtimeWS`) selalu memakai `wss://`, jadi butuh TLS. Tiap giliran yang di-commit tercatat sebagai pemakaian API key (`WS /api/v1/realtime`).
 
 ### Engine & kebutuhan
 
