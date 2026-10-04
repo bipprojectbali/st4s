@@ -128,6 +128,18 @@ describe('/api/engines', () => {
     expect(typeof body.tts_default_language).toBe('string');
     expect(body.memory.serverRssBytes).toBeGreaterThan(0);
     expect(body.memory.totalBytes).toBeGreaterThan(0);
+    expect(body.deps.map((d: { name: string }) => d.name)).toEqual([
+      'CRISPASR_LIB',
+      'STT_MODEL',
+      'STT_VAD_MODEL',
+      'STT_LID_MODEL',
+      'TTS_MODEL_DIR',
+      'FFMPEG_PATH',
+    ]);
+    for (const d of body.deps) {
+      expect(typeof d.ok).toBe('boolean');
+      expect(typeof d.detail).toBe('string');
+    }
   });
 
   test('warmup and unload call through and are audited', async () => {

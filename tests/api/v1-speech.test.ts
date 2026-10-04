@@ -4,6 +4,7 @@ import OpenAI from 'openai';
 import { ffmpegAvailable } from '../../server/audio/encode-ffmpeg';
 import { auth } from '../../server/auth';
 import { setEngines } from '../../server/engines/registry';
+import { createTtsEngine } from '../../server/engines/tts';
 import { EngineBusyError, type SpeakRequest, type TtsEngine } from '../../server/engines/types';
 import * as rolesMod from '../../server/roles';
 import { NATIVE_VOICES } from '../../server/v1/aliases';
@@ -151,6 +152,20 @@ describe('POST /api/v1/audio/speech', () => {
     expect(res.status).toBe(429);
     expect(res.headers.get('retry-after')).toBe('3');
     expect(((await res.json()) as { error: { code: string } }).error.code).toBe('engine_busy');
+  });
+
+  test('missing TTS model dir → 503 engine_unavailable, no synthesis', async () => {
+    // Real engine with a model dir that does not exist: the sampleRate getter throws; no child is spawned.
+    setEngines({ tts: createTtsEngine({ config: { modelDir: '/nonexistent-s4s-tts-model' } }) });
+    try {
+      const res = await speak(ok({ response_format: 'wav' }));
+      expect(res.status).toBe(503);
+      const { error } = (await res.json()) as { error: { code: string; type: string; message: string } };
+      expect(error.code).toBe('engine_unavailable');
+      expect(error.message).not.toContain('/nonexistent');
+    } finally {
+      setEngines({ tts: fake });
+    }
   });
 
   test('anonymous caller → 401', async () => {

@@ -7,6 +7,7 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 ## [Unreleased]
 
 ### Added
+- Server memeriksa library, model STT/TTS, dan ffmpeg saat boot. Yang tidak ditemukan dicatat di log (error di production) dan dilaporkan di field `deps` pada `GET /api/engines`, sehingga salah konfigurasi ketahuan sebelum request pertama gagal.
 - Halaman `/dev/changelog` untuk membaca riwayat perubahan langsung dari konsol, lengkap dengan filter jenis perubahan, pencarian, dan peringatan bila versi yang berjalan belum tercatat.
 - Dev server menjalankan migrasi database otomatis saat boot, sehingga database lokal yang baru atau tertinggal tidak lagi memicu error `relation does not exist`.
 - Tautan landing page kini tampil sebagai kartu bergambar saat dibagikan (WhatsApp, X, Slack, dll) lewat meta Open Graph/Twitter, gambar `/og.png`, dan URL `canonical`.
@@ -24,10 +25,19 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 - Error di bawah `/api/v1` kini berbentuk error OpenAI (`{ error: { message, type, param, code } }`) agar SDK `openai` bisa membacanya. Route `/api/*` lain tetap memakai format lama.
 - Pesan error `/api/v1` kini berbahasa Indonesia (nilai `code`, `type`, dan status HTTP tidak berubah), dan `V1_FFMPEG_PATH` digabung ke `FFMPEG_PATH` — satu variabel kini dipakai untuk decode upload maupun encode audio.
 - Saat antrean engine penuh, API menjawab `429 engine_busy` dengan header `Retry-After` agar klien tahu kapan mencoba lagi.
+- Transkripsi menolak request lebih awal saat antrean STT penuh (sebelum upload dibaca), dan decode audio dibatasi `V1_DECODE_CONCURRENCY` (default 2) agar lonjakan upload tidak menghabiskan memori.
+- `prompt` + `keywords` transkripsi dibatasi 50 istilah dan 1000 karakter; lebih dari itu dijawab `400` dengan `param: 'keywords'`.
+- README menjelaskan bahwa bahasa default transkripsi adalah `id` (berbeda dari deteksi otomatis OpenAI) dan memberi rekomendasi limit untuk host 8 GB.
 - Server dev, production, dan binary kini menyiapkan engine suara saat boot dan mematikannya dengan rapi saat dihentikan (Ctrl+C atau SIGTERM).
 - Binary bisa menjalankan engine suara tanpa Bun terpasang. Untuk text-to-speech, letakkan library onnxruntime di samping binary (lihat README).
 
 ### Fixed
+- Transkripsi tanpa model VAD kini memotong audio per `STT_MAX_CHUNK_SEC` alih-alih mendecode seluruh file sekaligus.
+- Klien yang memutus koneksi saat transkripsi berjalan kini menghentikan job di batas potongan berikutnya, sehingga request berikutnya di antrean tidak ikut menunggu.
+- Job transkripsi yang terhenti karena engine di-unload kini dijawab `503 engine_unavailable` + `Retry-After` (bukan 500), dan unload yang dipanggil bersamaan tidak lagi menggantung.
+- Event error di tengah stream transkripsi kini membawa `type: 'error'` seperti event SSE lainnya.
+- Respons text-to-speech panjang dalam format `mp3`/`opus`/`aac`/`flac` tidak lagi terpotong di tengah saat antrean engine ramai. `TTS_FFMPEG_TIMEOUT_MS` kini batas idle (tanpa audio baru), bukan batas total durasi stream.
+- `/api/v1/audio/speech` menjawab `503 engine_unavailable` (bukan 500) bila direktori model TTS tidak ditemukan.
 - Beberapa project turunan template kini bisa menjalankan `bun run dev` bersamaan di port berbeda. HMR memakai port aplikasi itu sendiri, bukan port 24678 bersama, sehingga error `WebSocket server error: Port ... is already in use` hilang dan browser tidak lagi menerima hot reload dari project lain.
 - Server Logs tidak lagi menggeser posisi scroll setiap beberapa detik. Log baru kini datang langsung dari server (live, tanpa refresh berkala), dan saat kamu sedang membaca di bawah, daftar ditahan dengan tombol "N log baru" untuk kembali ke atas.
 - Layar konsol tidak lagi berkedip dan scroll sidebar tidak lagi melompat ke atas sesaat setelah halaman terbuka. Cache data kini terpisah per request dan per tab, sehingga data seorang user juga tidak bisa ikut terbawa ke render user lain di server.

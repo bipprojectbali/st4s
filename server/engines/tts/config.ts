@@ -23,10 +23,15 @@ function intEnv(name: string, fallback: number, min: number): number {
   return n;
 }
 
+/** TTS_MODEL_DIR, or the default ~/.wibu/tts/model. */
+export function ttsModelDir(env: Record<string, string | undefined> = process.env): string {
+  return env.TTS_MODEL_DIR || path.join(os.homedir(), '.wibu', 'tts', 'model');
+}
+
 /** Read the TTS config from process.env. */
 export function loadTtsConfig(): TtsConfig {
   return {
-    modelDir: process.env.TTS_MODEL_DIR || path.join(os.homedir(), '.wibu', 'tts', 'model'),
+    modelDir: ttsModelDir(),
     steps: intEnv('TTS_STEPS', 8, 1),
     threads: intEnv('TTS_THREADS', 0, 0),
     maxQueue: intEnv('TTS_MAX_QUEUE', 8, 1),

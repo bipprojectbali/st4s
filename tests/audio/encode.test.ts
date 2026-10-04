@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { encodeNative, floatToS16le, PCM_RATE, resampleLinear, wavHeader } from '../../server/audio/encode';
-import { encodeFfmpeg, ffmpegAvailable } from '../../server/audio/encode-ffmpeg';
+import { encodeFfmpeg, FfmpegIdleError, ffmpegAvailable } from '../../server/audio/encode-ffmpeg';
 
 async function collect(it: AsyncIterable<Uint8Array>): Promise<Uint8Array> {
   const parts: Uint8Array[] = [];
@@ -62,7 +62,7 @@ describe.skipIf(!ffmpegAvailable('ffmpeg'))('encodeFfmpeg', () => {
 
   test('mp3 starts with ID3 or an MPEG frame sync', async () => {
     const out = await collect(
-      encodeFfmpeg({ bin: 'ffmpeg', format: 'mp3', sampleRate: 24_000, pcm16: pcm16(), signal: new AbortController().signal, timeoutMs: 30_000 }),
+      encodeFfmpeg({ bin: 'ffmpeg', format: 'mp3', sampleRate: 24_000, pcm16: pcm16(), signal: new AbortController().signal, idleTimeoutMs: 30_000 }),
     );
     const id3 = new TextDecoder().decode(out.slice(0, 3)) === 'ID3';
     expect(id3 || (out[0] === 0xff && (out[1] & 0xe0) === 0xe0)).toBe(true);
@@ -71,7 +71,7 @@ describe.skipIf(!ffmpegAvailable('ffmpeg'))('encodeFfmpeg', () => {
   test('opus is an Ogg stream, flac has fLaC magic', async () => {
     for (const [format, magic] of [['opus', 'OggS'], ['flac', 'fLaC']] as const) {
       const out = await collect(
-        encodeFfmpeg({ bin: 'ffmpeg', format, sampleRate: 24_000, pcm16: pcm16(), signal: new AbortController().signal, timeoutMs: 30_000 }),
+        encodeFfmpeg({ bin: 'ffmpeg', format, sampleRate: 24_000, pcm16: pcm16(), signal: new AbortController().signal, idleTimeoutMs: 30_000 }),
       );
       expect(new TextDecoder().decode(out.slice(0, 4))).toBe(magic);
     }
@@ -86,7 +86,39 @@ describe.skipIf(!ffmpegAvailable('ffmpeg'))('encodeFfmpeg', () => {
     }
     setTimeout(() => ctrl.abort(), 100);
     const t0 = performance.now();
-    await collect(encodeFfmpeg({ bin: 'ffmpeg', format: 'mp3', sampleRate: 24_000, pcm16: slow(), signal: ctrl.signal, timeoutMs: 30_000 })).catch(() => null);
+    await collect(encodeFfmpeg({ bin: 'ffmpeg', format: 'mp3', sampleRate: 24_000, pcm16: slow(), signal: ctrl.signal, idleTimeoutMs: 30_000 })).catch(() => null);
     expect(performance.now() - t0).toBeLessThan(2_000);
+  }, 10_000);
+
+  test('idle timeout is not triggered while chunks keep flowing past the timeout', async () => {
+    async function* steady(gapMs: number) {
+      for (let i = 0; i < 8; i++) {
+        yield floatToS16le(tone.subarray(i * 3_000, (i + 1) * 3_000));
+        if (gapMs) await Bun.sleep(gapMs);
+      }
+    }
+    const run = (gapMs: number) =>
+      collect(
+        encodeFfmpeg({ bin: 'ffmpeg', format: 'flac', sampleRate: 24_000, pcm16: steady(gapMs), signal: new AbortController().signal, idleTimeoutMs: 400 }),
+      );
+    const full = await run(0);
+    const t0 = performance.now();
+    const out = await run(100);
+    expect(performance.now() - t0).toBeGreaterThan(700);
+    expect(new TextDecoder().decode(out.slice(0, 4))).toBe('fLaC');
+    expect(out.length).toBe(full.length);
+  }, 10_000);
+
+  test('idle timeout kills ffmpeg after silence and throws FfmpegIdleError', async () => {
+    async function* stalls() {
+      yield floatToS16le(tone);
+      await Bun.sleep(5_000);
+    }
+    const t0 = performance.now();
+    const err = await collect(
+      encodeFfmpeg({ bin: 'ffmpeg', format: 'mp3', sampleRate: 24_000, pcm16: stalls(), signal: new AbortController().signal, idleTimeoutMs: 300 }),
+    ).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(FfmpegIdleError);
+    expect(performance.now() - t0).toBeLessThan(2_500);
   }, 10_000);
 });

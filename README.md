@@ -337,10 +337,12 @@ Multipart dengan `file` dan `model`. Opsi:
 
 - `response_format`: `json` (default), `text`, `srt`, `vtt`, `verbose_json` (+ `timestamp_granularities[]` = `word`/`segment`).
 - `stream=true` (hanya untuk `json`/`text`): SSE `transcript.text.delta` lalu `transcript.text.done` dengan `usage: { type: 'duration', seconds }`. Qwen3-ASR tidak punya callback per token, jadi delta datang **per potongan VAD**, bukan per kata — audio pendek bisa hanya satu delta.
-- `language`: kode ISO-639-1; kosong → `STT_DEFAULT_LANGUAGE` (default `id`).
-- `prompt` dan ekstensi s4s `keywords` (dipisah koma) dikirim sebagai hotword ke decoder.
+- `language`: kode ISO-639-1; kosong → `STT_DEFAULT_LANGUAGE` (default `id`). **Beda dari OpenAI:** OpenAI mendeteksi bahasa otomatis bila `language` kosong, s4s menganggapnya bahasa Indonesia. Untuk audio bahasa lain kirim `language`, atau set `STT_DEFAULT_LANGUAGE=auto` (butuh `STT_LID_MODEL`).
+- `prompt` dan ekstensi s4s `keywords` (dipisah koma) dikirim sebagai hotword ke decoder; gabungan maks. 50 istilah dan 1000 karakter, lebih dari itu → `400` dengan `param: 'keywords'`.
 - Audio: WAV didecode langsung (PCM 8/16/24/32-bit atau float32); `flac`, `mp3`, `mp4`, `mpeg`, `mpga`, `m4a`, `ogg`, `webm` lewat ffmpeg.
 - Batas: upload > `V1_MAX_UPLOAD_MB` (25) → `413 file_too_large`; durasi > `V1_MAX_AUDIO_SEC` (1800) → `400 audio_too_long`.
+- Decode audio dibatasi `V1_DECODE_CONCURRENCY` (2) upload sekaligus; request yang menunggu slot lebih dari `V1_DECODE_WAIT_MS` (5000) → `429 engine_busy`. Bila antrean STT sudah penuh, request ditolak `429` sebelum body upload dibaca.
+- Tanpa VAD (`STT_VAD_MODEL` kosong atau gagal), audio dipotong rata per `STT_MAX_CHUNK_SEC`. Klien yang memutus koneksi membatalkan job di batas potongan berikutnya (potongan yang sedang didecode tetap selesai), sehingga antrean langsung bergerak.
 
 ```bash
 curl https://your-host/api/v1/audio/transcriptions \
@@ -385,7 +387,7 @@ fs.writeFileSync('pagi.mp3', Buffer.from(await res.arrayBuffer()));
 ### Error, antrean, dan limit
 
 - Error di bawah `/api/v1` berbentuk OpenAI `{ error: { message, type, param, code } }` (termasuk 401, 404, 429 rate limit IP), sehingga SDK melempar exception yang tepat. Route `/api/*` lain tetap memakai `{ error, code, status, requestId }`.
-- Tiap engine memproses satu request sekaligus dengan antrean (`STT_MAX_QUEUE` 4, `TTS_MAX_QUEUE` 8). Antrean penuh → `429 engine_busy` + `Retry-After`; engine tidak tersedia → `503 engine_unavailable`.
+- Tiap engine memproses satu request sekaligus dengan antrean (`STT_MAX_QUEUE` 4, `TTS_MAX_QUEUE` 8). Antrean penuh → `429 engine_busy` + `Retry-After`; engine tidak tersedia, atau di-unload saat job berjalan (idle, `/dev/engines`, shutdown) → `503 engine_unavailable` (+ `Retry-After` untuk unload).
 - Rate limit IP global (lihat **Rate limiting**) juga berlaku untuk `/api/v1`.
 
 ### Engine & kebutuhan
@@ -397,7 +399,8 @@ Yang harus ada di mesin (path diatur lewat env, lihat komentar di `.env.example`
 - **STT** — shared library `libcrispasr` (`CRISPASR_LIB`), model Qwen3-ASR GGUF (`STT_MODEL`), opsional Silero VAD (`STT_VAD_MODEL`) untuk memotong audio panjang dan model language-ID (`STT_LID_MODEL`). Tuning: `STT_THREADS`, `STT_MAX_CHUNK_SEC`.
 - **TTS** — direktori model Supertonic berisi `onnx/` dan `voice_styles/` (`TTS_MODEL_DIR`). Tuning: `TTS_STEPS`, `TTS_THREADS`, `TTS_MAX_UNIT_CHARS`.
 - **ffmpeg** — untuk decode upload non-WAV dan encode mp3/opus/aac/flac (`FFMPEG_PATH`); default `ffmpeg` di `PATH`.
-- **Memori** — child STT memakai sekitar 3 GB RSS dan child TTS sekitar 0,5 GB, jadi mesin 8 GB cukup untuk keduanya.
+- **Cek saat boot** — server memeriksa semua path di atas dan ffmpeg sekali saat start; yang hilang dicatat satu baris log per item (`error` di production, `warn` di dev) dan tampil di field `deps` `GET /api/engines`. Server tetap jalan; engine baru gagal saat dipakai. Encode ffmpeg dihentikan setelah `TTS_FFMPEG_TIMEOUT_MS` tanpa audio baru (idle), bukan total durasi stream.
+- **Memori** — child STT memakai sekitar 3 GB RSS dan child TTS sekitar 0,5 GB, jadi mesin 8 GB cukup untuk keduanya. Tiap upload yang sedang didecode juga memegang file + PCM float32 (±230 MB untuk audio 30 menit) dan antrean STT menyimpan PCM tiap job. Untuk host 8 GB disarankan `STT_MAX_QUEUE=2`, `V1_MAX_AUDIO_SEC=600`, dan `V1_DECODE_CONCURRENCY=1`–`2`.
 
 ## File health & penyelamat konteks agent
 

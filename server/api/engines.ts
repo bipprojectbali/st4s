@@ -2,6 +2,7 @@
 import os from 'node:os';
 import { Elysia } from 'elysia';
 import { AUDIT_ACTIONS, audit } from '../audit';
+import { checkEngineDeps } from '../engines/deps';
 import { getStt, getTts } from '../engines/registry';
 import { loadSttConfig } from '../engines/stt/config';
 import { TTS_LANGUAGES } from '../engines/tts/text';
@@ -44,7 +45,7 @@ function ttsVoices(): string[] {
   }
 }
 
-/** Engine status, voices, default languages and memory figures (shared by the API and the page loader). */
+/** Engine status, voices, default languages, dependency check and memory figures (shared by the API and the page loader). */
 export function engineOverview() {
   return {
     stt: statusOf('stt'),
@@ -53,6 +54,7 @@ export function engineOverview() {
     tts_languages: [...TTS_LANGUAGES] as string[],
     stt_default_language: loadSttConfig().defaultLanguage,
     tts_default_language: speechConfig.defaultLanguage,
+    deps: checkEngineDeps(),
     memory: {
       serverRssBytes: process.memoryUsage().rss,
       freeBytes: os.freemem(),

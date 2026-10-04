@@ -8,8 +8,8 @@ function intEnv(name: string, fallback: number): number {
 export const speechConfig = {
   /** TTS_DEFAULT_LANGUAGE — language when the request omits `language` (default "id"). */
   defaultLanguage: process.env.TTS_DEFAULT_LANGUAGE || 'id',
-  /** TTS_FFMPEG_TIMEOUT_MS — hard cap on one ffmpeg encode (default 120000). */
-  ffmpegTimeoutMs: intEnv('TTS_FFMPEG_TIMEOUT_MS', 120_000),
+  /** TTS_FFMPEG_TIMEOUT_MS — ffmpeg encode is killed after this long without progress (idle, not total; default 120000). */
+  ffmpegIdleTimeoutMs: intEnv('TTS_FFMPEG_TIMEOUT_MS', 120_000),
   /** TTS_MAX_UNIT_CHARS — longest text unit sent to the engine in one call (default 400). */
   maxUnitChars: intEnv('TTS_MAX_UNIT_CHARS', 400),
   /** OpenAI's documented input limit. */

@@ -29,10 +29,13 @@ async function speak(request: Request, body: unknown): Promise<Response> {
     });
 
   let engine: TtsEngine;
+  let sampleRate: number;
   try {
     engine = getTts();
+    // Reads onnx/tts.json; a missing TTS_MODEL_DIR is a server-side outage (503), not a 500.
+    sampleRate = engine.sampleRate;
   } catch (err) {
-    logger.error({ err, requestId }, 'tts engine not registered');
+    logger.error({ err, requestId }, 'tts engine unavailable');
     return v1Error(503, 'Mesin TTS belum siap. Coba lagi sebentar lagi.', { code: 'engine_unavailable' });
   }
   if (!engine.voices().includes(params.voice))
@@ -66,7 +69,7 @@ async function speak(request: Request, body: unknown): Promise<Response> {
   const stats: SynthStats = { samples: 0, unitsDone: 0, failed: false };
   const clips = synthUnits({ engine, units, first, base, signal: ctrl.signal, stats, requestId });
   const knownSamples = units.length === 1 ? first.length : null;
-  const bytes = encodeUnits(params, engine.sampleRate, clips, ctrl.signal, knownSamples);
+  const bytes = encodeUnits(params, sampleRate, clips, ctrl.signal, knownSamples);
   const stream = responseBody({
     bytes,
     sse: params.streamFormat === 'sse',
@@ -83,7 +86,7 @@ async function speak(request: Request, body: unknown): Promise<Response> {
           stream: params.streamFormat,
           units: units.length,
           unitsDone: stats.unitsDone,
-          audioSec: Math.round((stats.samples / engine.sampleRate) * 100) / 100,
+          audioSec: Math.round((stats.samples / sampleRate) * 100) / 100,
           ttfbMs: ms(t0, ttfbAt),
           totalMs: ms(t0),
           aborted: aborted || ctrl.signal.aborted,

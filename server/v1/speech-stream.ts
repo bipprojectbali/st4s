@@ -70,7 +70,7 @@ export function encodeUnits(
       for await (const x of clips) yield floatToS16le(x);
     })(),
     signal,
-    timeoutMs: speechConfig.ffmpegTimeoutMs,
+    idleTimeoutMs: speechConfig.ffmpegIdleTimeoutMs,
   });
 }
 

@@ -1,4 +1,6 @@
+import { isProd } from '../env';
 import { logger } from '../logger';
+import { checkEngineDeps, logEngineDeps } from './deps';
 import { setEngines } from './registry';
 import { createSttEngine } from './stt';
 import { createTtsEngine } from './tts';
@@ -11,9 +13,13 @@ const g = globalThis as typeof globalThis & { __s4sBootedEngines?: Booted; __s4s
 
 const SHUTDOWN_TIMEOUT_MS = 5_000;
 
-/** Register the real STT/TTS engines once; engines are lazy, so no child or model is started here. */
+/**
+ * Register the real STT/TTS engines once and log any missing model/library/ffmpeg; engines are
+ * lazy, so no child or model is started here.
+ */
 export function bootEngines(): Booted {
   if (g.__s4sBootedEngines) return g.__s4sBootedEngines;
+  logEngineDeps(checkEngineDeps(), isProd);
   const engines: Booted = { stt: createSttEngine(), tts: createTtsEngine() };
   setEngines(engines);
   g.__s4sBootedEngines = engines;
