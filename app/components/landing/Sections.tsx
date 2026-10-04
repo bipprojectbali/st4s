@@ -236,7 +236,7 @@ export function FaqSection() {
       <Text size="sm" c="dimmed" mt="md">
         Pertanyaan lain? Buka{' '}
         <Anchor
-          href="https://github.com/bipprojectbali/makuro-template/issues"
+          href="https://github.com/bipprojectbali/st4s/issues"
           target="_blank"
           rel="noopener noreferrer"
         >

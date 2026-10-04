@@ -26,7 +26,7 @@ import {
   FiZap,
 } from 'react-icons/fi';
 
-export const GITHUB_URL = 'https://github.com/bipprojectbali/makuro-template';
+export const GITHUB_URL = 'https://github.com/bipprojectbali/st4s';
 
 export type Feature = { icon: IconType; color: string; title: string; desc: string };
 
