@@ -20,6 +20,8 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 - Halaman `/dev/engines` untuk memantau status, memori, dan latensi engine, lengkap dengan tombol warmup dan unload.
 - Halaman `/dev/playground` untuk mencoba transkripsi dan sintesis suara langsung dari konsol.
 - Scope API key baru `stt:transcribe` dan `tts:speak`, bisa dipakai di kunci pribadi maupun kunci yang dibuat admin.
+- Memory guard untuk host dengan RAM terbatas. Saat RAM bebas di bawah 30%, request audio dan warmup baru ditolak dengan `503 memory_pressure` + `Retry-After` sampai RAM pulih. Di bawah 20%, engine yang idle di-unload lebih dulu, dan di bawah 12% STT lalu TTS di-unload segera. Engine tidak dimuat ulang otomatis. Ambang diatur lewat `MEM_GUARD_*`.
+- `/dev/engines` menampilkan peringatan saat RAM menipis atau memory guard baru saja meng-unload engine, dan badge sidebar ikut menyala. Unload otomatis tercatat di Audit Log.
 
 ### Changed
 - Error di bawah `/api/v1` kini berbentuk error OpenAI (`{ error: { message, type, param, code } }`) agar SDK `openai` bisa membacanya. Route `/api/*` lain tetap memakai format lama.
@@ -28,6 +30,8 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 - Transkripsi menolak request lebih awal saat antrean STT penuh (sebelum upload dibaca), dan decode audio dibatasi `V1_DECODE_CONCURRENCY` (default 2) agar lonjakan upload tidak menghabiskan memori.
 - `prompt` + `keywords` transkripsi dibatasi 50 istilah dan 1000 karakter; lebih dari itu dijawab `400` dengan `param: 'keywords'`.
 - README menjelaskan bahwa bahasa default transkripsi adalah `id` (berbeda dari deteksi otomatis OpenAI) dan memberi rekomendasi limit untuk host 8 GB.
+- STT kini decode di CPU secara default; set `STT_GPU=1` untuk Metal (fallback otomatis ke CPU). Di Mac 8 GB GPU membuat RAM bebas anjlok karena salinan model kedua ter-wire.
+- Pembacaan RAM bebas kini lebih akurat dan murah. Di Linux angka diambil dari `MemAvailable` di `/proc/meminfo` (sebelumnya `os.freemem`), dan di macOS dibaca langsung dari kernel tanpa menjalankan `sysctl` tiap kali.
 - Server dev, production, dan binary kini menyiapkan engine suara saat boot dan mematikannya dengan rapi saat dihentikan (Ctrl+C atau SIGTERM).
 - Binary bisa menjalankan engine suara tanpa Bun terpasang. Untuk text-to-speech, letakkan library onnxruntime di samping binary (lihat README).
 - Tombol "Lanjutkan dengan Google" kini menjadi tombol utama di halaman login saat Google dikonfigurasi; login email tampil sebagai pilihan kedua. Halaman login juga punya deskripsi untuk mesin pencari.

@@ -15,6 +15,7 @@ import { migrationStatus } from './db/schema-stats';
 import { env } from './env';
 import { getStt, getTts } from './engines/registry';
 import type { EngineStatus } from './engines/types';
+import { memoryGuardStatus, type MemoryGuardStatus } from './memory-guard/state';
 import { scanFileHealth } from './file-health/file-health.scan';
 import { settingsOverview } from './settings';
 
@@ -65,8 +66,17 @@ function engineStatuses(): EngineStatus[] {
   });
 }
 
-/** Engines badge: alert when any engine is in error, else the loaded count; none when unregistered. */
-export function engineBadge(statuses: EngineStatus[]): SidebarBadge | null {
+const GUARD_RECENT_MS = 60 * 60 * 1000;
+
+/**
+ * Engines badge: alert when any engine is in error, or while the memory guard sheds requests /
+ * unloaded an engine within the last hour; else the loaded count; none when unregistered.
+ */
+export function engineBadge(
+  statuses: EngineStatus[],
+  guard: MemoryGuardStatus = memoryGuardStatus(),
+  now = Date.now(),
+): SidebarBadge | null {
   if (!statuses.length) return null;
   const failed = statuses.filter((s) => s.state === 'error');
   if (failed.length)
@@ -74,6 +84,19 @@ export function engineBadge(statuses: EngineStatus[]): SidebarBadge | null {
       failed.length,
       'red',
       `Engine error: ${failed.map((s) => `${s.kind.toUpperCase()} — ${s.lastError ?? 'tanpa pesan'}`).join('; ')}`,
+    );
+  const last = guard.lastAction;
+  const recent = last && now - Date.parse(last.at) < GUARD_RECENT_MS;
+  if (guard.shedding || recent)
+    return alert(
+      1,
+      'orange',
+      [
+        guard.shedding && `RAM menipis (sisa ${guard.freePct ?? '?'}%): permintaan audio baru ditolak sementara`,
+        recent && last && `Memory guard melepas engine ${last.engine.toUpperCase()} pada ${new Date(last.at).toLocaleTimeString('id-ID')}`,
+      ]
+        .filter(Boolean)
+        .join('; '),
     );
   const loaded = statuses.filter((s) => s.state === 'ready' || s.state === 'busy').length;
   return info(loaded, `${loaded}/${statuses.length} engine sudah memuat model`);

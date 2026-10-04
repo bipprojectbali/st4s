@@ -412,6 +412,12 @@ Yang harus ada di mesin (path diatur lewat env, lihat komentar di `.env.example`
 - **ffmpeg** — untuk decode upload non-WAV dan encode mp3/opus/aac/flac (`FFMPEG_PATH`); default `ffmpeg` di `PATH`.
 - **Cek saat boot** — server memeriksa semua path di atas dan ffmpeg sekali saat start; yang hilang dicatat satu baris log per item (`error` di production, `warn` di dev) dan tampil di field `deps` `GET /api/engines`. Server tetap jalan; engine baru gagal saat dipakai. Encode ffmpeg dihentikan setelah `TTS_FFMPEG_TIMEOUT_MS` tanpa audio baru (idle), bukan total durasi stream.
 - **Memori** — child STT (decode CPU) memakai ~1,6 GB footprint setelah model dimuat dan ~3,45 GB sejak request pertama, lalu datar untuk audio 15 dtk maupun 60 dtk. Lonjakan sekali jalan itu berasal dari `libcrispasr`, yang memuat GGUF kedua kalinya untuk encoder audio (+1,4 GB) ditambah KV/compute (~0,4 GB). Dengan `STT_GPU=1`, salinan itu ter-wire ke Metal di luar RSS dan bisa menghabiskan RAM bebas mesin 8 GB, jadi biarkan mati di host 8 GB. Child TTS sekitar 0,5 GB, jadi mesin 8 GB cukup untuk keduanya. Tiap upload yang sedang didecode juga memegang file + PCM float32 (±230 MB untuk audio 30 menit) dan antrean STT menyimpan PCM tiap job. Untuk host 8 GB disarankan `STT_MAX_QUEUE=2`, `V1_MAX_AUDIO_SEC=600`, dan `V1_DECODE_CONCURRENCY=1`–`2`.
+- **Memory guard** — memantau RAM bebas (macOS: level memorystatus kernel + pressure; Linux: `MemAvailable`) dan bertindak bertingkat:
+  - di bawah `MEM_GUARD_WARN_PCT` (30%), request baru `/api/v1/audio/*` dan warmup ditolak dengan `503 memory_pressure` + `Retry-After`. Penolakan baru berhenti setelah RAM bebas ≥ `MEM_GUARD_RECOVER_PCT` (40%) selama `MEM_GUARD_RECOVER_SEC` (30 dtk);
+  - di bawah `MEM_GUARD_CRITICAL_PCT` (20%) atau saat pressure kernel kritis, engine idle di-unload lebih dulu, lalu engine yang sedang bekerja pada tick berikutnya;
+  - di bawah `MEM_GUARD_EMERGENCY_PCT` (12%), STT lalu TTS di-unload segera.
+
+  Engine tidak dimuat ulang otomatis; warmup manual setelah RAM pulih. Polling bersifat adaptif: tanpa timer saat tidak ada engine termuat, 10 dtk saat engine idle, dan 500 ms saat engine bekerja atau RAM menipis. Tiap unload tercatat di log dan Audit Log, dan statusnya muncul di field `memoryGuard` `GET /api/engines`, peringatan `/dev/engines`, dan badge sidebar. Nonaktifkan dengan `MEM_GUARD_ENABLED=false`.
 
 ## File health & penyelamat konteks agent
 

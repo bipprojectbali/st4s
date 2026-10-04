@@ -8,6 +8,7 @@ import { auth } from '../../server/auth';
 import { db } from '../../server/db';
 import { auditLog, user } from '../../server/db/schema';
 import { setEngines } from '../../server/engines/registry';
+import { setGuardHandle } from '../../server/memory-guard/state';
 import type { EngineState, EngineStatus, SttEngine, TtsEngine } from '../../server/engines/types';
 import * as rolesMod from '../../server/roles';
 
@@ -98,6 +99,7 @@ beforeAll(async () => {
 afterAll(async () => {
   for (const sp of spies) sp.mockRestore();
   setEngines(previous);
+  setGuardHandle(null);
   await db.delete(auditLog).where(eq(auditLog.actorId, superId));
   await db.delete(user).where(eq(user.id, superId));
 });
@@ -177,5 +179,33 @@ describe('/api/engines', () => {
     expect(failed.status).toBe(503);
     expect(failed.body.code).toBe('ENGINE_WARMUP_FAILED');
     expect(failed.body.error).toContain('model file missing');
+  });
+
+  test('memory guard: GET reports it; warmup is shed with 503 + Retry-After while unload still works', async () => {
+    ctx.actor = superAdmin;
+    const stt = fakeEngine('stt');
+    setEngines({ stt: stt.engine as unknown as SttEngine });
+    expect((await call('/')).body.memoryGuard).toMatchObject({ enabled: false, level: 'normal', shedding: false });
+
+    const status = {
+      enabled: true,
+      active: true,
+      level: 'warn' as const,
+      freePct: 25,
+      pressure: 1,
+      shedding: true,
+      lastAction: null,
+    };
+    setGuardHandle({ status: () => status, admit: () => ({ ok: false, retryAfterSec: 17 }) });
+    expect((await call('/')).body.memoryGuard).toEqual(status);
+    const res = await app.handle(new Request('http://localhost/engines/stt/warmup', { method: 'POST' }));
+    expect(res.status).toBe(503);
+    expect(res.headers.get('retry-after')).toBe('17');
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({ code: 'MEMORY_PRESSURE', status: 503, requestId: expect.any(String) });
+    expect(body.error).toContain('17 detik');
+    expect((await call('/stt/unload', 'POST')).status).toBe(200);
+    expect(stt.calls).toEqual(['unload']);
+    setGuardHandle(null);
   });
 });

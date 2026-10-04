@@ -1,5 +1,6 @@
 import { isProd } from '../env';
 import { logger } from '../logger';
+import { startMemoryGuard, stopMemoryGuard } from '../memory-guard/lifecycle';
 import { checkEngineDeps, logEngineDeps } from './deps';
 import { setEngines } from './registry';
 import { createSttEngine } from './stt';
@@ -14,8 +15,8 @@ const g = globalThis as typeof globalThis & { __s4sBootedEngines?: Booted; __s4s
 const SHUTDOWN_TIMEOUT_MS = 5_000;
 
 /**
- * Register the real STT/TTS engines once and log any missing model/library/ffmpeg; engines are
- * lazy, so no child or model is started here.
+ * Register the real STT/TTS engines once, log any missing model/library/ffmpeg and start the
+ * memory guard; engines are lazy, so no child or model is started here.
  */
 export function bootEngines(): Booted {
   if (g.__s4sBootedEngines) return g.__s4sBootedEngines;
@@ -23,11 +24,13 @@ export function bootEngines(): Booted {
   const engines: Booted = { stt: createSttEngine(), tts: createTtsEngine() };
   setEngines(engines);
   g.__s4sBootedEngines = engines;
+  startMemoryGuard();
   return engines;
 }
 
-/** Unload both booted engines (kills their child processes); no-op when nothing was booted. */
+/** Stop the memory guard and unload both booted engines (kills their child processes); no-op when nothing was booted. */
 export async function shutdownEngines(): Promise<void> {
+  stopMemoryGuard();
   const engines = g.__s4sBootedEngines;
   if (!engines) return;
   await Promise.all([engines.stt.unload(), engines.tts.unload()]);

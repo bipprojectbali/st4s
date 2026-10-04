@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { FiActivity, FiCpu, FiHardDrive, FiMic, FiRefreshCw } from 'react-icons/fi';
 import { Link } from 'react-router';
 import { EngineCard } from '~/components/engines/EngineCard';
+import { MemoryGuardAlert } from '~/components/engines/MemoryGuardAlert';
 import { useEngineActions } from '~/components/engines/useEngineActions';
 import { StatTile } from '~/components/logs/StatTile';
 import { depsFor, type EngineOverview, fetchEngines, formatBytes } from '~/lib/engines-api';
@@ -73,6 +74,7 @@ export default function EnginesPage({ loaderData }: Route.ComponentProps) {
           Gagal memperbarui status: {q.error.message}. Menampilkan data terakhir.
         </Text>
       )}
+      <MemoryGuardAlert guard={d.memoryGuard} now={q.dataUpdatedAt} dateTime={dateTime} />
 
       <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
         <StatTile label="RSS server" value={formatBytes(mem.serverRssBytes)} icon={FiCpu} />

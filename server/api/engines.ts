@@ -1,6 +1,7 @@
 /** Speech engine status and warmup/unload for /dev/engines (super-admin browser session only). */
 import os from 'node:os';
 import { Elysia } from 'elysia';
+import { newRequestId } from '../api-error';
 import { AUDIT_ACTIONS, audit } from '../audit';
 import { checkEngineDeps } from '../engines/deps';
 import { getStt, getTts } from '../engines/registry';
@@ -9,6 +10,7 @@ import { TTS_LANGUAGES } from '../engines/tts/text';
 import type { EngineControl, EngineStatus } from '../engines/types';
 import { resolveActor } from '../guard';
 import { logger } from '../logger';
+import { guardHandle, memoryGuardStatus } from '../memory-guard/state';
 import { ROLES } from '../permissions';
 import { availableMemoryBytes } from '../system-memory';
 import { speechConfig } from '../v1/speech-config';
@@ -46,7 +48,7 @@ function ttsVoices(): string[] {
   }
 }
 
-/** Engine status, voices, default languages, dependency check and memory figures (shared by the API and the page loader). */
+/** Engine status, voices, default languages, dependency check, memory figures and memory-guard state (shared by the API and the page loader). */
 export function engineOverview() {
   return {
     stt: statusOf('stt'),
@@ -61,6 +63,7 @@ export function engineOverview() {
       freeBytes: availableMemoryBytes(),
       totalBytes: os.totalmem(),
     },
+    memoryGuard: memoryGuardStatus(),
     generatedAt: new Date().toISOString(),
   };
 }
@@ -84,7 +87,7 @@ export const enginesApi = new Elysia({ prefix: '/engines' })
       });
   })
   .get('/', () => engineOverview())
-  .post('/:kind/:action', async ({ me, params, request, status }) => {
+  .post('/:kind/:action', async ({ me, params, request, set, status }) => {
     const { kind, action } = params;
     if (!isKind(kind))
       return status(400, {
@@ -99,6 +102,18 @@ export const enginesApi = new Elysia({ prefix: '/engines' })
         error: `Engine ${LABEL[kind]} tidak terdaftar di proses ini. Cek konfigurasi lalu restart server.`,
         code: 'ENGINE_NOT_REGISTERED',
       });
+    if (action === 'warmup') {
+      const a = guardHandle()?.admit();
+      if (a && !a.ok) {
+        set.headers['retry-after'] = String(a.retryAfterSec);
+        return status(503, {
+          error: `RAM server sedang menipis, warmup ${LABEL[kind]} ditunda. Tunggu RAM pulih lalu coba lagi dalam ${a.retryAfterSec} detik.`,
+          code: 'MEMORY_PRESSURE',
+          status: 503,
+          requestId: newRequestId(),
+        });
+      }
+    }
     const t0 = performance.now();
     try {
       await (action === 'warmup' ? engine.warmup() : engine.unload());
