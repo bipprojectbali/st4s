@@ -15,6 +15,7 @@ import { createServer as createViteServer } from 'vite';
 import { api } from './api';
 import { newRequestId } from './api-error';
 import { db } from './db';
+import { bootEngines, exitOnShutdownSignals } from './engines/boot';
 import { env } from './env';
 import { errorResponse } from './error-page';
 import { nodeToWebRequest, writeWebResponse } from './http-bridge';
@@ -35,6 +36,10 @@ try {
 } catch (err) {
   logger.error({ err }, 'auto-migrate on boot failed; continuing');
 }
+
+// Engines are lazy: this registers them without starting a child or loading a model.
+bootEngines();
+exitOnShutdownSignals();
 
 const server = createServer((req, res) => {
   const pathname = (req.url ?? '/').split('?')[0];

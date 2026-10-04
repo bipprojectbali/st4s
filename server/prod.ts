@@ -22,6 +22,7 @@ import bundledChangelog from '../CHANGELOG.md' with { type: 'text' };
 import { api } from './api';
 import { newRequestId } from './api-error';
 import { registerBundledChangelog } from './changelog';
+import { bootEngines, exitOnShutdownSignals } from './engines/boot';
 import { env } from './env';
 import { errorResponse } from './error-page';
 import { isHttpProbe, probeResponse } from './http-probes';
@@ -43,6 +44,10 @@ const handler = createRequestHandler(build, 'production');
 const CLIENT_DIR = Bun.isStandaloneExecutable
   ? `${path.join(import.meta.dir, 'client')}/`
   : `${path.join(import.meta.dir, '../build/client')}/`;
+
+// Engines are lazy: this registers them without starting a child or loading a model.
+bootEngines();
+exitOnShutdownSignals();
 
 const server = Bun.serve({
   port: env.PORT,

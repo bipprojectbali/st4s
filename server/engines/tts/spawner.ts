@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { engineChildCommand } from '../child-argv';
 import type { ChildMsg, ParentMsg } from './protocol';
 
 /** Handle to a running TTS child process. */
@@ -14,12 +15,12 @@ export type Spawner = (handlers: {
   onExit(code: number | null, signal: string | null): void;
 }) => ChildHandle;
 
-// ponytail: assumes child.ts on disk next to this file; a compiled binary needs its own child entry.
+// Source-mode entry; a compiled binary re-execs itself instead (see child-argv.ts).
 const CHILD_PATH = path.join(import.meta.dir, 'child.ts');
 
-/** Default spawner: `bun child.ts` with structured-clone IPC (Float32Array crosses as-is). */
+/** Default spawner: `bun child.ts` (or `<binary> --s4s-engine-child tts`) with structured-clone IPC. */
 export const bunSpawner: Spawner = ({ onMessage, onExit }) => {
-  const proc = Bun.spawn([process.execPath, CHILD_PATH], {
+  const proc = Bun.spawn(engineChildCommand('tts', CHILD_PATH), {
     serialization: 'advanced',
     stdio: ['ignore', 'inherit', 'inherit'],
     ipc: (msg) => onMessage(msg as ChildMsg),

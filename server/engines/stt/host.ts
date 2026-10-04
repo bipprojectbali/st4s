@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { engineChildCommand } from '../child-argv';
 import type { SttConfig } from './config';
 import type { FromChild, ToChild } from './protocol';
 
@@ -17,13 +18,13 @@ export interface SttChildEvents {
 /** Starts a child; injectable so tests can run without the native model. */
 export type SttSpawner = (cfg: SttConfig, on: SttChildEvents) => SttChild;
 
-/** Default child entry; the server runs from source (`bun server/...`), so the .ts file is on disk. */
+/** Child entry in source mode; a compiled binary re-execs itself instead (see child-argv.ts). */
 export const CHILD_PATH = path.join(import.meta.dir, 'child.ts');
 
-/** Spawn `bun child.ts <config-json>` directly (no shell) with an IPC channel. */
+/** Spawn `bun child.ts <config-json>` (or `<binary> --s4s-engine-child stt <config-json>`) directly, no shell, with IPC. */
 export function spawnBunChild(childPath = CHILD_PATH): SttSpawner {
   return (cfg, on) => {
-    const proc = Bun.spawn([process.execPath, childPath, JSON.stringify(cfg)], {
+    const proc = Bun.spawn([...engineChildCommand('stt', childPath), JSON.stringify(cfg)], {
       ipc: (m) => on.message(m as FromChild),
       onExit: (_p, code, signal) => on.exit(code, signal == null ? null : String(signal)),
       stdin: 'ignore',
