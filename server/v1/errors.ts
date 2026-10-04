@@ -1,3 +1,5 @@
+import type { EngineUnloadedError } from '../engines/errors';
+
 /** OpenAI-style error body: { error: { message, type, param, code } }. */
 export type V1ErrorType =
   | 'invalid_request_error'
@@ -37,6 +39,14 @@ export function v1Error(
   return new Response(JSON.stringify(v1ErrorBody(status, message, opts.code ?? null, opts.param ?? null)), {
     status,
     headers: { 'content-type': 'application/json', 'cache-control': 'no-store', ...opts.headers },
+  });
+}
+
+/** 503 engine_unloaded + Retry-After: the job was dropped by an unload; a retry reloads the engine. */
+export function v1EngineUnloaded(err: EngineUnloadedError): Response {
+  return v1Error(503, `Mesin ${err.kind.toUpperCase()} dihentikan karena RAM menipis atau idle. Coba lagi beberapa detik lagi.`, {
+    code: 'engine_unloaded',
+    headers: { 'retry-after': String(err.retryAfterSec) },
   });
 }
 

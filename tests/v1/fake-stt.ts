@@ -2,7 +2,7 @@
 import { spyOn } from 'bun:test';
 import { api } from '../../server/api';
 import { auth } from '../../server/auth';
-import { SttUnloadedError } from '../../server/engines/stt/errors';
+import { EngineUnloadedError } from '../../server/engines/errors';
 import { EngineBusyError, type SttEngine, type TranscribeRequest, type TranscribeResult } from '../../server/engines/types';
 import * as rolesMod from '../../server/roles';
 
@@ -43,7 +43,7 @@ export const fakeStt = {
     req.signal?.addEventListener('abort', () => (this.aborted = true), { once: true });
     if (this.mode === 'busy') throw new EngineBusyError('stt', 7);
     if (this.mode === 'boom') throw new Error('child process exploded at /secret/path');
-    if (this.mode === 'unloaded') throw new SttUnloadedError();
+    if (this.mode === 'unloaded') throw new EngineUnloadedError('stt');
     if (this.mode === 'boom-after-delta') {
       req.onDelta?.(DELTAS[0]);
       await Bun.sleep(1);

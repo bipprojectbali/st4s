@@ -1,8 +1,8 @@
 /** Transcription results in OpenAI response formats: json/text/srt/vtt/verbose_json and the SSE stream. */
 import { EngineBusyError, type SttEngine, type TranscribeRequest, type TranscribeResult } from '../engines/types';
-import { SttUnloadedError } from '../engines/stt/errors';
+import { EngineUnloadedError } from '../engines/errors';
 import { logger } from '../logger';
-import { v1Error, v1ErrorBody } from './errors';
+import { v1EngineUnloaded, v1Error, v1ErrorBody } from './errors';
 import { toSrt, toVtt } from './subtitles';
 import type { ResponseFormat } from './transcriptions.form';
 
@@ -56,9 +56,6 @@ export function formatResult(r: TranscribeResult, format: ResponseFormat, durati
   }
 }
 
-/** Seconds a client should wait after an unload: the next request reloads the model (a few seconds). */
-const UNLOADED_RETRY_SEC = 5;
-
 /** Busy -> 429 + Retry-After; unloaded mid-job -> 503 + Retry-After; anything else -> 500 without internals. */
 export function engineErrorResponse(err: unknown, requestId: string): Response {
   if (err instanceof EngineBusyError)
@@ -66,11 +63,7 @@ export function engineErrorResponse(err: unknown, requestId: string): Response {
       code: 'engine_busy',
       headers: { 'retry-after': String(err.retryAfterSec) },
     });
-  if (err instanceof SttUnloadedError)
-    return v1Error(503, 'Mesin STT sedang dimuat ulang. Coba lagi beberapa detik lagi.', {
-      code: 'engine_unavailable',
-      headers: { 'retry-after': String(UNLOADED_RETRY_SEC) },
-    });
+  if (err instanceof EngineUnloadedError) return v1EngineUnloaded(err);
   logger.error({ err, requestId }, 'stt transcription failed');
   return v1Error(500, 'Transkripsi gagal. Coba lagi; sertakan header x-request-id bila melapor.', {
     code: 'server_error',
@@ -138,10 +131,16 @@ export async function streamTranscript({ engine, req, ctrl, duration, requestId,
       onEnd(200);
     },
     (err: unknown) => {
-      if (!ctrl.signal.aborted) logger.error({ err, requestId }, 'stt stream failed mid-way');
-      push({ type: 'error', ...v1ErrorBody(500, 'Transkripsi terhenti di tengah stream. Coba lagi.', 'server_error') });
+      const unloaded = err instanceof EngineUnloadedError;
+      if (!ctrl.signal.aborted && !unloaded) logger.error({ err, requestId }, 'stt stream failed mid-way');
+      push({
+        type: 'error',
+        ...(unloaded
+          ? v1ErrorBody(503, 'Mesin STT dihentikan di tengah stream karena RAM menipis atau idle. Coba lagi.', 'engine_unloaded')
+          : v1ErrorBody(500, 'Transkripsi terhenti di tengah stream. Coba lagi.', 'server_error')),
+      });
       close();
-      onEnd(ctrl.signal.aborted ? 499 : 500);
+      onEnd(ctrl.signal.aborted ? 499 : unloaded ? 503 : 500);
     },
   );
   return new Response(body, {

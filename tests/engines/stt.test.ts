@@ -1,24 +1,24 @@
 import { describe, expect, test } from 'bun:test';
 import { createSttEngine } from '../../server/engines/stt';
+import { EngineUnloadedError } from '../../server/engines/errors';
 import type { SttChildEvents, SttSpawner } from '../../server/engines/stt/host';
-import { SttUnloadedError } from '../../server/engines/stt/errors';
 import type { ToChild, TranscribeMsg } from '../../server/engines/stt/protocol';
 import { EngineBusyError, type TranscribeResult } from '../../server/engines/types';
 
-type FakeChild = { on: SttChildEvents; sent: ToChild[]; killed: boolean };
+type FakeChild = { on: SttChildEvents; sent: ToChild[]; killed: boolean; exit(): void };
 
 /** In-process fake child: records what the engine sends; tests drive replies by hand. */
-function fakeSpawner(opts: { autoReady?: boolean } = {}) {
+function fakeSpawner(opts: { autoReady?: boolean; holdExit?: boolean } = {}) {
   const children: FakeChild[] = [];
   const spawn: SttSpawner = (_cfg, on) => {
-    const c: FakeChild = { on, sent: [], killed: false };
+    const c: FakeChild = { on, sent: [], killed: false, exit: () => on.exit(null, 'SIGTERM') };
     children.push(c);
     if (opts.autoReady !== false) queueMicrotask(() => on.message({ t: 'ready', loadMs: 1, rss: 1000, backend: 'fake', gpu: false }));
     return {
       send: (m) => c.sent.push(m),
       kill: () => {
         c.killed = true;
-        queueMicrotask(() => on.exit(null, 'SIGTERM'));
+        if (!opts.holdExit) queueMicrotask(() => c.exit());
       },
     };
   };
@@ -220,9 +220,56 @@ describe('stt engine (fake child)', () => {
     await tick();
     await eng.unload();
     const err = await p.catch((e) => e);
-    expect(err).toBeInstanceOf(SttUnloadedError);
+    expect(err).toBeInstanceOf(EngineUnloadedError);
     expect(err.message).toBe('STT engine unloaded');
     expect(eng.status().state).toBe('unloaded');
+  });
+
+  test('unload rejects the in-flight and every queued job without respawning', async () => {
+    const f = fakeSpawner();
+    const eng = make(f.spawn);
+    const ps = [1, 2, 3].map(() => eng.transcribe({ audio: audio() }).catch((e) => e));
+    await tick();
+    expect(eng.status()).toMatchObject({ state: 'busy', queued: 2 });
+    await eng.unload();
+    const errs = await Promise.all(ps);
+    for (const e of errs) expect(e).toBeInstanceOf(EngineUnloadedError);
+    expect(errs[0].kind).toBe('stt');
+    await tick();
+    expect(f.children.length).toBe(1);
+    expect(jobs(f.children[0]!).length).toBe(1);
+    expect(eng.status()).toMatchObject({ state: 'unloaded', queued: 0 });
+  });
+
+  test('unload during model load rejects the waiting jobs without respawning', async () => {
+    const f = fakeSpawner({ autoReady: false });
+    const eng = make(f.spawn);
+    const ps = [1, 2].map(() => eng.transcribe({ audio: audio() }).catch((e) => e));
+    await tick();
+    expect(eng.status().state).toBe('loading');
+    await eng.unload();
+    for (const e of await Promise.all(ps)) expect(e).toBeInstanceOf(EngineUnloadedError);
+    await tick();
+    expect(f.children.length).toBe(1);
+    expect(jobs(f.children[0]!).length).toBe(0);
+    expect(eng.status().state).toBe('unloaded');
+  });
+
+  test('a job arriving while the child exits waits, then loads a fresh child', async () => {
+    const f = fakeSpawner({ holdExit: true });
+    const eng = make(f.spawn);
+    await eng.warmup();
+    const u = eng.unload();
+    const p = eng.transcribe({ audio: audio() });
+    await tick();
+    expect(f.children.length).toBe(1);
+    expect(jobs(f.children[0]!).length).toBe(0);
+    f.children[0]!.exit();
+    await u;
+    await tick();
+    expect(f.children.length).toBe(2);
+    reply(f.children[1]!, jobs(f.children[1]!)[0]!.id, 'fresh');
+    expect((await p).text).toBe('fresh');
   });
 
   test('concurrent unload calls all resolve and kill the child once', async () => {

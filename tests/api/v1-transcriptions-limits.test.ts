@@ -99,12 +99,12 @@ describe('admission control', () => {
 });
 
 describe('engine errors and validation', () => {
-  test('a job lost to an unload is 503 engine_unavailable + Retry-After', async () => {
+  test('a job lost to an unload is 503 engine_unloaded + Retry-After', async () => {
     fakeStt.mode = 'unloaded';
     const res = await post(form({ model: 'whisper-1' }, wav));
     expect(res.status).toBe(503);
     expect(res.headers.get('retry-after')).toBe('5');
-    expect(await errorOf(res)).toMatchObject({ code: 'engine_unavailable' });
+    expect(await errorOf(res)).toMatchObject({ code: 'engine_unloaded' });
   });
 
   test('hotword caps: >50 terms or >1000 chars is 400 on param keywords', async () => {

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { createTtsEngine } from '../../server/engines/tts';
 import type { ChildMsg, ParentMsg } from '../../server/engines/tts/protocol';
 import type { Spawner } from '../../server/engines/tts/spawner';
+import { EngineUnloadedError } from '../../server/engines/errors';
 import { EngineBusyError, type SpeakRequest } from '../../server/engines/types';
 
 const modelDir = fs.mkdtempSync(path.join(os.tmpdir(), 's4s-tts-test-'));
@@ -20,9 +21,13 @@ interface FakeChild {
   reply(id: number, samples?: number): void;
   fail(id: number): void;
   crash(): void;
+  exit(): void;
+  loaded(): void;
 }
 
-function fakeSpawner(opts: { failLoad?: boolean } = {}) {
+type FakeOpts = { failLoad?: boolean; holdExit?: boolean; holdLoad?: boolean };
+
+function fakeSpawner(opts: FakeOpts = {}) {
   const children: FakeChild[] = [];
   const spawn: Spawner = ({ onMessage, onExit }) => {
     let exit: (v: unknown) => void = () => {};
@@ -34,16 +39,20 @@ function fakeSpawner(opts: { failLoad?: boolean } = {}) {
       exited,
       send(m: ParentMsg) {
         child.sent.push(m);
-        if (m.type !== 'load') return;
+        if (m.type !== 'load' || opts.holdLoad) return;
         queueMicrotask(() =>
           msg(opts.failLoad ? { type: 'error', message: 'model missing', rss: 1 } : { type: 'loaded', sampleRate: 1000, loadMs: 3, rss: 1234 }),
         );
       },
       kill() {
         child.killed = true;
+        if (!opts.holdExit) child.exit();
+      },
+      exit() {
         exit(0);
         queueMicrotask(() => onExit(null, 'SIGTERM'));
       },
+      loaded: () => msg({ type: 'loaded', sampleRate: 1000, loadMs: 3, rss: 1234 }),
       reply: (id: number, samples = 500) => msg({ type: 'result', id, pcm: new Float32Array(samples).fill(0.5), rss: 2000 }),
       fail: (id: number) => msg({ type: 'error', id, message: 'onnx exploded', rss: 2000 }),
       crash: () => onExit(139, null),
@@ -58,7 +67,7 @@ const tick = () => Bun.sleep(1);
 const synthIds = (c: FakeChild) => c.sent.flatMap((m) => (m.type === 'synth' ? [m.id] : []));
 const req = (extra: Partial<SpeakRequest> = {}): SpeakRequest => ({ text: 'Halo.', voice: 'F1', language: 'id', speed: 1, ...extra });
 
-function setup(config: Record<string, number> = {}, opts: { failLoad?: boolean } = {}) {
+function setup(config: Record<string, number> = {}, opts: FakeOpts = {}) {
   const fake = fakeSpawner(opts);
   const engine = createTtsEngine({ spawn: fake.spawn, config: { modelDir, steps: 8, threads: 0, maxQueue: 8, idleTimeoutSec: 0, ...config } });
   return { engine, ...fake };
@@ -205,6 +214,52 @@ describe('tts engine', () => {
     await tick();
     children[1]!.reply(1);
     await p;
+  });
+
+  test('unload rejects running and queued requests without respawning', async () => {
+    const { engine, children } = setup();
+    const ps = [1, 2, 3].map(() => engine.synthesize(req()).catch((e) => e));
+    await tick();
+    expect(synthIds(children[0]!)).toHaveLength(1);
+    await engine.unload();
+    const errs = await Promise.all(ps);
+    for (const e of errs) expect(e).toBeInstanceOf(EngineUnloadedError);
+    expect(errs[0].kind).toBe('tts');
+    await tick();
+    expect(children).toHaveLength(1);
+    expect(engine.status()).toMatchObject({ state: 'unloaded', queued: 0 });
+  });
+
+  test('unload during model load rejects waiting requests; the late load reply is ignored', async () => {
+    const { engine, children } = setup({}, { holdLoad: true });
+    const ps = [1, 2].map(() => engine.synthesize(req()).catch((e) => e));
+    await tick();
+    await engine.unload();
+    for (const e of await Promise.all(ps)) expect(e).toBeInstanceOf(EngineUnloadedError);
+    children[0]!.loaded();
+    await tick();
+    expect(children).toHaveLength(1);
+    expect(synthIds(children[0]!)).toHaveLength(0);
+    expect(engine.status().state).toBe('unloaded');
+  });
+
+  test('a request arriving mid-unload waits for the exit, then loads a fresh child', async () => {
+    const { engine, children } = setup({}, { holdExit: true, holdLoad: true });
+    const first = engine.synthesize(req()).catch((e) => e);
+    await tick();
+    const u = engine.unload();
+    const p = engine.synthesize(req());
+    await tick();
+    expect(await first).toBeInstanceOf(EngineUnloadedError);
+    expect(children).toHaveLength(1);
+    children[0]!.exit();
+    await u;
+    await tick();
+    expect(children).toHaveLength(2);
+    children[1]!.loaded();
+    await tick();
+    children[1]!.reply(synthIds(children[1]!)[0]!, 10);
+    expect((await p).length).toBe(10);
   });
 
   test('idle timeout unloads the child', async () => {

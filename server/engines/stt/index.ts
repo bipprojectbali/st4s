@@ -1,8 +1,8 @@
 import path from 'node:path';
 import { logger } from '../../logger';
+import { EngineUnloadedError } from '../errors';
 import { EngineBusyError, type EngineState, type SttEngine, type TranscribeRequest, type TranscribeResult } from '../types';
 import { loadSttConfig, type SttConfig } from './config';
-import { SttUnloadedError } from './errors';
 import { spawnBunChild, type SttChild, type SttSpawner } from './host';
 import type { FromChild } from './protocol';
 import { RollingStats } from './stats';
@@ -101,6 +101,7 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine {
     ready = null;
     rss = null;
     loadedAt = null;
+    unloading = null;
     exited?.();
     exited = null;
     // Only a job already sent to the child dies with it; one still waiting on load is failed by pump().
@@ -110,7 +111,7 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine {
     if (expectedExit) {
       state = expectedExit;
       expectedExit = null;
-      err = new SttUnloadedError();
+      err = new EngineUnloadedError('stt');
     } else {
       err = fail(`STT child process exited unexpectedly (code ${code}, signal ${signal})`);
       state = 'error';
@@ -156,7 +157,8 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine {
   }
 
   async function pump(): Promise<void> {
-    if (current) return;
+    // While the old child is exiting, new jobs wait; onExit pumps them onto a fresh child.
+    if (current || unloading) return;
     const job = queue.shift();
     if (!job) return armIdle();
     current = job;
@@ -207,10 +209,16 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine {
     });
   }
 
-  /** Concurrent callers share one in-flight unload. */
+  /** Rejects queued jobs now and the in-flight one on exit, so nothing respawns for them. Concurrent callers share one unload. */
   function unload(): Promise<void> {
     if (idleTimer) clearTimeout(idleTimer);
     idleTimer = null;
+    const dropped = queue.splice(0);
+    if (dropped.length) {
+      const err = new EngineUnloadedError('stt');
+      for (const job of dropped) job.reject(err);
+      log.info({ dropped: dropped.length }, 'stt unload rejected queued jobs');
+    }
     if (unloading) return unloading;
     if (!child) return Promise.resolve();
     const c = child;
@@ -218,11 +226,12 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine {
       exited = r;
       expectedExit = 'unloaded';
       c.kill();
-    }).finally(() => (unloading = null));
+    });
     return unloading;
   }
 
   async function warmup(): Promise<void> {
+    await unloading;
     await ensureChild();
     armIdle();
   }

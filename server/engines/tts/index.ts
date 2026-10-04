@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { logger } from '../../logger';
 import { TTS_MODEL_ID } from '../../v1/aliases';
+import { EngineUnloadedError } from '../errors';
 import { EngineBusyError, type EngineState, type EngineStatus, type SpeakRequest, type TtsEngine } from '../types';
 import { loadTtsConfig, type TtsConfig } from './config';
 import type { ChildMsg } from './protocol';
@@ -28,6 +29,7 @@ export interface TtsEngineOptions {
 class SupertonicEngine implements TtsEngine {
   private child: ChildHandle | null = null;
   private loading: Promise<void> | null = null;
+  private unloading: Promise<void> | null = null;
   private loader: { resolve(): void; reject(e: Error): void } | null = null;
   private running: Job | null = null;
   private readonly queue: Job[] = [];
@@ -90,26 +92,36 @@ class SupertonicEngine implements TtsEngine {
   }
 
   async warmup(): Promise<void> {
+    await this.unloading;
     await this.ensureLoaded();
     this.scheduleIdle();
   }
 
-  async unload(): Promise<void> {
-    const child = this.child;
-    if (!child) return;
+  /** Rejects queued and running jobs with EngineUnloadedError; jobs arriving later wait for the exit, then reload. */
+  unload(): Promise<void> {
     this.clearIdle();
+    const err = new EngineUnloadedError('tts');
+    const dropped = this.queue.splice(0);
+    for (const job of dropped) this.settle(job, err);
+    if (this.unloading) return this.unloading;
+    const child = this.child;
+    if (!child) return Promise.resolve();
     this.child = null;
     this.loadedAt = null;
     this.failed = false;
-    this.loader?.reject(new Error('TTS engine unloaded during load'));
+    this.loader?.reject(err);
     if (this.running) {
-      this.settle(this.running, new Error('TTS engine unloaded during synthesis'));
+      this.settle(this.running, err);
       this.running = null;
     }
     child.kill();
-    await child.exited;
-    logger.info({ queued: this.queue.length }, 'tts: child unloaded');
-    this.pump();
+    const done = () => {
+      this.unloading = null;
+      logger.info({ dropped: dropped.length }, 'tts: child unloaded');
+      this.pump();
+    };
+    this.unloading = child.exited.then(done, done);
+    return this.unloading;
   }
 
   synthesize(req: SpeakRequest): Promise<Float32Array> {
@@ -148,11 +160,14 @@ class SupertonicEngine implements TtsEngine {
   }
 
   private pump(): void {
-    if (this.running || this.queue.length === 0) return;
+    // A second child must not load while the unloaded one still holds its memory.
+    if (this.running || this.unloading || this.queue.length === 0) return;
     if (!this.child || this.loading) {
       this.ensureLoaded().then(
         () => this.pump(),
         (e: Error) => {
+          // unload() already rejected its jobs; anything queued since waits for the exit and reloads.
+          if (e instanceof EngineUnloadedError) return;
           for (const job of this.queue.splice(0)) this.settle(job, e);
         },
       );

@@ -3,12 +3,13 @@ import { newRequestId } from '../api-error';
 import { CONTENT_TYPES, NATIVE_FORMATS } from '../audio/encode';
 import { ffmpegAvailable } from '../audio/encode-ffmpeg';
 import { getTts } from '../engines/registry';
+import { EngineUnloadedError } from '../engines/errors';
 import { EngineBusyError, type TtsEngine } from '../engines/types';
 import { logger } from '../logger';
 import { speechUnits } from '../text/speech-units';
 import { requireV1Caller } from './auth';
 import { v1Config } from './config';
-import { v1Error } from './errors';
+import { v1EngineUnloaded, v1Error } from './errors';
 import { speechConfig } from './speech-config';
 import { parseSpeechParams } from './speech-params';
 import { encodeUnits, responseBody, type SynthStats, synthUnits } from './speech-stream';
@@ -58,6 +59,7 @@ async function speak(request: Request, body: unknown): Promise<Response> {
         code: 'engine_busy',
         headers: { 'retry-after': String(err.retryAfterSec) },
       });
+    if (err instanceof EngineUnloadedError) return v1EngineUnloaded(err);
     if (ctrl.signal.aborted) {
       logger.info({ requestId, units: units.length, totalMs: ms(t0) }, 'tts request aborted before first audio');
       return v1Error(400, 'Request dibatalkan oleh klien.', { code: 'request_aborted' });
