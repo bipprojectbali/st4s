@@ -1,0 +1,132 @@
+Backport of upstream CrispASR 6b699c8df + 188e21c1a (crispasr_vad_slices returns -3
+when the VAD model cannot be loaded), plus one s4s addition not upstream yet: a Silero
+inference failure (whisper_vad_segments_from_samples == NULL) also returns -3.
+Without it, a missing/corrupt VAD model or a failed inference returned 0 slices,
+which callers read as "audio has no speech" (silently empty transcripts).
+Base used by s4s: 5b63ffeda (same libcrispasr source as local 9ceeab03).
+
+diff --git a/src/crispasr_c_api.cpp b/src/crispasr_c_api.cpp
+index 6b14b689b..9dc17bb27 100644
+--- a/src/crispasr_c_api.cpp
++++ b/src/crispasr_c_api.cpp
+@@ -747,6 +747,12 @@ CA_EXPORT int crispasr_vad_segments(const char* vad_model_path, const float* pcm
+ //
+ //   -1  bad arguments
+ //   -2  allocation failed
++//   -3  the VAD model could not be loaded, or Silero inference failed
++//
++// -3 exists because 0 and "the model never ran" were the same answer: a
++// missing or corrupt model returned 0 slices and every binding read that as
++// "this audio has no speech". A caller cannot tell those apart from the
++// outside, so the ABI has to.
+ CA_EXPORT int crispasr_vad_slices(const char* vad_model_path, const float* pcm, int n_samples, int sample_rate,
+                                   float threshold, int min_speech_ms, int min_silence_ms, int speech_pad_ms,
+                                   float max_chunk_duration_s, int n_threads, float** out_spans) {
+@@ -774,8 +780,11 @@ CA_EXPORT int crispasr_vad_slices(const char* vad_model_path, const float* pcm,
+     if (n_threads > 0)
+         opts.n_threads = n_threads;
+ 
++    bool load_failed = false;
+     std::vector<crispasr_audio_slice> slices =
+-        crispasr_compute_vad_slices(pcm, n_samples, sample_rate, vad_model_path, opts);
++        crispasr_compute_vad_slices(pcm, n_samples, sample_rate, vad_model_path, opts, &load_failed);
++    if (load_failed)
++        return -3; // distinct from 0 = VAD ran and found no speech
+     const int n = (int)slices.size();
+     if (n == 0)
+         return 0;
+diff --git a/src/crispasr_vad.cpp b/src/crispasr_vad.cpp
+index a28e61998..2eef372fe 100644
+--- a/src/crispasr_vad.cpp
++++ b/src/crispasr_vad.cpp
+@@ -215,8 +215,11 @@ static std::vector<crispasr_audio_slice> compute_firered_vad_slices(const float*
+ 
+ std::vector<crispasr_audio_slice> crispasr_compute_vad_slices(const float* samples, int n_samples, int sample_rate,
+                                                               const char* vad_model_path,
+-                                                              const crispasr_vad_options& opts) {
++                                                              const crispasr_vad_options& opts, bool* out_load_failed) {
+     std::vector<crispasr_audio_slice> slices;
++    // Assume the model loads; a branch below sets this true if it can't.
++    if (out_load_failed)
++        *out_load_failed = false;
+     if (!vad_model_path || !*vad_model_path || n_samples <= 0)
+         return slices;
+ 
+@@ -247,6 +250,8 @@ std::vector<crispasr_audio_slice> crispasr_compute_vad_slices(const float* sampl
+             if (segs)
+                 free(segs);
+             // Do NOT free vctx — it's cached.
++        } else if (out_load_failed) {
++            *out_load_failed = true; // marblenet model failed to load
+         }
+     }
+ #endif
+@@ -289,6 +294,8 @@ std::vector<crispasr_audio_slice> crispasr_compute_vad_slices(const float* sampl
+             if (segs)
+                 free(segs);
+             // Do NOT free vctx — it's cached.
++        } else if (out_load_failed) {
++            *out_load_failed = true; // whisper-vad-encdec model failed to load
+         }
+     }
+ #endif
+@@ -329,6 +336,8 @@ std::vector<crispasr_audio_slice> crispasr_compute_vad_slices(const float* sampl
+         whisper_vad_context* vctx = silero_vad_get_cached_locked(vad_model_path, opts.n_threads);
+         if (!vctx) {
+             fprintf(stderr, "crispasr: warning: failed to load VAD model '%s'\n", vad_model_path);
++            if (out_load_failed)
++                *out_load_failed = true;
+             return slices;
+         }
+ 
+@@ -339,7 +348,15 @@ std::vector<crispasr_audio_slice> crispasr_compute_vad_slices(const float* sampl
+         vp.speech_pad_ms = (float)opts.speech_pad_ms;
+ 
+         whisper_vad_segments* vseg = whisper_vad_segments_from_samples(vctx, vp, samples, n_samples);
+-        const int nv = vseg ? whisper_vad_segments_n_segments(vseg) : 0;
++        if (!vseg) {
++            // Inference failed: the model ran no better than one that never loaded,
++            // so report it the same way instead of as "no speech".
++            fprintf(stderr, "crispasr: warning: VAD inference failed with '%s'\n", vad_model_path);
++            if (out_load_failed)
++                *out_load_failed = true;
++            return slices;
++        }
++        const int nv = whisper_vad_segments_n_segments(vseg);
+         for (int i = 0; i < nv; i++) {
+             const float t0_cs = whisper_vad_segments_get_segment_t0(vseg, i);
+             const float t1_cs = whisper_vad_segments_get_segment_t1(vseg, i);
+@@ -350,8 +367,7 @@ std::vector<crispasr_audio_slice> crispasr_compute_vad_slices(const float* sampl
+             if (e > s)
+                 slices.push_back({s, e, (int64_t)t0_cs, (int64_t)t1_cs});
+         }
+-        if (vseg)
+-            whisper_vad_free_segments(vseg);
++        whisper_vad_free_segments(vseg);
+         // Do NOT free vctx — it's owned by the cache.
+     }
+ 
+diff --git a/src/crispasr_vad.h b/src/crispasr_vad.h
+index f4f581aae..10b31a479 100755
+--- a/src/crispasr_vad.h
++++ b/src/crispasr_vad.h
+@@ -135,9 +135,18 @@ inline std::vector<crispasr_audio_slice> crispasr_post_merge_vad_slices(const st
+ // `vad_model_path` must be a concrete file path; auto-download /
+ // cache resolution is the caller's responsibility (CLI handles it
+ // via crispasr_cache; wrappers can ship the GGUF as an asset).
++//
++// An empty result is ambiguous — no speech vs. the model failing to load.
++// When `out_load_failed` is non-null it is set to `true` iff the model
++// could not be loaded (silero/marblenet/whisper-vad returned no context)
++// or Silero inference failed, and `false` otherwise (including a successful run that found no speech).
++// This lets a caller (issue #311 --strict-pipeline) distinguish "VAD ran,
++// no speech" from "VAD model unloadable". webrtc (no model) and firered are
++// reported as loaded. Detection is best-effort — it never false-positives.
+ std::vector<crispasr_audio_slice> crispasr_compute_vad_slices(const float* samples, int n_samples, int sample_rate,
+                                                               const char* vad_model_path,
+-                                                              const crispasr_vad_options& opts);
++                                                              const crispasr_vad_options& opts,
++                                                              bool* out_load_failed = nullptr);
+ 
+ // Same shape as above but without VAD: returns fixed `chunk_seconds` windows
+ // (one slice covering the whole buffer when it's shorter than a chunk).
