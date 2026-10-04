@@ -12,6 +12,19 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 - Tautan landing page kini tampil sebagai kartu bergambar saat dibagikan (WhatsApp, X, Slack, dll) lewat meta Open Graph/Twitter, gambar `/og.png`, dan URL `canonical`.
 - `/robots.txt` dan `/sitemap.xml` untuk mesin pencari, dibangun dari `APP_URL`; halaman login, konsol, dan API tidak diindeks.
 - Ikon home-screen iOS (`/apple-touch-icon.png`), web manifest, dan warna tema browser.
+- API speech-to-text kompatibel OpenAI di `/api/v1/audio/transcriptions`: cukup arahkan SDK `openai` ke `<host>/api/v1`. Mendukung format `json`, `text`, `srt`, `vtt`, `verbose_json`, streaming teks lewat `stream=true`, serta `keywords` untuk membantu mengenali istilah khusus.
+- API text-to-speech kompatibel OpenAI di `/api/v1/audio/speech` dengan 10 suara (nama suara OpenAI seperti `alloy` atau `nova` ikut diterima), format `mp3`/`opus`/`aac`/`flac`/`wav`/`pcm`, audio yang langsung mengalir sebelum seluruh teks selesai, serta pilihan `language` dan `steps`.
+- Daftar model dan suara di `/api/v1/models` dan `/api/v1/audio/voices`; alias model OpenAI (`whisper-1`, `tts-1`, `gpt-4o-mini-tts`, dll) diterima apa adanya.
+- Engine suara lokal: Qwen3-ASR untuk transkripsi dan Supertonic 3 untuk sintesis. Masing-masing berjalan di proses terpisah, dimuat saat pertama dipakai, dan dilepas otomatis setelah idle.
+- Halaman `/dev/engines` untuk memantau status, memori, dan latensi engine, lengkap dengan tombol warmup dan unload.
+- Halaman `/dev/playground` untuk mencoba transkripsi dan sintesis suara langsung dari konsol.
+- Scope API key baru `stt:transcribe` dan `tts:speak`, bisa dipakai di kunci pribadi maupun kunci yang dibuat admin.
+
+### Changed
+- Error di bawah `/api/v1` kini berbentuk error OpenAI (`{ error: { message, type, param, code } }`) agar SDK `openai` bisa membacanya. Route `/api/*` lain tetap memakai format lama.
+- Saat antrean engine penuh, API menjawab `429 engine_busy` dengan header `Retry-After` agar klien tahu kapan mencoba lagi.
+- Server dev, production, dan binary kini menyiapkan engine suara saat boot dan mematikannya dengan rapi saat dihentikan (Ctrl+C atau SIGTERM).
+- Binary bisa menjalankan engine suara tanpa Bun terpasang. Untuk text-to-speech, letakkan library onnxruntime di samping binary (lihat README).
 
 ### Fixed
 - Beberapa project turunan template kini bisa menjalankan `bun run dev` bersamaan di port berbeda. HMR memakai port aplikasi itu sendiri, bukan port 24678 bersama, sehingga error `WebSocket server error: Port ... is already in use` hilang dan browser tidak lagi menerima hot reload dari project lain.
