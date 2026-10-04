@@ -46,8 +46,11 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 - `/dev/changelog` tidak lagi error saat dibuka di browser.
 - Console browser tidak lagi menampilkan error hydration ketika ekstensi browser (VPN/keamanan) menandai elemen halaman dengan atribut `bis_*`/`__processed_*__`.
 - Visitor Logs tidak lagi salah menandai bot monitor (UptimeRobot, Pingdom) dan bot lain berawalan `Mozilla/5.0` sebagai `seo-crawler`. Kunjungan lama yang sudah tercatat tidak berubah.
+- Transkripsi panjang, request yang menunggu di antrean engine, stream SSE, dan warmup model di production tidak lagi terputus ("socket closed") setelah 60 detik tanpa data. Batas idle 60 detik tetap berlaku untuk route lain.
 
 ### Security
+- Body request di production dibatasi `V1_MAX_UPLOAD_MB` + 1 MiB (default 26 MiB) dan ditolak 413 sebelum dibaca, sehingga upload raksasa tidak lagi menghabiskan memori server sebelum autentikasi.
+- Rate limit dan IP di log tidak bisa lagi dikelabui dengan header `X-Forwarded-For` palsu. Header proxy hanya dipercaya bila koneksi datang dari proxy di `TRUSTED_PROXIES` (default kosong = pakai IP socket). Bila app berjalan di belakang nginx/caddy, set `TRUSTED_PROXIES=loopback` (atau IP proxy) agar IP klien asli tetap terbaca.
 - Role super-admin dari `SUPER_ADMIN_EMAILS` kini hanya diberikan ke email yang sudah terverifikasi. Karena belum ada pengiriman email verifikasi, super-admin di produksi masuk lewat Google, atau operator menjalankan `bun run admin:verify <email>` (hanya untuk email di `SUPER_ADMIN_EMAILS`, output email ter-mask).
 - Pendaftaran akun email+password kini tertutup di produksi (termasuk binary). Buka lagi dengan `AUTH_DISABLE_SIGNUP=false`; nilai kosong dianggap belum di-set. Login user lama dan Google tetap berjalan.
 - Toggle "Login email" dan "Pendaftaran" di pengaturan kini benar-benar ditegakkan server: login/daftar email yang dinonaktifkan ditolak dengan pesan yang jelas, bukan hanya disembunyikan di halaman login. Tanpa Google, login email selalu tetap aktif agar kamu tidak terkunci.

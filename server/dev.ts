@@ -41,6 +41,8 @@ try {
 bootEngines();
 exitOnShutdownSignals();
 
+// Unlike prod's Bun.serve, Bun's node:http has no idle timeout (server.timeout = 0; a 75 s
+// silent response completes), so long STT requests need no lift here. Body limit is prod-only.
 const server = createServer((req, res) => {
   const pathname = (req.url ?? '/').split('?')[0];
 

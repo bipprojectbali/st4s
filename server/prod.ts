@@ -25,6 +25,7 @@ import { registerBundledChangelog } from './changelog';
 import { bootEngines, exitOnShutdownSignals } from './engines/boot';
 import { env } from './env';
 import { errorResponse } from './error-page';
+import { needsLongTimeout, serveLimits } from './http-limits';
 import { isHttpProbe, probeResponse } from './http-probes';
 import { logger } from './logger';
 import { stampClientIp } from './middleware/client-ip';
@@ -51,9 +52,11 @@ exitOnShutdownSignals();
 
 const server = Bun.serve({
   port: env.PORT,
-  idleTimeout: 60,
+  ...serveLimits(),
   async fetch(request, bunServer) {
     const url = new URL(request.url);
+    // Long transcriptions, queued speech/SSE and warmups send nothing for minutes.
+    if (needsLongTimeout(url.pathname)) bunServer.timeout(request, 0);
     // Socket IP → internal header, so rate limiting and analytics see the real client.
     stampClientIp(request, bunServer.requestIP(request)?.address);
 
