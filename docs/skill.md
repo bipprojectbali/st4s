@@ -75,7 +75,7 @@ fs.writeFileSync('pagi.wav', Buffer.from(await speech.arrayBuffer()));
 | `qwen3-asr-1.7b` | STT | `whisper-1`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe` |
 | `supertonic-3` | TTS | `tts-1`, `tts-1-hd`, `gpt-4o-mini-tts` |
 
-- `GET /api/v1/models` → `{object:"list", data:[{id, object:"model", created, owned_by:"st4s"}]}` (aliases included). `GET /api/v1/models/:id` → one model or `404 model_not_found`.
+- `GET /api/v1/models` → `{object:"list", data:[{id, object:"model", created, owned_by:"st4s"}]}` (aliases included). `GET /api/v1/models/:id` → one model or `404 model_not_found`. An unknown `model` on any endpoint is the same `404 model_not_found` (SDK `NotFoundError`), like api.openai.com.
 - `GET /api/v1/audio/voices` → `{object:"list", data:[{id, object:"voice", voice}]}`; `voice` is the native voice an alias maps to.
 - Native voices `F1`–`F5`, `M1`–`M5` (case-insensitive). OpenAI names map: alloy→F1, coral→F2, marin→F2, fable→F3, nova→F4, shimmer→F5, sage→F5, ash→M1, ballad→M2, echo→M3, onyx→M4, cedar→M4, verse→M5.
 
@@ -86,7 +86,7 @@ fs.writeFileSync('pagi.wav', Buffer.from(await speech.arrayBuffer()));
 | Field | Default | Notes |
 |---|---|---|
 | `file` | required | wav, flac, mp3, mp4, mpeg, mpga, m4a, ogg, webm. Max 25 MB upload, max 1800 s audio (operator-configurable). |
-| `model` | required | STT model or alias. A TTS model → `400 model_not_found`. |
+| `model` | required | STT model or alias. A TTS model → `400 invalid_value`; unknown → `404 model_not_found`. |
 | `language` | server default (`id`) | ISO 639-1, two letters. |
 | `response_format` | `json` | `json`, `text`, `srt`, `vtt`, `verbose_json`. |
 | `timestamp_granularities[]` | `segment` | `segment` and/or `word` (words only in `verbose_json`). |
@@ -110,7 +110,7 @@ JSON body, scope `tts:speak`. Audio starts streaming after the first sentence gr
 
 | Field | Default | Notes |
 |---|---|---|
-| `model` | required | TTS model or alias. |
+| `model` | required | TTS model or alias. An STT model → `400 invalid_value`; unknown → `404 model_not_found`. |
 | `input` | required | Max 4096 characters. |
 | `voice` | required | Name (native or OpenAI alias) or `{"id": "F1"}`. |
 | `response_format` | `mp3` | `mp3` (audio/mpeg), `opus` (audio/ogg), `aac`, `flac`, `wav`, `pcm` (raw 16-bit mono). Non-wav/pcm need ffmpeg on the server, else `400 unsupported_format`. |
@@ -154,17 +154,16 @@ Errors are `{type:"error", event_id, error:{type, code, message, param, event_id
 
 ## Errors
 
-Every HTTP error under `/api/v1` is `{"error": {"message", "type", "param", "code"}}` with header `x-request-id` (quote it when reporting). `type`: 400/413/415 `invalid_request_error`, 401 `authentication_error`, 403 `permission_error`, 404 `not_found_error`, 429 `rate_limit_error`, others `server_error`. Messages are Indonesian; branch on `code`.
+Every HTTP error under `/api/v1` is `{"error": {"message", "type", "param", "code"}}` with header `x-request-id` (quote it when reporting). `type`: 400/413/415 `invalid_request_error`, 401 `authentication_error`, 403 `permission_error`, 404 `not_found_error` (except `model_not_found`: `invalid_request_error`, as OpenAI sends it), 429 `rate_limit_error`, others `server_error`. Messages are Indonesian; branch on `code`.
 
 | Status | code | Meaning | Caller action |
 |---|---|---|---|
-| 400 | `invalid_value` | A parameter has a bad value (`param` names it) | Fix the parameter |
+| 400 | `invalid_value` | A parameter has a bad value (`param` names it), incl. a model of the wrong kind (TTS model for transcription or vice versa) | Fix the parameter |
 | 400 | `missing_required_parameter` | `file` or `model` missing | Send it |
 | 400 | `invalid_content_type` / `invalid_body` | Not multipart / unreadable form | Send `multipart/form-data` |
 | 400 | `invalid_request` | Speech body is not a JSON object | Send a JSON object |
 | 400 | `string_above_max_length` | `input` > 4096 chars | Split the text |
 | 400 | `unsupported_value` | `stream_format:"sse"` with tts-1/tts-1-hd, or unknown TTS `language` | Use `gpt-4o-mini-tts` / a listed language |
-| 400 | `model_not_found` | Model is not of the right kind (404 on `GET /models/:id`) | Use a model from the table |
 | 400 | `unsupported_format` | Audio format can't be decoded, or no ffmpeg for that output | Send wav, or ask for `wav`/`pcm` |
 | 400 | `invalid_audio` | Empty or corrupt audio | Check the file |
 | 400 | `audio_too_long` | Over the duration limit (default 1800 s) | Split the audio |
@@ -178,6 +177,7 @@ Every HTTP error under `/api/v1` is `{"error": {"message", "type", "param", "cod
 | 403 | `role_too_low` / `owner_banned` / `ip_not_allowed` | Key owner or client IP not allowed | Ask the admin |
 | 403 | `origin_not_allowed` | Realtime with session cookie from foreign Origin | Use an API key header |
 | 404 | `not_found` | Unknown path or method | Check the URL |
+| 404 | `model_not_found` | Unknown model id on any endpoint, incl. `GET /models/:id` (`param: "model"`); realtime sends the same code as an `error` event | Use a model from the table |
 | 413 | `file_too_large` | Upload over limit (default 25 MB) | Compress or split |
 | 415 | `invalid_file_type` | Upload type rejected by the framework | Send a supported audio type |
 | 426 | `upgrade_required` | `/realtime` without WebSocket upgrade | Connect via WebSocket |

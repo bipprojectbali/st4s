@@ -8,7 +8,7 @@ import {
   TTS_MODEL_ID,
   VOICE_ALIASES,
 } from './aliases';
-import { v1Error } from './errors';
+import { v1ModelNotFound } from './errors';
 
 /** Fixed `created` timestamp for every model (2026-01-01T00:00:00Z); the ids never change at runtime. */
 const MODELS_CREATED = 1_767_225_600;
@@ -36,11 +36,6 @@ function voiceList() {
 export const modelsApi = new Elysia()
   .get('/models', () => ({ object: 'list' as const, data: MODEL_IDS.map(model) }))
   .get('/models/:id', ({ params }) =>
-    MODEL_IDS.includes(params.id)
-      ? model(params.id)
-      : v1Error(404, `Model '${params.id}' tidak ada. Lihat GET /api/v1/models.`, {
-          code: 'model_not_found',
-          param: 'model',
-        }),
+    MODEL_IDS.includes(params.id) ? model(params.id) : v1ModelNotFound(params.id),
   )
   .get('/audio/voices', voiceList);

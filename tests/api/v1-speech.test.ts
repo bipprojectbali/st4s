@@ -166,7 +166,8 @@ describe('POST /api/v1/audio/speech', () => {
 
   test.each([
     [{ voice: 'nope' }, 'voice'],
-    [{ model: 'gpt-4' }, 'model'],
+    [{ model: undefined }, 'model'],
+    [{ model: 'whisper-1' }, 'model'],
     [{ input: '' }, 'input'],
     [{ input: '  \n\n ' }, 'input'],
     [{ language: 'xx' }, 'language'],
@@ -181,6 +182,27 @@ describe('POST /api/v1/audio/speech', () => {
     expect(error.param).toBe(param);
     expect(error.type).toBe('invalid_request_error');
     expect(typeof error.message).toBe('string');
+    expect(fake.calls.length).toBe(0);
+  });
+
+  test('model codes: missing → missing_required_parameter, STT model → invalid_value', async () => {
+    const codeOf = async (extra: Record<string, unknown>) =>
+      ((await (await speak(ok(extra))).json()) as { error: { code: string } }).error.code;
+    expect(await codeOf({ model: undefined })).toBe('missing_required_parameter');
+    expect(await codeOf({ model: 'qwen3-asr-1.7b' })).toBe('invalid_value');
+  });
+
+  test('unknown model → 404 model_not_found in OpenAI shape', async () => {
+    const res = await speak(ok({ model: 'gpt-4' }));
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({
+      error: {
+        message: expect.any(String),
+        type: 'invalid_request_error',
+        param: 'model',
+        code: 'model_not_found',
+      },
+    });
     expect(fake.calls.length).toBe(0);
   });
 
@@ -256,5 +278,13 @@ describe('openai SDK against /api/v1', () => {
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(OpenAI.BadRequestError);
     expect((err as InstanceType<typeof OpenAI.BadRequestError>).param).toBe('voice');
+  });
+
+  test('unknown model surfaces as NotFoundError with code model_not_found', async () => {
+    const err = await client.audio.speech
+      .create({ model: 'tts-9', voice: 'alloy', input: 'Halo.' })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(OpenAI.NotFoundError);
+    expect((err as InstanceType<typeof OpenAI.NotFoundError>).code).toBe('model_not_found');
   });
 });

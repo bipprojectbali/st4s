@@ -1,5 +1,5 @@
 /** OpenAI Realtime (GA) wire format for transcription sessions: event builders and client event validation. */
-import { isSttModel, STT_MODEL_ID } from './aliases';
+import { isSttModel, isTtsModel, STT_MODEL_ID } from './aliases';
 import { MAX_HOTWORD_CHARS, MAX_HOTWORDS, splitTerms } from './transcriptions.form';
 
 /** server_vad tuning; OpenAI defaults are 0.5 / 300 / 500. */
@@ -172,6 +172,11 @@ export function applySessionUpdate(
     if (!isObj(t))
       return problem('transcription harus objek.', 'session.audio.input.transcription');
     if (t.model !== undefined) {
+      if (typeof t.model === 'string' && isTtsModel(t.model))
+        return problem(
+          `Model '${t.model}' adalah model TTS dan tidak mendukung transkripsi. Pakai ${STT_MODEL_ID} atau whisper-1.`,
+          'session.audio.input.transcription.model',
+        );
       if (typeof t.model !== 'string' || !isSttModel(t.model))
         return problem(
           `Model '${String(t.model)}' tidak dikenal. Pakai ${STT_MODEL_ID} atau whisper-1.`,
