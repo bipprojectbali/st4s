@@ -22,6 +22,7 @@ import { postsApi } from './posts';
 import { sessionsApi } from './sessions';
 import { settingsApi } from './settings';
 import { settingsOpsApi } from './settings-ops';
+import { v1Api } from '../v1';
 import { versionApi } from './version';
 
 /**
@@ -103,6 +104,8 @@ export const api = new Elysia({ prefix: '/api' })
   }))
   .get('/me', ({ user }) => ({ user }))
   // Posts (public reads, session writes, admin moderation) live in posts.ts.
-  .use(postsApi);
+  .use(postsApi)
+  // OpenAI-compatible speech API (/api/v1/audio/*, /api/v1/models).
+  .use(v1Api);
 
 export type Api = typeof api;
