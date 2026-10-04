@@ -19,6 +19,8 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 - Engine suara lokal: Qwen3-ASR untuk transkripsi dan Supertonic 3 untuk sintesis. Masing-masing berjalan di proses terpisah, dimuat saat pertama dipakai, dan dilepas otomatis setelah idle.
 - Halaman `/dev/engines` untuk memantau status, memori, dan latensi engine, lengkap dengan tombol warmup dan unload.
 - Halaman `/dev/playground` untuk mencoba transkripsi dan sintesis suara langsung dari konsol.
+- Panel Realtime di `/dev/playground`: transkripsi langsung dari mikrofon lewat WebSocket `/api/v1/realtime` (kompatibel OpenAI Realtime), dengan deteksi giliran otomatis (VAD) atau manual lewat tombol "Kirim giliran".
+- API Realtime kompatibel OpenAI di `wss://<host>/api/v1/realtime` untuk transkripsi langsung: kirim audio PCM 24 kHz potongan kecil dan terima transkrip per giliran. Giliran dideteksi otomatis oleh Silero VAD (`server_vad`) atau di-commit manual, SDK `openai` (`OpenAIRealtimeWS`) bisa dipakai apa adanya, dan jumlah sesi, durasi sesi, idle, serta panjang giliran dibatasi lewat `RT_MAX_SESSIONS`, `RT_MAX_SESSION_SEC`, `RT_IDLE_TIMEOUT_SEC`, dan `RT_MAX_TURN_SEC`.
 - Scope API key baru `stt:transcribe` dan `tts:speak`, bisa dipakai di kunci pribadi maupun kunci yang dibuat admin.
 - Memory guard untuk host dengan RAM terbatas. Saat RAM bebas di bawah 30%, request audio dan warmup baru ditolak dengan `503 memory_pressure` + `Retry-After` sampai RAM pulih. Di bawah 20%, engine yang idle di-unload lebih dulu, dan di bawah 12% STT lalu TTS di-unload segera. Engine tidak dimuat ulang otomatis. Ambang diatur lewat `MEM_GUARD_*`.
 - `/dev/engines` menampilkan peringatan saat RAM menipis atau memory guard baru saja meng-unload engine, dan badge sidebar ikut menyala. Unload otomatis tercatat di Audit Log.
@@ -62,6 +64,8 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 - `/dev/engines` kini selalu menampilkan ringkasan memory guard (level, sisa RAM, ambang menipis/kritis/darurat, budget STT/TTS). Judul peringatan mengikuti keadaan sebenarnya ("Request audio ditolak sampai RAM pulih", "STT di-unload otomatis", penolakan budget) dan tidak lagi berbunyi "RAM normal" dengan warna peringatan.
 - Waktu "Dimuat" di kartu engine tidak lagi terpotong di desktop; kolom input dan slider di `/dev/playground` memakai lebar penuh di layar ponsel; label kartu statistik (mis. `/dev/audit`) tidak lagi terpotong di layar 375 px.
 - Log memory guard di konsol dev tidak lagi tampil sebagai `USERLVL`, dan levelnya terbaca benar di Server Logs dan log JSON production.
+- Tombol "Hentikan" di panel Realtime `/dev/playground` kini bisa ditekan selama "Menghubungkan…" dan langsung membatalkan sesi (mikrofon dan koneksi dilepas), jadi sesi yang macet tidak lagi memaksa muat ulang halaman. Bila browser tidak bisa menyiapkan perekam audio atau server tidak merespons dalam 10 detik, panel menampilkan pesan error yang jelas alih-alih menunggu terus.
+- Audio hening atau tanpa ucapan kini menghasilkan transkrip kosong (`""`), bukan teks karangan seperti "okay.", baik di `/api/v1/audio/transcriptions` maupun giliran Realtime (event `completed` dengan `transcript: ""`, tanpa `delta` kosong). Bila model VAD tidak ada atau gagal dijalankan, transkripsi tetap berjalan seperti sebelumnya dan alasannya dicatat di log.
 
 ### Security
 - Body request di production dibatasi `V1_MAX_UPLOAD_MB` + 1 MiB (default 26 MiB) dan ditolak 413 sebelum dibaca, sehingga upload raksasa tidak lagi menghabiskan memori server sebelum autentikasi.

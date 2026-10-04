@@ -1,4 +1,5 @@
 import { dlopen, FFIType, type Pointer, ptr, toArrayBuffer } from 'bun:ffi';
+import { existsSync } from 'node:fs';
 import type { TranscriptSegment } from '../types';
 
 const { ptr: P, cstring, i32, i64_fast, f32, void: V } = FFIType;
@@ -47,22 +48,28 @@ export function openCrispasr(libPath: string) {
     ) as Pointer | null;
   }
 
+  /** Silero speech spans in seconds: [] = VAD ran and heard no speech, null = VAD could not run. */
   function vadSlices(
     vadModel: string,
     pcm: Float32Array,
     maxChunkSec: number,
     threads: number,
+    opts: { threshold?: number; minSilenceMs?: number; padMs?: number } = {},
   ): [number, number][] | null {
+    // libcrispasr returns 0 slices both for "no speech" and for a model it cannot load; a missing file must read as failure.
+    // ponytail: a present but corrupt model still reads as "no speech"; a distinct rc needs a crispasr_vad_slices patch.
+    if (!existsSync(vadModel)) return null;
     const out = new BigUint64Array(1);
+    // Values <= 0 select libcrispasr defaults (threshold 0.5, min silence 100 ms); Silero ctx is cached per model.
     const n = L.crispasr_vad_slices(
       cstr(vadModel),
       ptr(pcm),
       pcm.length,
       SR,
+      opts.threshold ?? 0,
       0,
-      0,
-      0,
-      30,
+      opts.minSilenceMs ?? 0,
+      opts.padMs ?? 30,
       maxChunkSec,
       threads,
       ptr(out),

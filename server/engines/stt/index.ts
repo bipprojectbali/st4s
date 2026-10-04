@@ -1,17 +1,14 @@
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { logger } from '../../logger';
 import { EngineUnloadedError } from '../errors';
-import {
-  EngineBusyError,
-  type EngineState,
-  type SttEngine,
-  type TranscribeRequest,
-  type TranscribeResult,
-} from '../types';
+import type { EngineState, SttEngine, TranscribeRequest, TranscribeResult } from '../types';
 import { loadSttConfig, type SttConfig } from './config';
 import { type SttChild, type SttSpawner, spawnBunChild } from './host';
+import { abortError, type Job, queueBusyError, rejectOnAbort } from './jobs';
 import type { FromChild } from './protocol';
 import { RollingStats } from './stats';
+import { createVadBridge, isVadReply, type SttVad } from './vad';
 
 /** Options for createSttEngine; everything defaults from env. */
 export interface SttEngineOptions {
@@ -19,21 +16,8 @@ export interface SttEngineOptions {
   spawn?: SttSpawner;
 }
 
-type Job = {
-  id: number;
-  req: TranscribeRequest;
-  resolve(r: TranscribeResult): void;
-  reject(e: unknown): void;
-  /** Caller aborted after the child took it; the result is dropped on arrival. */
-  dropped: boolean;
-  startedAt: number;
-};
-
-const abortError = (s: AbortSignal) =>
-  s.reason ?? new DOMException('STT request aborted', 'AbortError');
-
 /** Qwen3-ASR engine: one child process, serial FIFO queue, lazy load, idle unload, crash respawn. */
-export function createSttEngine(opts: SttEngineOptions = {}): SttEngine {
+export function createSttEngine(opts: SttEngineOptions = {}): SttEngine & Partial<SttVad> {
   const cfg: SttConfig = { ...loadSttConfig(), ...opts.config };
   const spawn = opts.spawn ?? spawnBunChild();
   const log = logger.child({ engine: 'stt' });
@@ -60,6 +44,7 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine {
   }
 
   function onMessage(m: FromChild) {
+    if (isVadReply(m)) return vadBridge.onMessage(m);
     if (m.t === 'ready') {
       loadedAt = new Date().toISOString();
       rss = m.rss;
@@ -136,6 +121,7 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine {
       log.error({ code, signal, inFlight: sent?.id ?? null }, 'stt child crashed');
     }
     settleReady?.fail(err);
+    vadBridge.failAll(err);
     if (sent) {
       stats.fail();
       if (!sent.dropped) sent.reject(err);
@@ -216,28 +202,15 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine {
 
   function transcribe(req: TranscribeRequest): Promise<TranscribeResult> {
     if (req.signal?.aborted) return Promise.reject(abortError(req.signal));
-    if (queue.length >= cfg.maxQueue) {
-      const p50 = stats.snapshot().p50Ms ?? 10_000;
-      return Promise.reject(
-        new EngineBusyError('stt', Math.max(1, Math.ceil((p50 / 1000) * (queue.length + 1)))),
-      );
-    }
+    if (queue.length >= cfg.maxQueue) return Promise.reject(queueBusyError(stats, queue.length));
     return new Promise<TranscribeResult>((resolve, reject) => {
       const job: Job = { id: nextId++, req, resolve, reject, dropped: false, startedAt: 0 };
-      const { signal } = req;
-      signal?.addEventListener(
-        'abort',
-        () => {
-          const i = queue.indexOf(job);
-          if (i >= 0) queue.splice(i, 1);
-          else {
-            job.dropped = true;
-            // The span in flight cannot be interrupted over FFI; the child stops at the next span boundary.
-            if (current === job && job.startedAt > 0) child?.send({ t: 'cancel', id: job.id });
-          }
-          reject(abortError(signal));
-        },
-        { once: true },
+      rejectOnAbort(
+        job,
+        req.signal,
+        queue,
+        () => current,
+        (id) => child?.send({ t: 'cancel', id }),
       );
       queue.push(job);
       void pump();
@@ -265,6 +238,15 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine {
     return unloading;
   }
 
+  // warmup() also re-arms the idle timer, so VAD traffic keeps the child loaded mid-session.
+  const vadBridge = createVadBridge({
+    ensure: warmup,
+    send: (m) => {
+      child?.send(m);
+      return !!child;
+    },
+  });
+
   async function warmup(): Promise<void> {
     await unloading;
     await ensureChild();
@@ -273,6 +255,8 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine {
 
   return {
     transcribe,
+    // Realtime server_vad is offered only when the Silero model is actually on disk.
+    ...(cfg.vadModelPath && existsSync(cfg.vadModelPath) ? { vad: vadBridge.vad } : {}),
     warmup,
     unload,
     status: () => ({

@@ -14,8 +14,22 @@ export type TranscribeMsg = {
 /** Parent → child: stop job `id` at the next span boundary (the span in flight still finishes). */
 export type CancelMsg = { t: 'cancel'; id: number };
 
+/** Parent → child: Silero speech spans for a short window (answered between transcription spans). */
+export type VadMsg = {
+  t: 'vad';
+  id: number;
+  audio: Float32Array;
+  threshold: number;
+  minSilenceMs: number;
+};
+
 /** Parent → child IPC message. */
-export type ToChild = TranscribeMsg | CancelMsg;
+export type ToChild = TranscribeMsg | CancelMsg | VadMsg;
+
+/** Child → parent answer to a VadMsg; spans are [start, end] seconds within its window. */
+export type VadReply =
+  | { t: 'vad_result'; id: number; spans: [number, number][] }
+  | { t: 'vad_error'; id: number; message: string };
 
 /** Child → parent IPC message. */
 export type FromChild =
@@ -24,4 +38,5 @@ export type FromChild =
   | { t: 'delta'; id: number; text: string }
   | { t: 'result'; id: number; result: TranscribeResult; rss: number }
   | { t: 'cancelled'; id: number; rss: number }
-  | { t: 'error'; id: number; message: string; rss: number };
+  | { t: 'error'; id: number; message: string; rss: number }
+  | VadReply;

@@ -2,8 +2,8 @@
 import type { Pointer } from 'bun:ffi';
 import type { SttConfig } from './config';
 import { openCrispasr } from './ffi';
-import type { FromChild, ToChild, TranscribeMsg } from './protocol';
-import { planSpans, runSpans, SpanCancelledError, SR } from './spans';
+import type { FromChild, ToChild, TranscribeMsg, VadMsg } from './protocol';
+import { SpanCancelledError, transcribePcm } from './spans';
 
 type Opener = { openSession(modelPath: string, threads: number, useGpu: boolean): Pointer | null };
 
@@ -56,47 +56,52 @@ export function runSttChild(cfgJson: string | undefined): void {
   // Yields so the queued IPC write leaves the process (and a cancel can arrive) before the next blocking FFI call.
   const flush = () => new Promise<void>((r) => setImmediate(r));
   const cancelled = new Set<number>();
-  let warnedNoVad = false;
+  const warnedVad = new Set<string>();
 
-  async function transcribe(m: TranscribeMsg) {
-    const { lib, s } = eng;
-    const audio =
-      m.audio instanceof Float32Array ? m.audio : new Float32Array(m.audio as ArrayLike<number>);
-    const lang =
-      m.language === 'auto'
-        ? cfg.lidModelPath
-          ? lib.detectLanguage(cfg.lidModelPath, audio, cfg.threads)
-          : null
-        : m.language;
-    lib.setHotwords(s, m.hotwords);
-    // qwen3 fires token callbacks only after a span's full decode (crispasr_c_api.cpp _fire_token_callbacks),
-    // so streaming = one delta per span (VAD speech merged up to STT_MAX_CHUNK_SEC), emitted between FFI calls.
-    const vad = cfg.vadModelPath
-      ? lib.vadSlices(cfg.vadModelPath, audio, cfg.maxChunkSec, cfg.threads)
-      : null;
-    if (!vad?.length && !warnedNoVad) {
-      warnedNoVad = true;
-      warn(
-        `VAD ${cfg.vadModelPath ? 'returned no slices' : 'disabled'}; falling back to fixed ${cfg.maxChunkSec}s slices`,
-      );
-    }
-    const duration = audio.length / SR;
-    const { text, segments } = await runSpans({
-      id: m.id,
-      audio,
-      plan: planSpans(duration, vad, cfg.maxChunkSec),
-      decode: (pcm, offset) => lib.transcribe(s, pcm, lang, m.words, offset),
+  function transcribe(m: TranscribeMsg) {
+    return transcribePcm({
+      lib: eng.lib,
+      session: eng.s,
+      cfg,
+      job: m,
+      audio:
+        m.audio instanceof Float32Array ? m.audio : new Float32Array(m.audio as ArrayLike<number>),
+      onVadFallback: (kind, reason) => {
+        if (warnedVad.has(kind)) return;
+        warnedVad.add(kind);
+        warn(reason);
+      },
       onDelta: (delta) => send({ t: 'delta', id: m.id, text: delta }),
       isCancelled: () => cancelled.has(m.id),
       yieldNow: flush,
     });
-    return { text, language: lang ?? 'unknown', duration, segments };
+  }
+
+  function vad(m: VadMsg): FromChild {
+    if (!cfg.vadModelPath)
+      return { t: 'vad_error', id: m.id, message: 'VAD disabled (STT_VAD_MODEL empty)' };
+    const audio =
+      m.audio instanceof Float32Array ? m.audio : new Float32Array(m.audio as ArrayLike<number>);
+    const opts = { threshold: m.threshold, minSilenceMs: m.minSilenceMs, padMs: 0 };
+    const spans = eng.lib.vadSlices(cfg.vadModelPath, audio, 0, cfg.threads, opts);
+    return spans
+      ? { t: 'vad_result', id: m.id, spans }
+      : { t: 'vad_error', id: m.id, message: `crispasr_vad_slices failed on ${cfg.vadModelPath}` };
   }
 
   let chain = Promise.resolve();
   process.on('message', (m: ToChild) => {
     if (m.t === 'cancel') {
       cancelled.add(m.id);
+      return;
+    }
+    // ponytail: VAD runs outside the job chain, so it answers between spans; a span in flight (<= STT_MAX_CHUNK_SEC decode) delays it.
+    if (m.t === 'vad') {
+      try {
+        send(vad(m));
+      } catch (e) {
+        send({ t: 'vad_error', id: m.id, message: (e as Error).message });
+      }
       return;
     }
     chain = chain.then(async () => {

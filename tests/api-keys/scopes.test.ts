@@ -25,6 +25,9 @@ describe('requiredScope', () => {
     expect(requiredScope('POST', '/api/v1/audio/translations')).toBe('stt:transcribe');
     expect(requiredScope('POST', '/api/v1/audio/speech')).toBe('tts:speak');
     expect(requiredScope('GET', '/api/v1/audio/transcriptions')).toBeNull();
+    expect(requiredScope('GET', '/api/v1/realtime')).toBe('stt:transcribe');
+    expect(requiredScope('POST', '/api/v1/realtime')).toBeNull();
+    expect(isPublicRead('GET', '/api/v1/realtime')).toBe(false);
     expect(requiredScope('GET', '/api/v1/models')).toBeNull();
     expect(isPublicRead('GET', '/api/v1/models')).toBe(true);
     expect(isPublicRead('GET', '/api/v1/models/whisper-1')).toBe(true);

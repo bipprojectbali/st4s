@@ -1,14 +1,18 @@
-/** Span planning + the per-span decode loop of the STT child, kept free of FFI so tests can drive it. */
-import type { TranscriptSegment } from '../types';
+/** The STT child's decode path (VAD → spans → decode loop), kept free of FFI so tests can drive it with a fake lib. */
+import type { Pointer } from 'bun:ffi';
+import type { TranscribeResult, TranscriptSegment } from '../types';
+import type { SttConfig } from './config';
+import type { openCrispasr } from './ffi';
+import type { TranscribeMsg } from './protocol';
 
 export const SR = 16_000;
 const MIN_SPAN = SR / 10;
 
 type Span = [number, number];
 
-/** VAD spans when there are any; otherwise fixed slices of `maxChunkSec` so one decode never sees the whole file. */
+/** VAD spans as-is ([] = no speech, nothing to decode); VAD unavailable (null) → fixed slices of `maxChunkSec`. */
 export function planSpans(durationSec: number, vad: Span[] | null, maxChunkSec: number): Span[] {
-  if (vad?.length) return vad;
+  if (vad) return vad;
   const out: Span[] = [];
   for (let a = 0; a < durationSec; a += maxChunkSec)
     out.push([a, Math.min(durationSec, a + maxChunkSec)]);
@@ -60,4 +64,63 @@ export async function runSpans(
     await a.yieldNow();
   }
   return { text, segments };
+}
+
+/** The libcrispasr calls one transcription makes. */
+export type DecodeLib = Pick<
+  ReturnType<typeof openCrispasr>,
+  'vadSlices' | 'detectLanguage' | 'setHotwords' | 'transcribe'
+>;
+
+export type TranscribeArgs = Pick<SpanLoopArgs, 'onDelta' | 'isCancelled' | 'yieldNow'> & {
+  lib: DecodeLib;
+  session: Pointer;
+  cfg: Pick<SttConfig, 'vadModelPath' | 'lidModelPath' | 'maxChunkSec' | 'threads'>;
+  job: Pick<TranscribeMsg, 'id' | 'language' | 'hotwords' | 'words'>;
+  audio: Float32Array;
+  /** VAD disabled or failed for this job (the caller decides how often to warn). */
+  onVadFallback(kind: 'disabled' | 'failed', reason: string): void;
+};
+
+/** One job: Silero hears no speech → empty result without ASR; VAD unavailable → fixed slices; else decode the speech spans. */
+export async function transcribePcm(a: TranscribeArgs): Promise<TranscribeResult> {
+  const { lib, cfg, job, audio } = a;
+  const duration = audio.length / SR;
+  const vad = cfg.vadModelPath
+    ? lib.vadSlices(cfg.vadModelPath, audio, cfg.maxChunkSec, cfg.threads)
+    : null;
+  const fallback = `falling back to fixed ${cfg.maxChunkSec}s slices`;
+  if (!vad && cfg.vadModelPath)
+    a.onVadFallback(
+      'failed',
+      `VAD failed on ${cfg.vadModelPath} (${duration.toFixed(1)}s audio); ${fallback}`,
+    );
+  else if (!vad) a.onVadFallback('disabled', `VAD disabled (STT_VAD_MODEL empty); ${fallback}`);
+  // Decoding pure silence makes Qwen3-ASR hallucinate ("okay."); OpenAI answers silence with empty text.
+  if (vad?.length === 0)
+    return {
+      text: '',
+      segments: [],
+      duration,
+      language: job.language === 'auto' ? 'unknown' : job.language,
+    };
+  const lang =
+    job.language === 'auto'
+      ? cfg.lidModelPath
+        ? lib.detectLanguage(cfg.lidModelPath, audio, cfg.threads)
+        : null
+      : job.language;
+  lib.setHotwords(a.session, job.hotwords);
+  // qwen3 fires token callbacks only after a span's full decode (crispasr_c_api.cpp _fire_token_callbacks),
+  // so streaming = one delta per span (VAD speech merged up to STT_MAX_CHUNK_SEC), emitted between FFI calls.
+  const { text, segments } = await runSpans({
+    id: job.id,
+    audio,
+    plan: planSpans(duration, vad, cfg.maxChunkSec),
+    decode: (pcm, offset) => lib.transcribe(a.session, pcm, lang, job.words, offset),
+    onDelta: a.onDelta,
+    isCancelled: a.isCancelled,
+    yieldNow: a.yieldNow,
+  });
+  return { text, language: lang ?? 'unknown', duration, segments };
 }

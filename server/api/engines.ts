@@ -135,6 +135,12 @@ export const enginesApi = new Elysia({ prefix: '/engines' })
       });
     }
     const ms = Math.round(performance.now() - t0);
+    // Same shape as the guard/idle unload lines, so every unload reads alike in Server Logs.
+    if (action === 'unload')
+      logger.info(
+        { engine: kind, action, reason: 'manual', actorId: me?.user.id ?? null, ms },
+        'engine manual unload',
+      );
     void audit({
       actor: me?.user ?? null,
       headers: request.headers,

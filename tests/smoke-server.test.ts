@@ -13,7 +13,14 @@ describe('smoke checks', () => {
     const names = SMOKE_CHECKS.map((c) => c.name);
     expect(new Set(names).size).toBe(names.length);
     for (const c of SMOKE_CHECKS) expect(c.path.startsWith('/')).toBe(true);
-    for (const p of ['/api/version', '/README.md', '/llms.txt', '/favicon.ico', '/api/mcp'])
+    for (const p of [
+      '/api/version',
+      '/README.md',
+      '/llms.txt',
+      '/favicon.ico',
+      '/api/mcp',
+      '/api/v1/realtime',
+    ])
       expect(SMOKE_CHECKS.some((c) => c.path === p)).toBe(true);
   });
   test('evaluate reports every mismatch and passes exact matches', () => {

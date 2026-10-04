@@ -169,6 +169,8 @@ export function requiredScope(method: string, pathname: string): Scope | null {
   if (p === '/api/v1/audio/transcriptions' || p === '/api/v1/audio/translations')
     return read ? null : 'stt:transcribe';
   if (p === '/api/v1/audio/speech') return read ? null : 'tts:speak';
+  // WebSocket upgrade is a GET.
+  if (p === '/api/v1/realtime') return read ? 'stt:transcribe' : null;
   return null;
 }
 
