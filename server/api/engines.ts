@@ -10,6 +10,7 @@ import type { EngineControl, EngineStatus } from '../engines/types';
 import { resolveActor } from '../guard';
 import { logger } from '../logger';
 import { ROLES } from '../permissions';
+import { availableMemoryBytes } from '../system-memory';
 import { speechConfig } from '../v1/speech-config';
 
 export const ENGINE_KINDS = ['stt', 'tts'] as const;
@@ -57,7 +58,7 @@ export function engineOverview() {
     deps: checkEngineDeps(),
     memory: {
       serverRssBytes: process.memoryUsage().rss,
-      freeBytes: os.freemem(),
+      freeBytes: availableMemoryBytes(),
       totalBytes: os.totalmem(),
     },
     generatedAt: new Date().toISOString(),
