@@ -35,9 +35,21 @@ const SYMBOLS = {
 const SR = 16_000;
 const cstr = (s: string) => Buffer.from(`${s}\0`);
 
+/** dlopen libcrispasr; the error names the path and how to get a working lib. */
+export function dlopenCrispasr(libPath: string) {
+  try {
+    return dlopen(libPath, SYMBOLS);
+  } catch (e) {
+    const what = existsSync(libPath) ? 'cannot be loaded' : 'not found';
+    throw new Error(
+      `libcrispasr ${what} at ${libPath} — run \`bash scripts/crispasr/build.sh\` or set CRISPASR_LIB (${(e as Error).message})`,
+    );
+  }
+}
+
 /** Thin synchronous wrapper over the libcrispasr session C API (child process only). */
 export function openCrispasr(libPath: string) {
-  const { symbols: L, close } = dlopen(libPath, SYMBOLS);
+  const { symbols: L, close } = dlopenCrispasr(libPath);
   const warnedVadRc = new Set<number>();
 
   function openSession(modelPath: string, threads: number, useGpu: boolean): Pointer | null {

@@ -28,7 +28,8 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 - Engine STT dan TTS menguji dirinya sendiri setiap kali dimuat (transkripsi klip contoh, VAD, hening; sintesis frasa uji). Engine yang hasilnya salah tidak lagi dianggap siap: statusnya `error` dengan alasan dan langkah perbaikan di `/dev/engines`, request mendapat `503 engine_unavailable`, dan tombol warmup berubah menjadi "Coba muat ulang". Bisa dimatikan dengan `ENGINE_SELFTEST=0`.
 
 ### Changed
-- STT kini memakai libcrispasr ber-patch secara default (`~/tmp/crispasr-s4s/build/src/libcrispasr.dylib`, dibangun lewat `scripts/crispasr/build.sh`), sehingga puncak RAM STT turun dari ~3,5 GB ke ~2,1 GB dengan transkrip yang sama. Lib tanpa patch masih bisa dipakai lewat `CRISPASR_LIB`.
+- STT kini memakai libcrispasr ber-patch secara default (`.crispasr/build/src/libcrispasr.dylib`, dibangun lewat `scripts/crispasr/build.sh`), sehingga puncak RAM STT turun dari ~3,5 GB ke ~2,1 GB dengan transkrip yang sama. Lib tanpa patch masih bisa dipakai lewat `CRISPASR_LIB`.
+- libcrispasr kini dibangun di dalam project (`.crispasr/`, tidak ikut git) oleh `bash scripts/crispasr/build.sh`, dan server memuatnya tanpa perlu `CRISPASR_LIB` di `.env` — tidak ada lagi lib lama di `~/tmp` yang terpakai diam-diam. Bila lib tidak ditemukan atau gagal dimuat, engine STT gagal dengan pesan yang menyebut path-nya dan perintah build yang harus dijalankan.
 - Error di bawah `/api/v1` kini berbentuk error OpenAI (`{ error: { message, type, param, code } }`) agar SDK `openai` bisa membacanya. Route `/api/*` lain tetap memakai format lama.
 - Pesan error `/api/v1` kini berbahasa Indonesia (nilai `code`, `type`, dan status HTTP tidak berubah), dan `V1_FFMPEG_PATH` digabung ke `FFMPEG_PATH` — satu variabel kini dipakai untuk decode upload maupun encode audio.
 - Saat antrean engine penuh, API menjawab `429 engine_busy` dengan header `Retry-After` agar klien tahu kapan mencoba lagi.

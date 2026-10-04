@@ -4,9 +4,16 @@ import {
   classifyFile,
   estimateTokens,
   hazardFor,
+  IGNORED_DIRS,
   isTextFile,
   statusFor,
 } from '../../server/file-health/file-health.rules';
+
+describe('IGNORED_DIRS', () => {
+  it('skips the vendored libcrispasr build from scripts/crispasr/build.sh', () => {
+    expect(IGNORED_DIRS.has('.crispasr')).toBe(true);
+  });
+});
 
 describe('classifyFile', () => {
   it('maps project paths to kinds', () => {
