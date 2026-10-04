@@ -2,6 +2,7 @@ import {
   Alert,
   Badge,
   Button,
+  Divider,
   Group,
   Paper,
   SimpleGrid,
@@ -12,6 +13,7 @@ import {
 } from '@mantine/core';
 import { FiAlertTriangle, FiPower, FiZap } from 'react-icons/fi';
 import {
+  type EngineDep,
   type EngineKind,
   type EngineStatus,
   formatBytes,
@@ -36,6 +38,33 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** Files/binaries the engine needs, each with an ok/missing badge. */
+function DepList({ deps }: { deps: EngineDep[] }) {
+  if (!deps.length) return null;
+  return (
+    <Stack gap={6}>
+      <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+        Dependensi
+      </Text>
+      {deps.map((d) => (
+        <Group key={d.name} justify="space-between" wrap="nowrap" gap="xs">
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <Text size="sm" ff="monospace" truncate>
+              {d.name}
+            </Text>
+            <Text size="xs" c="dimmed" truncate title={d.detail}>
+              {d.detail}
+            </Text>
+          </div>
+          <Badge variant="light" color={d.ok ? 'teal' : 'red'} style={{ flexShrink: 0 }}>
+            {d.ok ? 'Ada' : 'Tidak ada'}
+          </Badge>
+        </Group>
+      ))}
+    </Stack>
+  );
+}
+
 /** Disabled reason for a button, or null when it can be used. */
 function blockReason(s: EngineStatus, action: 'warmup' | 'unload', busy: boolean): string | null {
   if (busy) return 'Aksi engine lain sedang berjalan.';
@@ -51,10 +80,12 @@ function blockReason(s: EngineStatus, action: 'warmup' | 'unload', busy: boolean
 export function EngineCard({
   kind,
   status: s,
+  deps,
   actions,
 }: {
   kind: EngineKind;
   status: EngineStatus | null;
+  deps: EngineDep[];
   actions: ReturnType<typeof useEngineActions>;
 }) {
   const { dateTime } = useTimeFormat();
@@ -66,6 +97,8 @@ export function EngineCard({
           Engine {kind.toUpperCase()} tidak terdaftar di proses server ini. Cek konfigurasi engine
           lalu restart server.
         </Text>
+        <Divider my="sm" />
+        <DepList deps={deps} />
       </Paper>
     );
   const meta = STATE_META[s.state];
@@ -139,6 +172,8 @@ export function EngineCard({
             }
           />
         </SimpleGrid>
+        <Divider />
+        <DepList deps={deps} />
       </Stack>
     </Paper>
   );

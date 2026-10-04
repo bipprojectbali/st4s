@@ -5,6 +5,13 @@ import type { EngineState, EngineStatus } from '@server/engines/types';
 export type { EngineOverview, EngineStatus };
 export type EngineKind = 'stt' | 'tts';
 export type EngineAction = 'warmup' | 'unload';
+export type EngineDep = EngineOverview['deps'][number];
+
+/** Deps one engine needs: its own `STT_*`/`TTS_*`/`CRISPASR_*` entries plus ffmpeg (STT decode, TTS encode). */
+export function depsFor(kind: EngineKind, deps: EngineDep[]): EngineDep[] {
+  const own = kind === 'stt' ? ['STT_', 'CRISPASR_'] : ['TTS_'];
+  return deps.filter((d) => d.name === 'FFMPEG_PATH' || own.some((p) => d.name.startsWith(p)));
+}
 
 const BASE = '/api/engines';
 

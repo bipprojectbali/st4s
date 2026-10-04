@@ -8,7 +8,7 @@ import { Link } from 'react-router';
 import { EngineCard } from '~/components/engines/EngineCard';
 import { useEngineActions } from '~/components/engines/useEngineActions';
 import { StatTile } from '~/components/logs/StatTile';
-import { type EngineOverview, fetchEngines, formatBytes } from '~/lib/engines-api';
+import { depsFor, type EngineOverview, fetchEngines, formatBytes } from '~/lib/engines-api';
 import { toJson } from '~/lib/loader-json';
 import { useTimeFormat } from '~/lib/time-format';
 import type { Route } from './+types/engines';
@@ -93,8 +93,8 @@ export default function EnginesPage({ loaderData }: Route.ComponentProps) {
       </SimpleGrid>
 
       <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md">
-        <EngineCard kind="stt" status={d.stt} actions={actions} />
-        <EngineCard kind="tts" status={d.tts} actions={actions} />
+        <EngineCard kind="stt" status={d.stt} deps={depsFor('stt', d.deps)} actions={actions} />
+        <EngineCard kind="tts" status={d.tts} deps={depsFor('tts', d.deps)} actions={actions} />
       </SimpleGrid>
       <Text size="xs" c="dimmed">
         Bahasa default: STT {d.stt_default_language} · TTS {d.tts_default_language} ·{' '}
