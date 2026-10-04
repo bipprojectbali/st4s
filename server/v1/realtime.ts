@@ -16,6 +16,7 @@ import { rtConfig } from './realtime-config';
 import { newId } from './realtime-protocol';
 import {
   markUpgraded,
+  realtimeActiveSessions,
   releaseRealtimeSlot,
   reserveRealtimeSlot,
   upgraderFor,
@@ -35,28 +36,48 @@ function originAllowed(request: Request): boolean {
   }
 }
 
+type RefusalOpts = Parameters<typeof v1Error>[2] & { code: string };
+
+/** A pre-upgrade refusal: one warn line (ids, code, limits; never user content) plus the OpenAI-shaped error. */
+function refuse(
+  requestId: string,
+  status: number,
+  message: string,
+  opts: RefusalOpts,
+  extra: Record<string, unknown> = {},
+): Response {
+  logger.warn({ requestId, code: opts.code, status, ...extra }, 'realtime upgrade refused');
+  return v1Error(status, message, opts);
+}
+
+const requestIdOf = (request: Request) => request.headers.get('x-request-id') ?? newRequestId();
+
 function upgradeRealtime(request: Request): Response {
-  const requestId = request.headers.get('x-request-id') ?? newRequestId();
+  const requestId = requestIdOf(request);
   if (request.headers.get('upgrade')?.toLowerCase() !== 'websocket')
-    return v1Error(426, 'Endpoint ini hanya menerima koneksi WebSocket (Upgrade: websocket).', {
-      code: 'upgrade_required',
-      headers: { upgrade: 'websocket' },
-    });
+    return refuse(
+      requestId,
+      426,
+      'Endpoint ini hanya menerima koneksi WebSocket (Upgrade: websocket).',
+      { code: 'upgrade_required', headers: { upgrade: 'websocket' } },
+    );
   const identity = getApiKeyIdentity(request);
   if (!identity && !originAllowed(request))
-    return v1Error(
+    return refuse(
+      requestId,
       403,
       'Origin tidak diizinkan untuk sesi login. Buka dari situs ini atau pakai API key.',
-      {
-        code: 'origin_not_allowed',
-      },
+      { code: 'origin_not_allowed' },
     );
   const admission = admitSpeechWork('stt');
   if (!admission.ok)
-    return v1Error(503, admissionMessage(admission), {
-      code: 'memory_pressure',
-      headers: { 'retry-after': String(admission.retryAfterSec) },
-    });
+    return refuse(
+      requestId,
+      503,
+      admissionMessage(admission),
+      { code: 'memory_pressure', headers: { 'retry-after': String(admission.retryAfterSec) } },
+      admission,
+    );
   let engine: SttEngine;
   try {
     engine = getStt();
@@ -68,17 +89,16 @@ function upgradeRealtime(request: Request): Response {
   }
   const server = upgraderFor(request);
   if (!server)
-    return v1Error(426, 'Server ini tidak bisa meng-upgrade koneksi ke WebSocket.', {
+    return refuse(requestId, 426, 'Server ini tidak bisa meng-upgrade koneksi ke WebSocket.', {
       code: 'upgrade_required',
     });
   if (!reserveRealtimeSlot(rtConfig.maxSessions))
-    return v1Error(
+    return refuse(
+      requestId,
       429,
       `Maksimal ${rtConfig.maxSessions} sesi realtime bersamaan. Tutup sesi lain lalu coba lagi.`,
-      {
-        code: 'too_many_sessions',
-        headers: { 'retry-after': '10' },
-      },
+      { code: 'too_many_sessions', headers: { 'retry-after': '10' } },
+      { active: realtimeActiveSessions(), max: rtConfig.maxSessions },
     );
 
   const intent = new URL(request.url).searchParams.get('intent');
@@ -111,7 +131,7 @@ function upgradeRealtime(request: Request): Response {
   });
   if (!ok) {
     releaseRealtimeSlot();
-    return v1Error(400, 'Upgrade WebSocket gagal.', { code: 'upgrade_failed' });
+    return refuse(requestId, 400, 'Upgrade WebSocket gagal.', { code: 'upgrade_failed' });
   }
   markUpgraded(request);
   return new Response(null);
@@ -119,5 +139,13 @@ function upgradeRealtime(request: Request): Response {
 
 /** Realtime route; auth (API key or login) runs before the handler, like the HTTP v1 routes. */
 export const realtimeApi = new Elysia()
-  .onBeforeHandle(requireV1Caller)
+  .onBeforeHandle(async ({ request }) => {
+    const denied = await requireV1Caller({ request });
+    if (denied)
+      logger.warn(
+        { requestId: requestIdOf(request), code: 'invalid_api_key', status: denied.status },
+        'realtime upgrade refused',
+      );
+    return denied;
+  })
   .get('/realtime', ({ request }) => upgradeRealtime(request));

@@ -14,6 +14,7 @@ import {
 } from '../../server/engines/errors';
 import { setEngines } from '../../server/engines/registry';
 import type { EngineState, EngineStatus, SttEngine, TtsEngine } from '../../server/engines/types';
+import { logger } from '../../server/logger';
 import { setGuardHandle } from '../../server/memory-guard/state';
 import * as rolesMod from '../../server/roles';
 
@@ -28,6 +29,7 @@ const spies = [
     async () => (ctx.actor?.role ?? 'user') as 'user',
   ),
 ];
+const infoSpy = spyOn(logger, 'info');
 
 const TAG = `eng-${crypto.randomUUID().slice(0, 8)}`;
 const superId = `${TAG}-super`;
@@ -103,6 +105,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   for (const sp of spies) sp.mockRestore();
+  infoSpy.mockRestore();
   setEngines(previous);
   setGuardHandle(null);
   await db.delete(auditLog).where(eq(auditLog.actorId, superId));
@@ -160,6 +163,15 @@ describe('/api/engines', () => {
     expect(u.status).toBe(200);
     expect(u.body.status.state).toBe('unloaded');
     expect(stt.calls).toEqual(['warmup', 'unload']);
+    const unloadLogs = infoSpy.mock.calls.filter((c) => c[1] === 'engine manual unload');
+    expect(unloadLogs).toHaveLength(1);
+    expect(unloadLogs[0][0]).toMatchObject({
+      engine: 'stt',
+      action: 'unload',
+      reason: 'manual',
+      actorId: superId,
+    });
+    expect(typeof (unloadLogs[0][0] as { ms: unknown }).ms).toBe('number');
     await Bun.sleep(50);
     const rows = await db
       .select({ action: auditLog.action, targetId: auditLog.targetId })

@@ -1,6 +1,16 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  spyOn,
+  test,
+} from 'bun:test';
 import { api } from '../../server/api';
 import { setEngines } from '../../server/engines/registry';
+import { logger } from '../../server/logger';
 import {
   type Admission,
   type MemoryGuardStatus,
@@ -11,6 +21,12 @@ import { fakeStt, resetFake, SESSION_TOKEN, stubSession } from './fake-stt';
 import { connect, pcmChunks, startServer, upgradeRequest } from './realtime-harness';
 
 const spies = stubSession();
+const warnSpy = spyOn(logger, 'warn');
+/** Fields of the 'realtime upgrade refused' warn lines logged so far. */
+const refusals = () =>
+  warnSpy.mock.calls
+    .filter((c) => c[1] === 'realtime upgrade refused')
+    .map((c) => c[0] as Record<string, unknown>);
 const AUTH = { authorization: `Bearer ${SESSION_TOKEN}` };
 let server: ReturnType<typeof startServer>;
 
@@ -25,7 +41,10 @@ beforeAll(() => {
   setEngines({ stt: fakeStt });
   server = startServer();
 });
-beforeEach(() => resetFake());
+beforeEach(() => {
+  resetFake();
+  warnSpy.mockClear();
+});
 afterEach(() => {
   setGuardHandle(null);
   for (const k of ['RT_MAX_SESSIONS', 'RT_IDLE_TIMEOUT_SEC', 'RT_MAX_SESSION_SEC'])
@@ -35,6 +54,7 @@ afterAll(() => {
   server.stop(true);
   setEngines({ stt: undefined });
   for (const s of spies) s.mockRestore();
+  warnSpy.mockRestore();
 });
 
 const until = async (ok: () => boolean) => {
@@ -47,6 +67,9 @@ describe('before the upgrade', () => {
     const res = (await upgradeRequest()) as Response;
     expect(res.status).toBe(401);
     expect((await res.json()).error.type).toBe('authentication_error');
+    expect(refusals()).toEqual([
+      { requestId: expect.any(String), code: 'invalid_api_key', status: 401 },
+    ]);
   });
 
   test('plain GET without Upgrade gets 426', async () => {
@@ -69,6 +92,9 @@ describe('before the upgrade', () => {
     expect(res.status).toBe(503);
     expect(res.headers.get('retry-after')).toBe('12');
     expect((await res.json()).error.code).toBe('memory_pressure');
+    expect(refusals()).toEqual([
+      expect.objectContaining({ code: 'memory_pressure', status: 503, reason: 'pressure' }),
+    ]);
   });
 
   test('engine not registered → 503 engine_unavailable', async () => {
@@ -87,6 +113,9 @@ describe('before the upgrade', () => {
     const res = (await upgradeRequest(AUTH)) as Response;
     expect(res.status).toBe(429);
     expect((await res.json()).error.code).toBe('too_many_sessions');
+    expect(refusals()).toEqual([
+      { requestId: expect.any(String), code: 'too_many_sessions', status: 429, active: 1, max: 1 },
+    ]);
     c.ws.close();
     await until(() => realtimeActiveSessions() === 0);
     expect(await upgradeRequest(AUTH)).toBeUndefined();
