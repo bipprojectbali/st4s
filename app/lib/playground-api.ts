@@ -37,7 +37,7 @@ export async function streamTranscription(
   req: SttRequest,
   onDelta: (delta: string) => void,
   signal: AbortSignal,
-): Promise<{ text: string; seconds: number | null }> {
+): Promise<{ text: string }> {
   const form = new FormData();
   form.append('file', req.file, req.filename);
   form.append('model', 'whisper-1');
@@ -48,27 +48,19 @@ export async function streamTranscription(
     await net(fetch(`${V1}/transcriptions`, { method: 'POST', body: form, signal })),
     'Transkripsi gagal',
   );
-  const done: { text: string | null; seconds: number | null } = { text: null, seconds: null };
+  const done: { text: string | null } = { text: null };
   await net(
     readSse(res, (e) => {
       const msg = sseErrorMessage(e);
       if (msg) throw new Error(msg);
-      const ev = e as {
-        type?: string;
-        delta?: string;
-        text?: string;
-        usage?: { seconds?: number };
-      };
+      const ev = e as { type?: string; delta?: string; text?: string };
       if (ev.type === 'transcript.text.delta' && ev.delta) onDelta(ev.delta);
-      if (ev.type === 'transcript.text.done') {
-        done.text = ev.text ?? '';
-        done.seconds = ev.usage?.seconds ?? null;
-      }
+      if (ev.type === 'transcript.text.done') done.text = ev.text ?? '';
     }),
   );
   if (done.text === null)
     throw new Error('Stream transkripsi berakhir tanpa hasil akhir. Coba lagi.');
-  return { text: done.text, seconds: done.seconds };
+  return { text: done.text };
 }
 
 const speechBody = (r: SpeechRequest, extra: Record<string, unknown>) =>

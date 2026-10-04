@@ -1,6 +1,6 @@
 /** Transcription results in OpenAI response formats: json/text/srt/vtt/verbose_json and the SSE stream. */
 
-import { EngineUnloadedError } from '../engines/errors';
+import { EngineNotReadyError, EngineUnloadedError, VadFailedError } from '../engines/errors';
 import {
   EngineBusyError,
   type SttEngine,
@@ -12,11 +12,20 @@ import { v1EngineUnloaded, v1Error, v1ErrorBody } from './errors';
 import { toSrt, toVtt } from './subtitles';
 import type { ResponseFormat } from './transcriptions.form';
 
-/** OpenAI bills audio per started second; `usage` mirrors that. */
+/**
+ * OpenAI bills audio per started second; `usage` mirrors that. The SDK allows this shape on json,
+ * verbose_json and realtime `completed`, but not on `transcript.text.done` (tokens only).
+ */
 export const usage = (seconds: number) => ({
   type: 'duration' as const,
   seconds: Math.ceil(seconds),
 });
+
+const languageNames = new Intl.DisplayNames(['en'], { type: 'language', fallback: 'none' });
+
+/** ISO 639 code → lowercase English name as whisper-1 reports it ("id" → "indonesian"); unknown codes pass through. */
+export const languageName = (code: string) =>
+  /^[a-z]{2,3}$/i.test(code) ? (languageNames.of(code)?.toLowerCase() ?? code) : code;
 
 const plain = (body: string, type = 'text/plain; charset=utf-8') =>
   new Response(body, { headers: { 'content-type': type, 'cache-control': 'no-store' } });
@@ -44,7 +53,7 @@ function verbose(r: TranscribeResult, duration: number, withWords: boolean) {
   );
   return {
     task: 'transcribe' as const,
-    language: r.language,
+    language: languageName(r.language),
     duration,
     text: r.text,
     segments,
@@ -82,6 +91,12 @@ export function engineErrorResponse(err: unknown, requestId: string): Response {
       headers: { 'retry-after': String(err.retryAfterSec) },
     });
   if (err instanceof EngineUnloadedError) return v1EngineUnloaded(err);
+  if (err instanceof EngineNotReadyError)
+    return v1Error(503, err.message, { code: 'engine_unavailable' });
+  if (err instanceof VadFailedError) {
+    logger.error({ requestId, code: err.code, detail: err.detail }, 'stt transcription failed');
+    return v1Error(500, err.message, { code: err.code });
+  }
   logger.error({ err, requestId }, 'stt transcription failed');
   return v1Error(500, 'Transkripsi gagal. Coba lagi; sertakan header x-request-id bila melapor.', {
     code: 'server_error',
@@ -94,7 +109,6 @@ type StreamArgs = {
   engine: SttEngine;
   req: Omit<TranscribeRequest, 'onDelta' | 'signal'>;
   ctrl: AbortController;
-  duration: number;
   requestId: string;
   onEnd: (status: number) => void;
 };
@@ -107,7 +121,6 @@ export async function streamTranscript({
   engine,
   req,
   ctrl,
-  duration,
   requestId,
   onEnd,
 }: StreamArgs): Promise<Response> {
@@ -157,13 +170,20 @@ export async function streamTranscript({
   run.then(
     (r) => {
       if (!sentDelta && r.text) push({ type: 'transcript.text.delta', delta: r.text });
-      push({ type: 'transcript.text.done', text: r.text, usage: usage(duration) });
+      // No `usage`: the SDK types it as token counts only, and Qwen3-ASR has none to report honestly.
+      push({ type: 'transcript.text.done', text: r.text });
       close();
       onEnd(200);
     },
     (err: unknown) => {
       const unloaded = err instanceof EngineUnloadedError;
-      if (!ctrl.signal.aborted && !unloaded)
+      const vad = err instanceof VadFailedError ? err : null;
+      if (!ctrl.signal.aborted && vad)
+        logger.error(
+          { requestId, code: vad.code, detail: vad.detail },
+          'stt stream failed mid-way',
+        );
+      else if (!ctrl.signal.aborted && !unloaded)
         logger.error({ err, requestId }, 'stt stream failed mid-way');
       push({
         type: 'error',
@@ -173,7 +193,13 @@ export async function streamTranscript({
               'Mesin STT dihentikan di tengah stream karena RAM menipis atau idle. Coba lagi.',
               'engine_unloaded',
             )
-          : v1ErrorBody(500, 'Transkripsi terhenti di tengah stream. Coba lagi.', 'server_error')),
+          : vad
+            ? v1ErrorBody(500, vad.message, vad.code)
+            : v1ErrorBody(
+                500,
+                'Transkripsi terhenti di tengah stream. Coba lagi.',
+                'server_error',
+              )),
       });
       close();
       onEnd(ctrl.signal.aborted ? 499 : unloaded ? 503 : 500);

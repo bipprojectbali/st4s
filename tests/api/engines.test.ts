@@ -9,6 +9,7 @@ import { db } from '../../server/db';
 import { auditLog, user } from '../../server/db/schema';
 import {
   ENGINE_UNLOADED_MESSAGE,
+  EngineNotReadyError,
   EngineUnloadedError,
   UNLOADED_RETRY_SEC,
 } from '../../server/engines/errors';
@@ -40,7 +41,7 @@ const superAdmin = {
 };
 
 /** Fake engine that records calls; no model is ever loaded. */
-function fakeEngine(kind: 'stt' | 'tts', failWarmup = false) {
+function fakeEngine(kind: 'stt' | 'tts', failWarmup: boolean | Error = false) {
   const calls: string[] = [];
   let state: EngineState = 'unloaded';
   const status = (): EngineStatus => ({
@@ -57,6 +58,7 @@ function fakeEngine(kind: 'stt' | 'tts', failWarmup = false) {
     status,
     async warmup() {
       calls.push('warmup');
+      if (failWarmup instanceof Error) throw failWarmup;
       if (failWarmup) throw new Error('model file missing');
       state = 'ready';
     },
@@ -196,6 +198,20 @@ describe('/api/engines', () => {
     expect(failed.status).toBe(503);
     expect(failed.body.code).toBe('ENGINE_WARMUP_FAILED');
     expect(failed.body.error).toContain('model file missing');
+  });
+
+  test('warmup refused by the self-test shows the operator detail, not the generic text', async () => {
+    ctx.actor = superAdmin;
+    const detail = 'Self-test STT gagal (clip_overlap): transkrip contoh ucapan tidak cocok';
+    const stt = fakeEngine('stt', new EngineNotReadyError('stt', `${detail}.`));
+    setEngines({ stt: stt.engine as unknown as SttEngine });
+    const r = await call('/stt/warmup', 'POST');
+    expect(r.status).toBe(503);
+    expect(r.body.code).toBe('ENGINE_WARMUP_FAILED');
+    expect(r.body.error).toBe(
+      `Gagal memuat engine STT: ${detail}. Cek Server Logs lalu coba lagi.`,
+    );
+    expect(r.body.error).not.toContain('gagal dimuat');
   });
 
   test('memory guard: GET reports it; warmup is shed with 503 + Retry-After while unload still works', async () => {

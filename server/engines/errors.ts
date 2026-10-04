@@ -26,3 +26,43 @@ export function engineUnloadedApiError(requestId: string) {
     requestId,
   };
 }
+
+/** Generic 503 text for an engine that failed to become ready; the detail stays in /dev/engines and the log. */
+export const engineLoadFailedMessage = (kind: 'stt' | 'tts') =>
+  `Mesin ${kind.toUpperCase()} gagal dimuat. Periksa status engine di /dev/engines, lalu muat ulang engine.`;
+
+/** The engine could not become ready (load failure, crash during load, or failed self-test); not transient. */
+export class EngineNotReadyError extends Error {
+  constructor(
+    readonly kind: 'stt' | 'tts',
+    /** Operator-facing reason (also the engine's lastError); never sent to API clients. */
+    readonly detail: string,
+  ) {
+    super(engineLoadFailedMessage(kind));
+    this.name = 'EngineNotReadyError';
+  }
+}
+
+/** Type guard for EngineNotReadyError. */
+export const isEngineNotReadyError = (err: unknown): err is EngineNotReadyError =>
+  err instanceof EngineNotReadyError;
+
+/** User-facing text for a transcription whose configured VAD could not process the audio (no path, no internals). */
+export const VAD_FAILED_MESSAGE =
+  'Transkripsi gagal: VAD tidak bisa memproses audio. Periksa model VAD di /dev/engines lalu muat ulang engine.';
+
+/** The configured Silero VAD failed on a job's audio; the job fails instead of decoding unsliced audio. */
+export class VadFailedError extends Error {
+  readonly code = 'vad_failed' as const;
+  constructor(
+    /** Operator-facing reason (VAD model basename, audio length); logs and lastError only, never sent to clients. */
+    readonly detail: string,
+  ) {
+    super(VAD_FAILED_MESSAGE);
+    this.name = 'VadFailedError';
+  }
+}
+
+/** Type guard for VadFailedError. */
+export const isVadFailedError = (err: unknown): err is VadFailedError =>
+  err instanceof VadFailedError;

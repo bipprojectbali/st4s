@@ -78,6 +78,7 @@ export const IGNORED_DIRS = new Set([
   'dist',
   'coverage',
   '.claude',
+  '.crispasr',
 ]);
 
 /** Text file extensions we can count lines for. Anything else is treated as binary and skipped. */

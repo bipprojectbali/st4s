@@ -105,7 +105,6 @@ describe('EngineUnloadedError mapping', () => {
       engine,
       req: { audio: new Float32Array(16) },
       ctrl: new AbortController(),
-      duration: 1,
       requestId: 'rid',
       onEnd: (s) => (ended = s),
     });

@@ -14,11 +14,12 @@ import {
 import { notifications } from '@mantine/notifications';
 import { useEffect, useRef, useState } from 'react';
 import { FiMic, FiSquare, FiUpload, FiX } from 'react-icons/fi';
+import { blobDuration } from '~/lib/audio-duration';
 import { formatBytes, formatMs } from '~/lib/engines-api';
 import { isAbort, streamTranscription } from '~/lib/playground-api';
 import { extFor, useRecorder } from './useRecorder';
 
-type Audio = { blob: Blob; name: string };
+type Audio = { blob: Blob; name: string; seconds: number | null };
 type Result = { seconds: number | null; latencyMs: number; firstDeltaMs: number | null };
 
 function RecordTimer({ since }: { since: number }) {
@@ -54,11 +55,20 @@ export function SttPanel({
   const fail = (title: string, e: unknown) =>
     notifications.show({ color: 'red', title, message: (e as Error).message });
 
+  // `seconds` starts at the fallback (recording wall clock, or null for files); metadata replaces it when finite.
+  const pick = (blob: Blob, name: string, fallbackSeconds: number | null) => {
+    setAudio({ blob, name, seconds: fallbackSeconds });
+    void blobDuration(blob).then((s) => {
+      if (s != null) setAudio((cur) => (cur?.blob === blob ? { ...cur, seconds: s } : cur));
+    });
+  };
+
   const toggleRecord = async () => {
     try {
       if (!recorder.recording) return await recorder.start();
+      const since = recorder.startedAt;
       const blob = await recorder.stop();
-      setAudio({ blob, name: `rekaman.${extFor(blob.type)}` });
+      pick(blob, `rekaman.${extFor(blob.type)}`, since ? (Date.now() - since) / 1000 : null);
     } catch (e) {
       fail('Perekaman gagal', e);
     }
@@ -83,7 +93,7 @@ export function SttPanel({
         ctrl.signal,
       );
       setText(r.text);
-      setResult({ seconds: r.seconds, latencyMs: performance.now() - t0, firstDeltaMs });
+      setResult({ seconds: audio.seconds, latencyMs: performance.now() - t0, firstDeltaMs });
     } catch (e) {
       if (!isAbort(e)) fail('Transkripsi gagal', e);
     } finally {
@@ -109,7 +119,7 @@ export function SttPanel({
           </Button>
           <FileButton
             onChange={(f) => {
-              if (f) setAudio({ blob: f, name: f.name });
+              if (f) pick(f, f.name, null);
               // The input keeps its value; clear it so picking the same file again fires onChange.
               resetFile.current?.();
             }}

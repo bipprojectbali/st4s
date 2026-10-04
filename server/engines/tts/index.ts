@@ -1,35 +1,22 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { logger } from '../../logger';
 import { TTS_MODEL_ID } from '../../v1/aliases';
-import { EngineUnloadedError } from '../errors';
-import {
-  EngineBusyError,
-  type EngineState,
-  type EngineStatus,
-  type SpeakRequest,
-  type TtsEngine,
-} from '../types';
+import { EngineNotReadyError, EngineUnloadedError } from '../errors';
+import { selfTestEnabled } from '../stt/selftest-env';
+import type { EngineState, EngineStatus, SpeakRequest, TtsEngine } from '../types';
 import { loadTtsConfig, type TtsConfig } from './config';
+import { checkSpeakRequest, type Job, queueBusyError, settle } from './jobs';
+import { readSampleRate, readVoices } from './model-files';
 import type { ChildMsg } from './protocol';
+import { startTtsSelfTest } from './selftest';
 import { bunSpawner, type ChildHandle, type Spawner } from './spawner';
 import { RollingStats } from './stats';
-import { isTtsLanguage } from './text';
-
-interface Job {
-  id: number;
-  req: SpeakRequest;
-  steps: number;
-  settled: boolean;
-  startedAt: number;
-  resolve(pcm: Float32Array): void;
-  reject(err: unknown): void;
-}
 
 /** Options for createTtsEngine; everything defaults to env config and a real Bun child. */
 export interface TtsEngineOptions {
   config?: Partial<TtsConfig>;
   spawn?: Spawner;
+  /** Run the load-time self-test; defaults to selfTestEnabled() (off for injected spawners). */
+  selfTest?: boolean;
 }
 
 class SupertonicEngine implements TtsEngine {
@@ -48,40 +35,23 @@ class SupertonicEngine implements TtsEngine {
   private rate: number | null = null;
   private voiceList: string[] | null = null;
   private readonly stats = new RollingStats();
+  private probe: { take(msg: ChildMsg): boolean } | null = null;
 
   constructor(
     private readonly cfg: TtsConfig,
     private readonly spawn: Spawner,
+    private readonly selfTest: boolean,
   ) {}
 
   get sampleRate(): number {
-    if (this.rate === null) {
-      const file = path.join(this.cfg.modelDir, 'onnx', 'tts.json');
-      try {
-        this.rate = (
-          JSON.parse(fs.readFileSync(file, 'utf8')) as { ae: { sample_rate: number } }
-        ).ae.sample_rate;
-      } catch (e) {
-        throw new Error(`Cannot read TTS sample rate from ${file}: ${(e as Error).message}`);
-      }
-    }
+    this.rate ??= readSampleRate(this.cfg.modelDir);
     return this.rate;
   }
 
   voices(): readonly string[] {
-    if (this.voiceList) return this.voiceList;
-    const dir = path.join(this.cfg.modelDir, 'voice_styles');
-    try {
-      this.voiceList = fs
-        .readdirSync(dir)
-        .filter((f) => f.endsWith('.json'))
-        .map((f) => f.slice(0, -5))
-        .sort();
-    } catch (e) {
-      logger.warn({ dir, err: (e as Error).message }, 'tts: voice style dir unreadable');
-      return [];
-    }
-    return this.voiceList;
+    // Not cached on failure: an unreadable dir is re-read (and warned about) on every call.
+    this.voiceList ??= readVoices(this.cfg.modelDir);
+    return this.voiceList ?? [];
   }
 
   status(): EngineStatus {
@@ -114,7 +84,7 @@ class SupertonicEngine implements TtsEngine {
     this.clearIdle();
     const err = new EngineUnloadedError('tts');
     const dropped = this.queue.splice(0);
-    for (const job of dropped) this.settle(job, err);
+    for (const job of dropped) settle(job, err);
     if (this.unloading) return this.unloading;
     const child = this.child;
     if (!child) return Promise.resolve();
@@ -123,7 +93,7 @@ class SupertonicEngine implements TtsEngine {
     this.failed = false;
     this.loader?.reject(err);
     if (this.running) {
-      this.settle(this.running, err);
+      settle(this.running, err);
       this.running = null;
     }
     child.kill();
@@ -137,26 +107,15 @@ class SupertonicEngine implements TtsEngine {
   }
 
   synthesize(req: SpeakRequest): Promise<Float32Array> {
-    if (!req.text.trim()) return Promise.reject(new Error('TTS input text is empty'));
-    if (!isTtsLanguage(req.language))
-      return Promise.reject(new Error(`Unsupported TTS language "${req.language}"`));
-    if (!this.voices().includes(req.voice))
-      return Promise.reject(new Error(`Unknown TTS voice "${req.voice}"`));
-    if (!(req.speed >= 0.25 && req.speed <= 4))
-      return Promise.reject(new Error(`TTS speed ${req.speed} out of range 0.25–4`));
-    const steps = req.steps ?? this.cfg.steps;
-    if (!Number.isInteger(steps) || steps < 1)
-      return Promise.reject(new Error(`TTS steps must be a positive integer`));
-    if (req.signal?.aborted) return Promise.reject(req.signal.reason);
-    if (this.queue.length >= this.cfg.maxQueue) {
-      const perJobMs = this.stats.p50Ms ?? 5000;
-      return Promise.reject(
-        new EngineBusyError(
-          'tts',
-          Math.max(1, Math.ceil(((this.queue.length + 1) * perJobMs) / 1000)),
-        ),
-      );
+    let steps: number;
+    try {
+      steps = checkSpeakRequest(req, () => this.voices(), this.cfg.steps);
+    } catch (e) {
+      return Promise.reject(e);
     }
+    if (req.signal?.aborted) return Promise.reject(req.signal.reason);
+    if (this.queue.length >= this.cfg.maxQueue)
+      return Promise.reject(queueBusyError(this.stats, this.queue.length));
 
     return new Promise<Float32Array>((resolve, reject) => {
       const job: Job = {
@@ -178,14 +137,7 @@ class SupertonicEngine implements TtsEngine {
     const idx = this.queue.indexOf(job);
     if (idx >= 0) this.queue.splice(idx, 1);
     // A running job keeps its slot until the child answers; the answer is then discarded.
-    this.settle(job, job.req.signal?.reason);
-  }
-
-  private settle(job: Job, result: Float32Array | unknown): void {
-    if (job.settled) return;
-    job.settled = true;
-    if (result instanceof Float32Array) job.resolve(result);
-    else job.reject(result);
+    settle(job, job.req.signal?.reason);
   }
 
   private pump(): void {
@@ -197,7 +149,7 @@ class SupertonicEngine implements TtsEngine {
         (e: Error) => {
           // unload() already rejected its jobs; anything queued since waits for the exit and reloads.
           if (e instanceof EngineUnloadedError) return;
-          for (const job of this.queue.splice(0)) this.settle(job, e);
+          for (const job of this.queue.splice(0)) settle(job, e);
         },
       );
       return;
@@ -238,25 +190,35 @@ class SupertonicEngine implements TtsEngine {
   private fail(message: string): void {
     this.failed = true;
     this.lastError = message;
-    this.loader?.reject(new Error(message));
+    this.loader?.reject(new EngineNotReadyError('tts', message));
     logger.error({ err: message }, 'tts: engine failure');
   }
 
   private onMessage(handle: ChildHandle, msg: ChildMsg): void {
     if (handle !== this.child) return;
     this.rss = msg.rss;
+    if (this.probe?.take(msg)) return;
     if (msg.type === 'loaded') {
       this.failed = false;
-      this.loadedAt = new Date().toISOString();
       this.rate = msg.sampleRate;
       logger.info({ loadMs: Math.round(msg.loadMs), rss: msg.rss }, 'tts: model loaded');
-      this.loader?.resolve();
+      if (!this.selfTest) this.markLoaded();
+      else
+        this.probe = startTtsSelfTest(
+          (m) => handle.send(m),
+          { voice: this.voices()[0], steps: this.cfg.steps, sampleRate: msg.sampleRate },
+          (reason) => {
+            // A dead child's late verdict (e.g. its timeout) must never touch the current child's probe.
+            if (handle !== this.child) return;
+            this.probe = null;
+            if (reason) this.refuse(handle, reason);
+            else this.markLoaded();
+          },
+        );
       return;
     }
     if (msg.type === 'error' && msg.id === undefined) {
-      this.child = null;
-      handle.kill();
-      this.fail(msg.message);
+      this.refuse(handle, msg.message);
       return;
     }
     const job = this.running;
@@ -270,25 +232,37 @@ class SupertonicEngine implements TtsEngine {
         { id: job.id, chars: job.req.text.length, latencyMs: Math.round(latencyMs), audioSec },
         'tts: synthesized',
       );
-      this.settle(job, msg.pcm);
+      settle(job, msg.pcm);
     } else {
       this.stats.failure();
       this.lastError = msg.message;
       logger.warn({ id: job.id, err: msg.message }, 'tts: synthesis failed');
-      this.settle(job, new Error(msg.message));
+      settle(job, new Error(msg.message));
     }
     this.pump();
     this.scheduleIdle();
   }
 
+  private markLoaded(): void {
+    this.loadedAt = new Date().toISOString();
+    this.loader?.resolve();
+  }
+
+  private refuse(handle: ChildHandle, reason: string): void {
+    this.child = null;
+    handle.kill();
+    this.fail(reason);
+  }
+
   private onExit(handle: ChildHandle, code: number | null, signal: string | null): void {
     if (handle !== this.child) return;
+    this.probe = null;
     this.child = null;
     this.loadedAt = null;
     this.fail(`TTS child exited unexpectedly (code ${code}, signal ${signal})`);
     if (this.running) {
       this.stats.failure();
-      this.settle(this.running, new Error(this.lastError ?? 'TTS child exited unexpectedly'));
+      settle(this.running, new Error(this.lastError ?? 'TTS child exited unexpectedly'));
       this.running = null;
     }
     this.pump();
@@ -312,5 +286,9 @@ class SupertonicEngine implements TtsEngine {
 
 /** Create the Supertonic 3 TTS engine (lazy child process, serial FIFO queue). */
 export function createTtsEngine(opts: TtsEngineOptions = {}): TtsEngine {
-  return new SupertonicEngine({ ...loadTtsConfig(), ...opts.config }, opts.spawn ?? bunSpawner);
+  return new SupertonicEngine(
+    { ...loadTtsConfig(), ...opts.config },
+    opts.spawn ?? bunSpawner,
+    opts.selfTest ?? selfTestEnabled(!!opts.spawn),
+  );
 }

@@ -2,7 +2,7 @@
 import { spyOn } from 'bun:test';
 import { api } from '../../server/api';
 import { auth } from '../../server/auth';
-import { EngineUnloadedError } from '../../server/engines/errors';
+import { EngineNotReadyError, EngineUnloadedError } from '../../server/engines/errors';
 import {
   EngineBusyError,
   type SttEngine,
@@ -40,7 +40,17 @@ export const DELTAS = ['Halo', ' dunia.', ' Apa kabar?'];
 // Read through a function so status() keeps the EngineStatus type (fakeStt's own `this` is Record<string, unknown>).
 const fakeQueued = (): number => fakeStt.queued;
 
-type Mode = 'ok' | 'busy' | 'boom' | 'unloaded' | 'hang-after-delta' | 'boom-after-delta';
+type Mode =
+  | 'ok'
+  | 'busy'
+  | 'boom'
+  | 'unloaded'
+  | 'not-ready'
+  | 'hang-after-delta'
+  | 'boom-after-delta';
+
+/** Operator-only detail of the 'not-ready' mode; callers must never see it. */
+export const NOT_READY_DETAIL = 'Self-test STT gagal (clip_overlap): detail operator';
 
 /** Fake engine: `mode` picks the behaviour, `last` keeps the last request, `aborted` flips when the signal fires. */
 export const fakeStt = {
@@ -55,6 +65,7 @@ export const fakeStt = {
     if (this.mode === 'busy') throw new EngineBusyError('stt', 7);
     if (this.mode === 'boom') throw new Error('child process exploded at /secret/path');
     if (this.mode === 'unloaded') throw new EngineUnloadedError('stt');
+    if (this.mode === 'not-ready') throw new EngineNotReadyError('stt', NOT_READY_DETAIL);
     if (this.mode === 'boom-after-delta') {
       req.onDelta?.(DELTAS[0]);
       await Bun.sleep(1);

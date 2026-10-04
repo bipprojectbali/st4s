@@ -1,5 +1,6 @@
 import { dlopen, FFIType, type Pointer, ptr, toArrayBuffer } from 'bun:ffi';
 import { existsSync } from 'node:fs';
+import { basename } from 'node:path';
 import type { TranscriptSegment } from '../types';
 
 const { ptr: P, cstring, i32, i64_fast, f32, void: V } = FFIType;
@@ -34,9 +35,22 @@ const SYMBOLS = {
 const SR = 16_000;
 const cstr = (s: string) => Buffer.from(`${s}\0`);
 
+/** dlopen libcrispasr; the error names the path and how to get a working lib. */
+export function dlopenCrispasr(libPath: string) {
+  try {
+    return dlopen(libPath, SYMBOLS);
+  } catch (e) {
+    const what = existsSync(libPath) ? 'cannot be loaded' : 'not found';
+    throw new Error(
+      `libcrispasr ${what} at ${libPath} — run \`bash scripts/crispasr/build.sh\` or set CRISPASR_LIB (${(e as Error).message})`,
+    );
+  }
+}
+
 /** Thin synchronous wrapper over the libcrispasr session C API (child process only). */
 export function openCrispasr(libPath: string) {
-  const { symbols: L, close } = dlopen(libPath, SYMBOLS);
+  const { symbols: L, close } = dlopenCrispasr(libPath);
+  const warnedVadRc = new Set<number>();
 
   function openSession(modelPath: string, threads: number, useGpu: boolean): Pointer | null {
     // crispasr_open_params_v1: abi_version, n_threads, use_gpu, verbosity, + v2 fields/padding (12 ints).
@@ -56,8 +70,8 @@ export function openCrispasr(libPath: string) {
     threads: number,
     opts: { threshold?: number; minSilenceMs?: number; padMs?: number } = {},
   ): [number, number][] | null {
-    // libcrispasr returns 0 slices both for "no speech" and for a model it cannot load; a missing file must read as failure.
-    // ponytail: a present but corrupt model still reads as "no speech"; a distinct rc needs a crispasr_vad_slices patch.
+    // libcrispasr >= v0.8.41 returns -3 for a model it cannot load, and with scripts/crispasr/crisp-vad-inference-error.patch also when Silero fails;
+    // without the patch a failed inference still reads as 0 ("no speech"); older builds also need the missing-file check.
     if (!existsSync(vadModel)) return null;
     const out = new BigUint64Array(1);
     // Values <= 0 select libcrispasr defaults (threshold 0.5, min silence 100 ms); Silero ctx is cached per model.
@@ -74,7 +88,16 @@ export function openCrispasr(libPath: string) {
       threads,
       ptr(out),
     );
-    if (n < 0) return null;
+    if (n < 0) {
+      if (!warnedVadRc.has(n)) {
+        warnedVadRc.add(n);
+        // Runs in the STT child (no pino); stderr reaches the server log. Basename + rc only.
+        process.stderr.write(
+          `[stt-child] warn: crispasr_vad_slices rc=${n} on ${basename(vadModel)} (-3 = model unloadable or inference failed)\n`,
+        );
+      }
+      return null;
+    }
     if (n === 0 || out[0] === 0n) return [];
     // Copy out of native memory before freeing it; toArrayBuffer is a view, not a copy.
     const spans = new Float32Array(toArrayBuffer(Number(out[0]) as Pointer, 0, n * 2 * 4)).slice();

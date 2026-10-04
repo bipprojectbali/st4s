@@ -1,0 +1,83 @@
+s4s's only libcrispasr patch, and the pending upstream submission (CrispStrobe/CrispASR, not sent yet).
+Made with git format-patch against upstream main 199de52d9; applies unchanged on the v0.8.41 pin in build.sh.
+Delete it, and drop it from PATCHES in build.sh, once upstream ships it.
+
+From 3d4b27dc411c2b908aca249a5aa759fa478c252b Mon Sep 17 00:00:00 2001
+From: bipproduction <bip.production.js@gmail.com>
+Date: Sun, 4 Oct 2026 22:42:09 +0800
+Subject: [PATCH] fix(vad): report a failed Silero inference as -3, not as no
+ speech
+
+whisper_vad_segments_from_samples returns NULL when Silero inference fails, and
+crispasr_compute_vad_slices read that as zero segments, so crispasr_vad_slices
+returned 0 and every binding concluded the audio held no speech. Set
+out_load_failed in that case too, so the C ABI returns -3 like it already does
+for a model that never loaded, and log the failure on stderr.
+---
+ src/crispasr_c_api.cpp |  2 +-
+ src/crispasr_vad.cpp   | 13 ++++++++++---
+ src/crispasr_vad.h     |  4 ++--
+ 3 files changed, 13 insertions(+), 6 deletions(-)
+
+diff --git a/src/crispasr_c_api.cpp b/src/crispasr_c_api.cpp
+index a9e93ce1c..d9af94ed2 100644
+--- a/src/crispasr_c_api.cpp
++++ b/src/crispasr_c_api.cpp
+@@ -812,7 +812,7 @@ CA_EXPORT int crispasr_vad_segments(const char* vad_model_path, const float* pcm
+ //
+ //   -1  bad arguments
+ //   -2  allocation failed
+-//   -3  the VAD model could not be loaded
++//   -3  the VAD model could not be loaded, or Silero inference failed
+ //
+ // -3 exists because 0 and "the model never loaded" were the same answer.
+ // crispasr_compute_vad_slices takes an `out_load_failed` flag for exactly this
+diff --git a/src/crispasr_vad.cpp b/src/crispasr_vad.cpp
+index 4cf61bd11..188fe3c17 100644
+--- a/src/crispasr_vad.cpp
++++ b/src/crispasr_vad.cpp
+@@ -349,7 +349,15 @@ std::vector<crispasr_audio_slice> crispasr_compute_vad_slices(const float* sampl
+         vp.speech_pad_ms = (float)opts.speech_pad_ms;
+ 
+         whisper_vad_segments* vseg = whisper_vad_segments_from_samples(vctx, vp, samples, n_samples);
+-        const int nv = vseg ? whisper_vad_segments_n_segments(vseg) : 0;
++        if (!vseg) {
++            // Inference failed: the model ran no better than one that never loaded,
++            // so report it the same way instead of as "no speech".
++            fprintf(stderr, "crispasr: warning: VAD inference failed with '%s'\n", vad_model_path);
++            if (out_load_failed)
++                *out_load_failed = true;
++            return slices;
++        }
++        const int nv = whisper_vad_segments_n_segments(vseg);
+         for (int i = 0; i < nv; i++) {
+             const float t0_cs = whisper_vad_segments_get_segment_t0(vseg, i);
+             const float t1_cs = whisper_vad_segments_get_segment_t1(vseg, i);
+@@ -360,8 +368,7 @@ std::vector<crispasr_audio_slice> crispasr_compute_vad_slices(const float* sampl
+             if (e > s)
+                 slices.push_back({s, e, (int64_t)t0_cs, (int64_t)t1_cs});
+         }
+-        if (vseg)
+-            whisper_vad_free_segments(vseg);
++        whisper_vad_free_segments(vseg);
+         // Do NOT free vctx — it's owned by the cache.
+     }
+ 
+diff --git a/src/crispasr_vad.h b/src/crispasr_vad.h
+index 2a987853b..10b31a479 100755
+--- a/src/crispasr_vad.h
++++ b/src/crispasr_vad.h
+@@ -138,8 +138,8 @@ inline std::vector<crispasr_audio_slice> crispasr_post_merge_vad_slices(const st
+ //
+ // An empty result is ambiguous — no speech vs. the model failing to load.
+ // When `out_load_failed` is non-null it is set to `true` iff the model
+-// could not be loaded (silero/marblenet/whisper-vad returned no context),
+-// and `false` otherwise (including a successful run that found no speech).
++// could not be loaded (silero/marblenet/whisper-vad returned no context)
++// or Silero inference failed, and `false` otherwise (including a successful run that found no speech).
+ // This lets a caller (issue #311 --strict-pipeline) distinguish "VAD ran,
+ // no speech" from "VAD model unloadable". webrtc (no model) and firered are
+ // reported as loaded. Detection is best-effort — it never false-positives.
+-- 
+2.39.5 (Apple Git-154)
+

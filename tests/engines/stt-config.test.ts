@@ -3,14 +3,30 @@ import { describe, expect, test } from 'bun:test';
 import os from 'node:os';
 import path from 'node:path';
 import { openSttSession } from '../../server/engines/stt/child';
-import { loadSttConfig } from '../../server/engines/stt/config';
+import { defaultCrispasrLib, loadSttConfig } from '../../server/engines/stt/config';
+import { dlopenCrispasr } from '../../server/engines/stt/ffi';
 
 describe('loadSttConfig CRISPASR_LIB', () => {
-  const patched = path.join(os.homedir(), 'tmp/crispasr-s4s/build/src/libcrispasr.dylib');
+  const patched = path.join(process.cwd(), '.crispasr/build/src/libcrispasr.dylib');
 
-  test('defaults to the patched build from scripts/crispasr/build.sh', () => {
-    expect(loadSttConfig({}).libPath).toBe(patched);
-    expect(loadSttConfig({ CRISPASR_LIB: '' }).libPath).toBe(patched);
+  test('defaults to the in-project build from scripts/crispasr/build.sh', () => {
+    for (const env of [{}, { CRISPASR_LIB: '' }]) {
+      const lib = loadSttConfig(env).libPath;
+      expect(lib).toBe(patched);
+      expect(path.isAbsolute(lib)).toBe(true);
+      expect(lib.endsWith('/.crispasr/build/src/libcrispasr.dylib')).toBe(true);
+    }
+  });
+
+  test('default resolves against the given project dir', () => {
+    expect(defaultCrispasrLib('/srv/s4s')).toBe('/srv/s4s/.crispasr/build/src/libcrispasr.dylib');
+  });
+
+  test('a missing lib fails with its path and the build command', () => {
+    const missing = path.join(os.tmpdir(), 's4s-no-such-dir/libcrispasr.dylib');
+    expect(() => dlopenCrispasr(missing)).toThrow(
+      `libcrispasr not found at ${missing} — run \`bash scripts/crispasr/build.sh\` or set CRISPASR_LIB`,
+    );
   });
 
   test('env overrides the default', () => {

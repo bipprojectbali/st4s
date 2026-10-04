@@ -26,11 +26,15 @@ function int(v: string | undefined, def: number): number {
   return v !== undefined && v !== '' && Number.isFinite(n) && n >= 0 ? Math.floor(n) : def;
 }
 
+/** The lib scripts/crispasr/build.sh builds; cwd is the project dir in dev, `bun run start` and the binary (which also reads .env from cwd). */
+export function defaultCrispasrLib(cwd: string = process.cwd()): string {
+  return path.resolve(cwd, '.crispasr/build/src/libcrispasr.dylib');
+}
+
 /** Read STT config from env; every value has a documented default. */
 export function loadSttConfig(env: Record<string, string | undefined> = process.env): SttConfig {
   return {
-    libPath:
-      env.CRISPASR_LIB || path.join(os.homedir(), 'tmp/crispasr-s4s/build/src/libcrispasr.dylib'),
+    libPath: env.CRISPASR_LIB || defaultCrispasrLib(),
     modelPath: env.STT_MODEL || path.join(CACHE, 'qwen3-asr-1.7b-q4_k.gguf'),
     vadModelPath: env.STT_VAD_MODEL ?? path.join(CACHE, 'ggml-silero-v6.2.0.bin'),
     lidModelPath: env.STT_LID_MODEL || path.join(CACHE, 'ggml-tiny.bin'),

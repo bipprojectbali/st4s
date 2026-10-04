@@ -38,5 +38,6 @@ export type FromChild =
   | { t: 'delta'; id: number; text: string }
   | { t: 'result'; id: number; result: TranscribeResult; rss: number }
   | { t: 'cancelled'; id: number; rss: number }
-  | { t: 'error'; id: number; message: string; rss: number }
+  /** `code` types the failure across IPC (class identity does not survive it); `message` is the operator detail. */
+  | { t: 'error'; id: number; message: string; code?: 'vad_failed'; rss: number }
   | VadReply;

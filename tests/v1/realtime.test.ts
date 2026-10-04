@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, spyOn, test } from 'bun:test';
+import { EngineNotReadyError } from '../../server/engines/errors';
 import { setEngines } from '../../server/engines/registry';
-import { fakeStt, resetFake, stubSession, TRANSCRIPT } from './fake-stt';
+import { fakeStt, NOT_READY_DETAIL, resetFake, stubSession, TRANSCRIPT } from './fake-stt';
 import {
   connect,
   pcmChunks,
@@ -204,9 +205,14 @@ describe('manual turns', () => {
     expect((await turn(2)).error.code).toBe('engine_busy');
     fakeStt.mode = 'unloaded';
     expect((await turn(3)).error.code).toBe('engine_unloaded');
+    fakeStt.mode = 'not-ready';
+    const f4 = await turn(4);
+    expect(f4.error).toMatchObject({ code: 'engine_unavailable', type: 'server_error' });
+    expect(f4.error.message).toContain('gagal dimuat');
+    expect(f4.error.message).not.toContain(NOT_READY_DETAIL);
     fakeStt.mode = 'ok';
     fakeStt.queued = 99;
-    expect((await turn(4)).error).toMatchObject({ code: 'engine_busy', type: 'rate_limit_error' });
+    expect((await turn(5)).error).toMatchObject({ code: 'engine_busy', type: 'rate_limit_error' });
     fakeStt.queued = 0;
     appendAll(c, pcmChunks(200, 0.3));
     c.send({ type: 'input_audio_buffer.commit' });
@@ -255,6 +261,23 @@ describe('server_vad', () => {
     expect((await c.next('input_audio_buffer.speech_stopped')).item_id).toBe(committed.item_id);
     expect(c.events.some((e) => e.type === 'error')).toBe(false);
     delete process.env.RT_MAX_TURN_SEC;
+    c.ws.close();
+  });
+
+  test('VAD on a not-ready engine → engine_unavailable error, then manual commit', async () => {
+    setFakeVad(true);
+    const f = fakeStt as typeof fakeStt & { vad?: unknown };
+    f.vad = async () => {
+      throw new EngineNotReadyError('stt', NOT_READY_DETAIL);
+    };
+    const c = await open();
+    appendAll(c, pcmChunks(600, 0.4));
+    const e = await c.next('error');
+    expect(e.error).toMatchObject({ code: 'engine_unavailable', type: 'server_error' });
+    expect(e.error.message).toContain('gagal dimuat');
+    expect(e.error.message).not.toContain(NOT_READY_DETAIL);
+    expect((await c.next('session.updated')).session.audio.input.turn_detection).toBeNull();
+    expect(c.closeCode).toBeNull();
     c.ws.close();
   });
 

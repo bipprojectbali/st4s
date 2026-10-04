@@ -1,5 +1,7 @@
 /** The STT child's decode path (VAD → spans → decode loop), kept free of FFI so tests can drive it with a fake lib. */
 import type { Pointer } from 'bun:ffi';
+import { basename } from 'node:path';
+import { VadFailedError } from '../errors';
 import type { TranscribeResult, TranscriptSegment } from '../types';
 import type { SttConfig } from './config';
 import type { openCrispasr } from './ffi';
@@ -78,24 +80,27 @@ export type TranscribeArgs = Pick<SpanLoopArgs, 'onDelta' | 'isCancelled' | 'yie
   cfg: Pick<SttConfig, 'vadModelPath' | 'lidModelPath' | 'maxChunkSec' | 'threads'>;
   job: Pick<TranscribeMsg, 'id' | 'language' | 'hotwords' | 'words'>;
   audio: Float32Array;
-  /** VAD disabled or failed for this job (the caller decides how often to warn). */
-  onVadFallback(kind: 'disabled' | 'failed', reason: string): void;
+  /** VAD disabled for this job (the caller decides how often to warn). */
+  onVadFallback(kind: 'disabled', reason: string): void;
 };
 
-/** One job: Silero hears no speech → empty result without ASR; VAD unavailable → fixed slices; else decode the speech spans. */
+/** One job: no speech → empty result without ASR; VAD failed → throws; VAD disabled → fixed slices; else decode the speech spans. */
 export async function transcribePcm(a: TranscribeArgs): Promise<TranscribeResult> {
   const { lib, cfg, job, audio } = a;
   const duration = audio.length / SR;
   const vad = cfg.vadModelPath
     ? lib.vadSlices(cfg.vadModelPath, audio, cfg.maxChunkSec, cfg.threads)
     : null;
-  const fallback = `falling back to fixed ${cfg.maxChunkSec}s slices`;
+  // A configured VAD that cannot run fails the job: fixed slices would make Qwen3-ASR invent text for silence.
   if (!vad && cfg.vadModelPath)
-    a.onVadFallback(
-      'failed',
-      `VAD failed on ${cfg.vadModelPath} (${duration.toFixed(1)}s audio); ${fallback}`,
+    throw new VadFailedError(
+      `STT VAD failed on ${basename(cfg.vadModelPath)} (${duration.toFixed(1)}s audio); check STT_VAD_MODEL`,
     );
-  else if (!vad) a.onVadFallback('disabled', `VAD disabled (STT_VAD_MODEL empty); ${fallback}`);
+  if (!vad)
+    a.onVadFallback(
+      'disabled',
+      `VAD disabled (STT_VAD_MODEL empty); falling back to fixed ${cfg.maxChunkSec}s slices`,
+    );
   // Decoding pure silence makes Qwen3-ASR hallucinate ("okay."); OpenAI answers silence with empty text.
   if (vad?.length === 0)
     return {

@@ -5,9 +5,11 @@
  */
 import { eq } from 'drizzle-orm';
 import { Elysia } from 'elysia';
+import { newRequestId } from '../api-error';
 import { API_KEY_PREFIX, auth } from '../auth';
 import { db } from '../db';
 import { apikey, user } from '../db/schema';
+import { logger } from '../logger';
 import { normalizeIp, resolveClientIp } from '../middleware/client-ip';
 import { resolveGeo } from '../middleware/visitor-geo';
 import { resolveUserRole } from '../roles';
@@ -35,18 +37,43 @@ export function ipAllowed(list: string[] | null, ip: string | null): boolean {
   );
 }
 
-/** Rejection Response in the template shape, or OpenAI shape for /api/v1. */
+/** Log fields of a refusal; `keyId` (a row id, not secret) is set only once the key verified. */
+type RefusalCtx = { requestId: string; path: string; keyId?: string };
+
+/**
+ * Rejection Response in the template shape, or OpenAI shape for /api/v1, plus one warn line.
+ * Never logs the key: Better Auth's stored `start` is its first 6 chars, all inside the public
+ * `mk_live_` prefix, so it identifies nothing; `keyId` does once the key verified.
+ */
 const denier =
-  (pathname: string) =>
-  (status: number, error: string, extra: Record<string, unknown> = {}) =>
-    isV1Path(pathname)
+  (ctx: RefusalCtx) =>
+  (status: number, error: string, extra: Record<string, unknown> = {}) => {
+    const code = typeof extra.code === 'string' ? extra.code : 'ENDPOINT_NOT_ALLOWED';
+    logger.warn(
+      {
+        ...ctx,
+        code,
+        status,
+        ...(typeof extra.scope === 'string' ? { scope: extra.scope } : {}),
+      },
+      'api key refused',
+    );
+    // Same requestId as the log line, carried the way api-error.ts does (header always; body field outside v1).
+    const headers = { 'x-request-id': ctx.requestId };
+    return isV1Path(ctx.path)
       ? v1Error(status, error, {
           code: v1Code(extra.code) ?? (status === 401 ? 'invalid_api_key' : null),
+          headers,
         })
-      : new Response(JSON.stringify({ error, ...extra }), {
+      : new Response(JSON.stringify({ error, ...extra, code, status, requestId: ctx.requestId }), {
           status,
-          headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+          headers: {
+            'content-type': 'application/json',
+            'cache-control': 'no-store',
+            ...headers,
+          },
         });
+  };
 
 export function apiKeyPlugin() {
   return (
@@ -58,7 +85,11 @@ export function apiKeyPlugin() {
         const key = extractApiKey(request.headers);
         if (!key) return;
         const url = new URL(request.url);
-        const deny = denier(url.pathname);
+        const ctx: RefusalCtx = {
+          requestId: request.headers.get('x-request-id') ?? newRequestId(),
+          path: url.pathname,
+        };
+        const deny = denier(ctx);
         const scope = requiredScope(request.method, url.pathname);
         const publicRead = isPublicRead(request.method, url.pathname);
         if (!scope && !publicRead)
@@ -75,6 +106,7 @@ export function apiKeyPlugin() {
           if (code === 'KEY_DISABLED') return deny(401, 'API key dinonaktifkan', { code });
           return deny(401, 'API key tidak valid', { code });
         }
+        ctx.keyId = verified.key.id;
         const rawPerms: unknown = verified.key.permissions;
         const perms = (() => {
           try {

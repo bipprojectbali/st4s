@@ -12,3 +12,5 @@ makuro
 makuro-linux-x64
 makuro-linux-musl
 makuro.exe
+# libcrispasr build (scripts/crispasr/build.sh)
+/.crispasr/

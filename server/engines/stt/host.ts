@@ -21,10 +21,19 @@ export type SttSpawner = (cfg: SttConfig, on: SttChildEvents) => SttChild;
 /** Child entry in source mode; a compiled binary re-execs itself instead (see child-argv.ts). */
 export const CHILD_PATH = path.join(import.meta.dir, 'child.ts');
 
+/** Child env: the parent's env with libcrispasr's VAD failover forced off (Bun.spawn `env` replaces, not merges). */
+export function sttChildEnv(
+  env: Record<string, string | undefined> = process.env,
+): Record<string, string | undefined> {
+  // Forced, not overridable: failover decodes near-silent long clips whole and Qwen3-ASR invents text; our contract is no speech → "".
+  return { ...env, CRISPASR_VAD_FAILOVER: '0' };
+}
+
 /** Spawn `bun child.ts <config-json>` (or `<binary> --s4s-engine-child stt <config-json>`) directly, no shell, with IPC. */
 export function spawnBunChild(childPath = CHILD_PATH): SttSpawner {
   return (cfg, on) => {
     const proc = Bun.spawn([...engineChildCommand('stt', childPath), JSON.stringify(cfg)], {
+      env: sttChildEnv(),
       ipc: (m) => on.message(m as FromChild),
       onExit: (_p, code, signal) => on.exit(code, signal == null ? null : String(signal)),
       stdin: 'ignore',
