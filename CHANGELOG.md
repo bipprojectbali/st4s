@@ -38,8 +38,9 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 - Visitor Logs tidak lagi salah menandai bot monitor (UptimeRobot, Pingdom) dan bot lain berawalan `Mozilla/5.0` sebagai `seo-crawler`. Kunjungan lama yang sudah tercatat tidak berubah.
 
 ### Security
-- Role super-admin dari `SUPER_ADMIN_EMAILS` kini hanya diberikan ke email yang sudah terverifikasi. Karena belum ada pengiriman email verifikasi, super-admin di produksi masuk lewat Google (atau operator men-set `email_verified` di DB).
-- Pendaftaran akun email+password kini tertutup di produksi (termasuk binary). Buka lagi dengan `AUTH_DISABLE_SIGNUP=false`; login user lama dan Google tetap berjalan.
+- Role super-admin dari `SUPER_ADMIN_EMAILS` kini hanya diberikan ke email yang sudah terverifikasi. Karena belum ada pengiriman email verifikasi, super-admin di produksi masuk lewat Google, atau operator menjalankan `bun run admin:verify <email>` (hanya untuk email di `SUPER_ADMIN_EMAILS`, output email ter-mask).
+- Pendaftaran akun email+password kini tertutup di produksi (termasuk binary). Buka lagi dengan `AUTH_DISABLE_SIGNUP=false`; nilai kosong dianggap belum di-set. Login user lama dan Google tetap berjalan.
+- Toggle "Login email" dan "Pendaftaran" di pengaturan kini benar-benar ditegakkan server: login/daftar email yang dinonaktifkan ditolak dengan pesan yang jelas, bukan hanya disembunyikan di halaman login. Tanpa Google, login email selalu tetap aktif agar kamu tidak terkunci.
 
 ## [0.1.0] - 2026-09-14
 

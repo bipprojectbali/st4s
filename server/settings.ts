@@ -18,6 +18,7 @@ import {
   type SettingsInsert,
   upsertSettingsRow,
 } from './settings.core';
+import { AUTH_DEFAULTS, type AuthSettings } from './settings-auth';
 import {
   BRANDING_DEFAULTS,
   type BrandingSettings,
@@ -32,11 +33,6 @@ import {
 } from './settings-maintenance';
 import { parseRetention, type RetentionState } from './settings-retention';
 
-export type AuthSettings = {
-  emailAuthEnabled: boolean;
-  signupEnabled: boolean;
-};
-
 /** Stored overrides; null = default. */
 export type RateLimitSettings = {
   rateLimitEnabled: boolean;
@@ -47,7 +43,6 @@ export type RateLimitSettings = {
 
 export type AppSettings = AuthSettings & RateLimitSettings;
 
-export const AUTH_DEFAULTS: AuthSettings = { emailAuthEnabled: false, signupEnabled: true };
 export const RATE_LIMIT_SETTINGS_DEFAULTS: RateLimitSettings = {
   rateLimitEnabled: true,
   rateLimitMax: null,

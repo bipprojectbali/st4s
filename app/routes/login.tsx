@@ -11,8 +11,8 @@ import {
   Title,
 } from '@mantine/core';
 import { hasLength, isEmail, isNotEmpty, useForm } from '@mantine/form';
-import { hasGoogleAuth, signupDisabled } from '@server/env';
-import { getSettings } from '@server/settings';
+import { hasGoogleAuth } from '@server/env';
+import { emailAuthGate } from '@server/settings-auth';
 import { getBranding } from '@server/settings-branding';
 import { useState } from 'react';
 import { FcGoogle } from 'react-icons/fc';
@@ -27,14 +27,11 @@ export function meta({ loaderData }: Route.MetaArgs) {
 }
 
 export async function loader() {
-  const [{ emailAuthEnabled, signupEnabled }, branding] = await Promise.all([
-    getSettings(),
-    getBranding(),
-  ]);
+  const [gate, branding] = await Promise.all([emailAuthGate(), getBranding()]);
   return {
     googleEnabled: hasGoogleAuth,
-    emailAuthEnabled,
-    signupEnabled: signupEnabled && !signupDisabled,
+    emailAuthEnabled: gate.signIn,
+    signupEnabled: gate.signUp,
     branding,
   };
 }

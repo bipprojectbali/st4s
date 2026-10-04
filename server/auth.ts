@@ -1,6 +1,7 @@
 import { apiKey } from '@better-auth/api-key';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { admin, multiSession } from 'better-auth/plugins';
 import { AUDIT_ACTIONS, audit } from './audit';
 import { db } from './db';
@@ -10,11 +11,36 @@ import { logger } from './logger';
 import { describeClient, loginMethodFromPath } from './middleware/request-meta';
 import { normalizeIp } from './middleware/visitor';
 import { ac, ROLES, roles } from './permissions';
+import { emailAuthGate } from './settings-auth';
 
 /** Public part of every key, e.g. mk_live_abc… — also how the header getter recognises a key. */
 export const API_KEY_PREFIX = 'mk_live_';
 const DEFAULT_KEY_TTL_SEC = 90 * 86_400;
 const MAX_KEY_TTL_DAYS = 365;
+
+/** Error codes the login page shows via the Better Auth error `message`. */
+export const AUTH_GATE_ERRORS = {
+  SIGNUP_DISABLED: 'Pendaftaran akun baru ditutup. Hubungi administrator untuk dibuatkan akun.',
+  EMAIL_AUTH_DISABLED: 'Login dengan email dinonaktifkan. Gunakan tombol Google atau hubungi administrator.',
+} as const;
+
+/** Server-side enforcement of the login settings; the login form only mirrors it. */
+const enforceEmailAuthGate = createAuthMiddleware(async (ctx) => {
+  if (ctx.path !== '/sign-up/email' && ctx.path !== '/sign-in/email') return;
+  const gate = await emailAuthGate();
+  if (ctx.path === '/sign-up/email' && !gate.signUp) {
+    throw APIError.from('FORBIDDEN', {
+      code: 'SIGNUP_DISABLED',
+      message: AUTH_GATE_ERRORS.SIGNUP_DISABLED,
+    });
+  }
+  if (ctx.path === '/sign-in/email' && !gate.signIn) {
+    throw APIError.from('FORBIDDEN', {
+      code: 'EMAIL_AUTH_DISABLED',
+      message: AUTH_GATE_ERRORS.EMAIL_AUTH_DISABLED,
+    });
+  }
+});
 
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
@@ -101,9 +127,10 @@ export const auth = betterAuth({
       },
     },
   },
+  hooks: { before: enforceEmailAuthGate },
   emailAndPassword: {
     enabled: true,
-    // Sign-in of existing users and Google OAuth stay available when closed.
+    // Also enforced (with a 403 + message) by enforceEmailAuthGate; kept as a backstop.
     disableSignUp: signupDisabled,
   },
   user: {

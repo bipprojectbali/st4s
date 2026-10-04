@@ -102,6 +102,7 @@ bun run start
 | `bun run db:migrate` | Apply migration |
 | `bun run db:push` | Push schema langsung (interaktif) |
 | `bun run db:studio` | Drizzle Studio |
+| `bun run admin:verify <email>` | Tandai email user di `SUPER_ADMIN_EMAILS` sebagai terverifikasi (bootstrap super-admin tanpa Google) |
 | `bun run test` | Test suite (bun:test, `tests/`, pakai DATABASE_URL_TEST) |
 
 ## Binary distribution (tanpa Bun di server)
@@ -207,7 +208,22 @@ Sistem role: `user` → `admin` → `super-admin`. Role tersimpan di tabel `user
 
 Google OAuth: set `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`. Authorized redirect URI di Google Console: `${BETTER_AUTH_URL}/api/auth/callback/google`.
 
-**Super-admin & sign-up di produksi.** Role `super-admin` dari `SUPER_ADMIN_EMAILS` hanya diberikan ke email yang **terverifikasi**. Template ini tidak mengirim email verifikasi, jadi di produksi super-admin masuk lewat Google (atau operator men-set `email_verified` di DB). Sign-up email+password tertutup saat `NODE_ENV=production` (termasuk binary) kecuali `AUTH_DISABLE_SIGNUP=false`; login user lama dan Google OAuth tetap jalan.
+**Super-admin & sign-up di produksi.** Role `super-admin` dari `SUPER_ADMIN_EMAILS` hanya diberikan ke email yang **terverifikasi**. Template ini tidak mengirim email verifikasi, jadi di produksi super-admin masuk lewat Google, atau operator menjalankan `bun run admin:verify <email>` (lihat checklist di bawah). Sign-up email+password tertutup saat `NODE_ENV=production` (termasuk binary) kecuali `AUTH_DISABLE_SIGNUP=false` (kosong = belum di-set); login user lama dan Google OAuth tetap jalan.
+
+**Toggle "Login email" & "Pendaftaran" di `/dev/settings` ditegakkan server.** `POST /api/auth/sign-in/email` dan `/sign-up/email` yang dinonaktifkan dijawab `403` (`EMAIL_AUTH_DISABLED` / `SIGNUP_DISABLED`) dengan pesan bahasa Indonesia; Google tidak terpengaruh. Aturan efektifnya (satu helper `server/settings-auth.ts`, dipakai hook auth dan halaman login):
+
+- Login email aktif bila toggle "Login email" menyala **atau Google tidak dikonfigurasi** — tanpa Google, email adalah satu-satunya jalan masuk sehingga tidak bisa dimatikan.
+- Sign-up aktif bila login email aktif **dan** toggle "Pendaftaran" menyala **dan** sign-up tidak ditutup env (`AUTH_DISABLE_SIGNUP`).
+
+**Checklist deploy (production)**
+
+1. `bun run db:migrate` terhadap database produksi.
+2. Set `SUPER_ADMIN_EMAILS`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`.
+3. Bootstrap super-admin — pilih satu:
+   - Google: set `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`, lalu login Google dengan email di `SUPER_ADMIN_EMAILS`.
+   - Tanpa Google: jalankan sementara dengan `AUTH_DISABLE_SIGNUP=false`, daftar dengan email itu, jalankan `bun run admin:verify <email>` (menolak email di luar allowlist / user yang belum ada; output hanya email ter-mask), lalu kosongkan lagi `AUTH_DISABLE_SIGNUP` dan restart.
+4. Speech: `FFMPEG_PATH`, `CRISPASR_LIB`, `STT_MODEL`, `TTS_MODEL_DIR` (lihat **Speech API**).
+5. Binary: letakkan `libonnxruntime.1.dylib` di samping binary dan set `DYLD_LIBRARY_PATH` (Linux: `libonnxruntime.so.1` + `LD_LIBRARY_PATH`) agar TTS jalan.
 
 **Ban & hapus akun — apa yang dilihat user.** Better Auth sendiri hanya menolak *pembuatan sesi baru* untuk user yang diblokir; template ini melengkapinya:
 

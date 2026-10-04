@@ -20,7 +20,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "auth:generate": "bunx @better-auth/cli generate --output server/db/auth.schema.ts"
+    "auth:generate": "bunx @better-auth/cli generate --output server/db/auth.schema.ts",
+    "admin:verify": "bun scripts/verify-super-admin.ts"
   },
   "dependencies": {
     "@better-auth/api-key": "1.7.3",
