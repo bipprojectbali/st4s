@@ -208,8 +208,9 @@ class SupertonicEngine implements TtsEngine {
           (m) => handle.send(m),
           { voice: this.voices()[0], steps: this.cfg.steps, sampleRate: msg.sampleRate },
           (reason) => {
-            this.probe = null;
+            // A dead child's late verdict (e.g. its timeout) must never touch the current child's probe.
             if (handle !== this.child) return;
+            this.probe = null;
             if (reason) this.refuse(handle, reason);
             else this.markLoaded();
           },

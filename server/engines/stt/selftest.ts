@@ -3,6 +3,7 @@ import { parseWav } from '../../audio/decode-wav';
 import type { logger } from '../../logger';
 import type { FromChild, ToChild } from './protocol';
 import fixturePath from './selftest.wav' with { type: 'file' };
+import { selfTestTimeoutReason, selfTestTimeoutSec } from './selftest-env';
 
 /** What selftest.wav says (JFK inaugural, 2.7 s, 16 kHz mono PCM16). */
 export const SELFTEST_TEXT = 'ask what you can do for your country';
@@ -89,8 +90,32 @@ async function loadClip(): Promise<Float32Array> {
 
 type Check = { name: string; run(): Promise<{ pass: boolean; facts: object; reason: string }> };
 
-/** Runs the checks in order (cheapest first); null = all passed, else an Indonesian reason naming the failed check. */
+/** Whole self-test deadline: measured ~2 s warm, but the first transcribe also loads the encoder GGUF (+1.4 GB) on a possibly swapping 8 GB host. */
+export const STT_SELFTEST_TIMEOUT_SEC = 60;
+
+/** Runs the checks in order (cheapest first) within the deadline; null = all passed, else an Indonesian reason naming the failed check. */
 export async function runSttSelfTest(
+  probe: SttProbe,
+  opts: { vad: boolean; log: Log },
+): Promise<string | null> {
+  const sec = selfTestTimeoutSec(STT_SELFTEST_TIMEOUT_SEC);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  // On timeout the engine refuses and kills the child; its exit rejects the pending probe, ending runChecks.
+  const timeout = new Promise<string>((resolve) => {
+    timer = setTimeout(() => {
+      opts.log.error({ check: 'timeout', ms: sec * 1000, pass: false }, 'stt self-test check');
+      resolve(selfTestTimeoutReason('STT', sec));
+    }, sec * 1000);
+    timer.unref?.();
+  });
+  try {
+    return await Promise.race([runChecks(probe, opts), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function runChecks(
   probe: SttProbe,
   opts: { vad: boolean; log: Log },
 ): Promise<string | null> {

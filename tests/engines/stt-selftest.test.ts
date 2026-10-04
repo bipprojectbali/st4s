@@ -9,13 +9,19 @@ import {
   SELFTEST_TEXT,
   wordOverlap,
 } from '../../server/engines/stt/selftest';
-import { selfTestEnabled } from '../../server/engines/stt/selftest-env';
+import {
+  selfTestEnabled,
+  selfTestTimeoutReason,
+  selfTestTimeoutSec,
+} from '../../server/engines/stt/selftest-env';
 
 /** How the fake child answers self-test probes (negative ids); jobs (positive ids) get 'job ok'. */
 type Behaviour = {
   vad?: [number, number][] | 'error';
   silence?: string;
   clip?: string;
+  /** Never answer a probe (a wedged child). */
+  hang?: boolean;
 };
 
 type Fake = { sent: ToChild[]; killed: boolean };
@@ -30,6 +36,7 @@ function fakeSpawner(b: Behaviour = {}) {
     return {
       send: (m) => {
         c.sent.push(m);
+        if (b.hang && m.id < 0) return;
         if (m.t === 'vad')
           reply(
             b.vad === 'error'
@@ -108,6 +115,14 @@ describe('stt self-test scoring', () => {
     expect(selfTestEnabled(false, { ENGINE_SELFTEST: '1' })).toBe(true);
     expect(selfTestEnabled(false, { ENGINE_SELFTEST: '0' })).toBe(false);
     expect(selfTestEnabled(true, { ENGINE_SELFTEST: '1' })).toBe(false);
+  });
+
+  test('ENGINE_SELFTEST_TIMEOUT_SEC: positive number overrides, anything else keeps the default', () => {
+    expect(selfTestTimeoutSec(60, {})).toBe(60);
+    expect(selfTestTimeoutSec(60, { ENGINE_SELFTEST_TIMEOUT_SEC: '120' })).toBe(120);
+    expect(selfTestTimeoutSec(60, { ENGINE_SELFTEST_TIMEOUT_SEC: '0' })).toBe(60);
+    expect(selfTestTimeoutSec(60, { ENGINE_SELFTEST_TIMEOUT_SEC: 'abc' })).toBe(60);
+    expect(selfTestTimeoutReason('STT', 60)).toContain('Self-test STT tidak selesai dalam 60 dtk');
   });
 });
 
@@ -197,5 +212,22 @@ describe('stt engine self-test (fake child)', () => {
       state: 'error',
       lastError: 'model not found at /m/x.gguf',
     });
+  });
+
+  test('a child that never answers the probe → timeout reason, state error, child killed', async () => {
+    const prev = process.env.ENGINE_SELFTEST_TIMEOUT_SEC;
+    process.env.ENGINE_SELFTEST_TIMEOUT_SEC = '0.05';
+    try {
+      const { f, eng } = make({ hang: true });
+      const err = await eng.warmup().catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(EngineNotReadyError);
+      expect((err as Error).message).toContain('gagal dimuat');
+      expect(eng.status().state).toBe('error');
+      expect(eng.status().lastError).toContain('Self-test STT tidak selesai dalam 0.05 dtk');
+      expect(f.children[0]?.killed).toBe(true);
+    } finally {
+      if (prev === undefined) delete process.env.ENGINE_SELFTEST_TIMEOUT_SEC;
+      else process.env.ENGINE_SELFTEST_TIMEOUT_SEC = prev;
+    }
   });
 });

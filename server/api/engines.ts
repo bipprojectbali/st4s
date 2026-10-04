@@ -4,7 +4,11 @@ import { Elysia } from 'elysia';
 import { newRequestId } from '../api-error';
 import { AUDIT_ACTIONS, audit } from '../audit';
 import { checkEngineDeps } from '../engines/deps';
-import { engineUnloadedApiError, isEngineUnloadedError } from '../engines/errors';
+import {
+  engineUnloadedApiError,
+  isEngineNotReadyError,
+  isEngineUnloadedError,
+} from '../engines/errors';
 import { getStt, getTts } from '../engines/registry';
 import { loadSttConfig } from '../engines/stt/config';
 import { TTS_LANGUAGES } from '../engines/tts/text';
@@ -129,8 +133,10 @@ export const enginesApi = new Elysia({ prefix: '/engines' })
         return status(503, engineUnloadedApiError(newRequestId()));
       }
       logger.error({ err, kind, action }, 'engine control failed');
+      // The guard above admits only super-admin browser sessions, so the operator detail may be shown here.
+      const why = isEngineNotReadyError(err) ? err.detail : (err as Error).message;
       return status(503, {
-        error: `Gagal ${action === 'warmup' ? 'memuat' : 'melepas'} engine ${LABEL[kind]}: ${(err as Error).message}. Cek Server Logs lalu coba lagi.`,
+        error: `Gagal ${action === 'warmup' ? 'memuat' : 'melepas'} engine ${LABEL[kind]}: ${why.replace(/\.$/, '')}. Cek Server Logs lalu coba lagi.`,
         code: action === 'warmup' ? 'ENGINE_WARMUP_FAILED' : 'ENGINE_UNLOAD_FAILED',
       });
     }

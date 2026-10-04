@@ -23,11 +23,20 @@ afterAll(() => fs.rmSync(modelDir, { recursive: true, force: true }));
 const tone = (sec: number, amp = 0.2) =>
   new Float32Array(Math.round(sec * RATE)).map((_, i) => amp * Math.sin(i / 3));
 
-/** Fake child: loads at once; the probe (id < 0) gets `probe`, real jobs get a 1 s tone. */
-function fakeSpawner(probe: Float32Array | 'error') {
-  const children: { sent: ParentMsg[]; killed: boolean }[] = [];
+type Probe = Float32Array | 'error' | 'hang';
+type FakeChild = { sent: ParentMsg[]; killed: boolean; crash(): void };
+
+/** Fake child: loads at once; the probe (id < 0) gets `probes[i]` (child i, last one repeats) after `probeDelayMs`, real jobs a 1 s tone. */
+function fakeSpawner(probes: Probe | Probe[], probeDelayMs = 0) {
+  const children: FakeChild[] = [];
   const spawn: Spawner = ({ onMessage, onExit }) => {
-    const c = { sent: [] as ParentMsg[], killed: false };
+    const list = Array.isArray(probes) ? probes : [probes];
+    const probe = list[Math.min(children.length, list.length - 1)];
+    const c: FakeChild = {
+      sent: [],
+      killed: false,
+      crash: () => onExit(1, null),
+    };
     children.push(c);
     const reply = (m: ChildMsg) => queueMicrotask(() => onMessage(m));
     return {
@@ -37,11 +46,13 @@ function fakeSpawner(probe: Float32Array | 'error') {
         if (m.type === 'load')
           return reply({ type: 'loaded', sampleRate: RATE, loadMs: 3, rss: 1 });
         if (m.id >= 0) return reply({ type: 'result', id: m.id, pcm: tone(1), rss: 2 });
-        reply(
+        if (probe === 'hang') return;
+        const msg: ChildMsg =
           probe === 'error'
             ? { type: 'error', id: m.id, message: 'onnx exploded', rss: 2 }
-            : { type: 'result', id: m.id, pcm: probe, rss: 2 },
-        );
+            : { type: 'result', id: m.id, pcm: probe ?? tone(1.5), rss: 2 };
+        if (probeDelayMs) setTimeout(() => onMessage(msg), probeDelayMs);
+        else reply(msg);
       },
       kill() {
         c.killed = true;
@@ -52,8 +63,8 @@ function fakeSpawner(probe: Float32Array | 'error') {
   return { spawn, children };
 }
 
-const make = (probe: Float32Array | 'error', selfTest = true) => {
-  const f = fakeSpawner(probe);
+const make = (probe: Probe | Probe[], selfTest = true, probeDelayMs = 0) => {
+  const f = fakeSpawner(probe, probeDelayMs);
   const eng = createTtsEngine({
     spawn: f.spawn,
     selfTest,
@@ -61,6 +72,18 @@ const make = (probe: Float32Array | 'error', selfTest = true) => {
   });
   return { f, eng };
 };
+
+/** Runs `fn` with ENGINE_SELFTEST_TIMEOUT_SEC set, restoring the previous value. */
+async function withTimeout(sec: string, fn: () => Promise<void>) {
+  const prev = process.env.ENGINE_SELFTEST_TIMEOUT_SEC;
+  process.env.ENGINE_SELFTEST_TIMEOUT_SEC = sec;
+  try {
+    await fn();
+  } finally {
+    if (prev === undefined) delete process.env.ENGINE_SELFTEST_TIMEOUT_SEC;
+    else process.env.ENGINE_SELFTEST_TIMEOUT_SEC = prev;
+  }
+}
 
 const req = { text: 'Halo.', voice: 'M1', language: 'id', speed: 1 };
 
@@ -125,4 +148,29 @@ describe('tts engine self-test (fake child)', () => {
     expect(eng.status().state).toBe('ready');
     expect(f.children[0]?.sent.map((m) => m.type)).toEqual(['load']);
   });
+
+  test('a child that never answers the probe → timeout reason, state error, child killed', () =>
+    withTimeout('0.05', async () => {
+      const { f, eng } = make('hang');
+      const err = await eng.warmup().catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(EngineNotReadyError);
+      expect(eng.status().state).toBe('error');
+      expect(eng.status().lastError).toContain('Self-test TTS tidak selesai dalam 0.05 dtk');
+      expect(f.children[0]?.killed).toBe(true);
+    }));
+
+  test("a crashed child's timer firing during the next load does not fail that load", () =>
+    withTimeout('0.2', async () => {
+      // Child 1 crashes at ~100 ms; child 2 answers ~150 ms later (~250 ms): after child 1's
+      // deadline (~200 ms) fires, before its own (~300 ms).
+      const { f, eng } = make(['hang', tone(1.5)], true, 150);
+      const first = eng.warmup().catch((e: unknown) => e);
+      await Bun.sleep(100);
+      f.children[0]?.crash();
+      expect(await first).toBeInstanceOf(Error);
+      await eng.warmup();
+      expect(f.children.length).toBe(2);
+      expect(eng.status().state).toBe('ready');
+      expect(eng.status().lastError ?? '').not.toContain('tidak selesai');
+    }));
 });

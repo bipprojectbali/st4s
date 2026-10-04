@@ -1,5 +1,5 @@
 /** One /api/v1/realtime transcription session: client events in, OpenAI Realtime events out. */
-import { isEngineUnloadedError } from '../engines/errors';
+import { isEngineNotReadyError, isEngineUnloadedError } from '../engines/errors';
 import { hasVad } from '../engines/stt/vad';
 import type { SttEngine } from '../engines/types';
 import { logger } from '../logger';
@@ -90,12 +90,23 @@ export function createRealtimeSession(t: RtTransport, engine: SttEngine, ctx: Rt
     },
     failed(err) {
       if (isEngineUnloadedError(err)) return; // next append retries; the model reloads on demand
-      log.error({ err }, 'realtime vad failed; turn detection off');
+      // Turn detection goes off either way: retrying a model that cannot load every 256 ms of audio would thrash RAM.
       cfg = { ...cfg, turnDetection: null };
-      fail({
-        code: 'vad_failed',
-        message: 'Deteksi giliran (server_vad) gagal; sesi beralih ke commit manual.',
-      });
+      if (isEngineNotReadyError(err)) {
+        log.warn(
+          { code: 'engine_unavailable' },
+          'realtime vad: stt engine not ready; turn detection off',
+        );
+        send(
+          errorEvent({ code: 'engine_unavailable', message: err.message }, null, 'server_error'),
+        );
+      } else {
+        log.error({ err }, 'realtime vad failed; turn detection off');
+        fail({
+          code: 'vad_failed',
+          message: 'Deteksi giliran (server_vad) gagal; sesi beralih ke commit manual.',
+        });
+      }
       send(serverEvent('session.updated', { session: sessionView(ctx.sessionId, cfg) }));
     },
   });

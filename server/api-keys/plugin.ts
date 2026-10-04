@@ -48,22 +48,30 @@ type RefusalCtx = { requestId: string; path: string; keyId?: string };
 const denier =
   (ctx: RefusalCtx) =>
   (status: number, error: string, extra: Record<string, unknown> = {}) => {
+    const code = typeof extra.code === 'string' ? extra.code : 'ENDPOINT_NOT_ALLOWED';
     logger.warn(
       {
         ...ctx,
-        code: typeof extra.code === 'string' ? extra.code : 'ENDPOINT_NOT_ALLOWED',
+        code,
         status,
         ...(typeof extra.scope === 'string' ? { scope: extra.scope } : {}),
       },
       'api key refused',
     );
+    // Same requestId as the log line, carried the way api-error.ts does (header always; body field outside v1).
+    const headers = { 'x-request-id': ctx.requestId };
     return isV1Path(ctx.path)
       ? v1Error(status, error, {
           code: v1Code(extra.code) ?? (status === 401 ? 'invalid_api_key' : null),
+          headers,
         })
-      : new Response(JSON.stringify({ error, ...extra }), {
+      : new Response(JSON.stringify({ error, ...extra, code, status, requestId: ctx.requestId }), {
           status,
-          headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+          headers: {
+            'content-type': 'application/json',
+            'cache-control': 'no-store',
+            ...headers,
+          },
         });
   };
 

@@ -1,5 +1,6 @@
 /** TTS load-time self-test: synthesize a fixed phrase in the loaded child and reject empty, NaN, silent or absurd-length audio. */
 import { logger } from '../../logger';
+import { selfTestTimeoutReason, selfTestTimeoutSec } from '../stt/selftest-env';
 import type { ChildMsg, ParentMsg } from './protocol';
 
 /** Fixed phrase (never logged); Indonesian, the service's default language. */
@@ -9,6 +10,8 @@ const LANGUAGE = 'id';
 export const TTS_SELFTEST_SEC = { min: 0.4, max: 8 };
 /** RMS floor: speech sits ~0.05–0.2; digital silence or a dead decoder is ~0. */
 export const TTS_SELFTEST_MIN_RMS = 0.005;
+/** Whole self-test deadline: measured ~0.5 s; 60× headroom for a cold, swapping host. */
+export const TTS_SELFTEST_TIMEOUT_SEC = 30;
 const PROBE_ID = -1;
 const RELOAD = 'lalu muat ulang engine di /dev/engines';
 
@@ -46,7 +49,12 @@ export function startTtsSelfTest(
   done: (reason: string | null) => void,
 ): { take(msg: ChildMsg): boolean } {
   const t0 = performance.now();
+  let settled = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   const finish = (reason: string | null, facts: object) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
     logger.info(
       { check: 'tts_synth', ms: Math.round(performance.now() - t0), pass: !reason, ...facts },
       'tts self-test check',
@@ -71,9 +79,17 @@ export function startTtsSelfTest(
     speed: 1,
     steps: args.steps,
   });
+  const sec = selfTestTimeoutSec(TTS_SELFTEST_TIMEOUT_SEC);
+  // A hung child never replies; the engine refuses on this reason and kills it.
+  timer = setTimeout(
+    () => finish(selfTestTimeoutReason('TTS', sec), { timeout: true }),
+    sec * 1000,
+  );
+  timer.unref?.();
   return {
     take(msg) {
       if (msg.type === 'loaded' || msg.id !== PROBE_ID) return false;
+      if (settled) return true;
       if (msg.type === 'error') {
         finish(`Self-test TTS gagal: sintesis frasa uji error — lihat log server, ${RELOAD}.`, {
           err: msg.message,

@@ -102,7 +102,13 @@ describe('api key refusal logging', () => {
   test('endpoint closed to API keys → 403, logged without key id (not verified yet)', async () => {
     const res = await call('/api/me/api-keys', k('ok').key);
     expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({ error: 'Endpoint ini tidak bisa diakses dengan API key' });
+    expect(await res.json()).toEqual({
+      error: 'Endpoint ini tidak bisa diakses dengan API key',
+      code: 'ENDPOINT_NOT_ALLOWED',
+      status: 403,
+      requestId: `${TAG}-rid`,
+    });
+    expect(res.headers.get('x-request-id')).toBe(`${TAG}-rid`);
     expectOneRefusal(k('ok').key, {
       code: 'ENDPOINT_NOT_ALLOWED',
       status: 403,
@@ -159,5 +165,25 @@ describe('api key refusal logging', () => {
     expect(res.status).toBe(401);
     expect((await res.json()).error.type).toBe('authentication_error');
     expectOneRefusal(fake, { status: 401, path: '/api/v1/audio/transcriptions' });
+    expect(res.headers.get('x-request-id')).toBe(`${TAG}-rid`);
+  });
+
+  test('a generated requestId reaches both the log line and the response', async () => {
+    const fake = 'mk_live_NoRequestIdHeader0123456789abcd';
+    for (const path of ['/api/me/logins', '/api/v1/audio/transcriptions']) {
+      warnSpy.mockClear();
+      const res = await app.handle(
+        new Request(`http://localhost${path}`, {
+          method: path.includes('/v1/') ? 'POST' : 'GET',
+          headers: { 'x-api-key': fake },
+        }),
+      );
+      expect(res.status).toBe(401);
+      const logged = (refusals()[0]?.[0] as { requestId?: string } | undefined)?.requestId;
+      expect(logged).toMatch(/^[0-9a-f-]{12}$/);
+      expect(res.headers.get('x-request-id')).toBe(logged ?? null);
+      const body = await res.json();
+      if (!path.includes('/v1/')) expect(body.requestId).toBe(logged);
+    }
   });
 });
