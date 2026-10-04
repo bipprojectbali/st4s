@@ -24,6 +24,7 @@ import {
   type RateLimitResult,
   rateLimiter,
 } from '../rate-limit';
+import { isV1Path, v1ErrorBody } from '../v1/errors';
 import { resolveClientIp } from './client-ip';
 import { describeClient } from './request-meta';
 
@@ -85,6 +86,8 @@ export function rateLimitPlugin(limiter: RateLimiter = rateLimiter) {
       userId: null,
       headers: request.headers,
     });
+    if (isV1Path(pathname))
+      return v1ErrorBody(429, `Too many requests. Retry in ${retryAfterSec}s.`, 'rate_limit_exceeded');
     return { error: 'Too many requests', retryAfterSeconds: retryAfterSec };
   });
 }

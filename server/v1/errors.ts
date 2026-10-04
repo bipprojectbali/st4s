@@ -18,6 +18,13 @@ const TYPE_BY_STATUS: Record<number, V1ErrorType> = {
   429: 'rate_limit_error',
 };
 
+export const V1_PREFIX = '/api/v1';
+
+/** True for paths served by the OpenAI-compatible API (they answer errors in OpenAI shape). */
+export function isV1Path(pathname: string): boolean {
+  return pathname === V1_PREFIX || pathname.startsWith(`${V1_PREFIX}/`);
+}
+
 export function v1ErrorBody(status: number, message: string, code: string | null = null, param: string | null = null) {
   return { error: { message, type: TYPE_BY_STATUS[status] ?? 'server_error', param, code } };
 }
@@ -25,10 +32,14 @@ export function v1ErrorBody(status: number, message: string, code: string | null
 export function v1Error(
   status: number,
   message: string,
-  opts: { code?: string; param?: string; headers?: Record<string, string> } = {},
+  opts: { code?: string | null; param?: string | null; headers?: Record<string, string> } = {},
 ): Response {
   return new Response(JSON.stringify(v1ErrorBody(status, message, opts.code ?? null, opts.param ?? null)), {
     status,
-    headers: { 'content-type': 'application/json', ...opts.headers },
+    headers: { 'content-type': 'application/json', 'cache-control': 'no-store', ...opts.headers },
   });
 }
+
+/** Template error codes (UPPER_SNAKE) become OpenAI-style lower_snake codes. */
+export const v1Code = (code: unknown): string | null =>
+  typeof code === 'string' && code ? code.toLowerCase() : null;

@@ -99,6 +99,18 @@ export const SCOPES = [
     description: 'Data dan riwayat login akun pemilik kunci',
     minRole: ROLES.USER,
   },
+  {
+    id: 'stt:transcribe',
+    label: 'Speech-to-text',
+    description: 'Transkripsi audio lewat /api/v1/audio/transcriptions',
+    minRole: ROLES.USER,
+  },
+  {
+    id: 'tts:speak',
+    label: 'Text-to-speech',
+    description: 'Sintesis suara lewat /api/v1/audio/speech',
+    minRole: ROLES.USER,
+  },
 ] as const;
 
 export const SCOPE_IDS = SCOPES.map((s) => s.id) as readonly string[];
@@ -152,6 +164,9 @@ export function requiredScope(method: string, pathname: string): Scope | null {
   if (p.startsWith('/api/ops')) return read ? 'ops:read' : null;
   if (p.startsWith('/api/me')) return read ? 'me:read' : null;
   if (p.startsWith('/api/posts')) return read ? null : 'posts:write';
+  if (p === '/api/v1/audio/transcriptions' || p === '/api/v1/audio/translations')
+    return read ? null : 'stt:transcribe';
+  if (p === '/api/v1/audio/speech') return read ? null : 'tts:speak';
   return null;
 }
 
@@ -159,7 +174,12 @@ export function requiredScope(method: string, pathname: string): Scope | null {
 export function isPublicRead(method: string, pathname: string): boolean {
   return (
     READ.has(method.toUpperCase()) &&
-    (pathname.startsWith('/api/posts') || pathname === '/api/hello' || pathname === '/api/version')
+    (pathname.startsWith('/api/posts') ||
+      pathname === '/api/hello' ||
+      pathname === '/api/version' ||
+      pathname === '/api/v1/models' ||
+      pathname.startsWith('/api/v1/models/') ||
+      pathname === '/api/v1/audio/voices')
   );
 }
 

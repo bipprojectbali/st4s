@@ -20,6 +20,18 @@ describe('requiredScope', () => {
     expect(requiredScope('POST', '/api/mcp')).toBe('mcp');
     expect(requiredScope('GET', '/api/mcp')).toBe('mcp');
   });
+  it('maps the OpenAI-compatible /api/v1 audio routes', () => {
+    expect(requiredScope('POST', '/api/v1/audio/transcriptions')).toBe('stt:transcribe');
+    expect(requiredScope('POST', '/api/v1/audio/translations')).toBe('stt:transcribe');
+    expect(requiredScope('POST', '/api/v1/audio/speech')).toBe('tts:speak');
+    expect(requiredScope('GET', '/api/v1/audio/transcriptions')).toBeNull();
+    expect(requiredScope('GET', '/api/v1/models')).toBeNull();
+    expect(isPublicRead('GET', '/api/v1/models')).toBe(true);
+    expect(isPublicRead('GET', '/api/v1/models/whisper-1')).toBe(true);
+    expect(isPublicRead('GET', '/api/v1/audio/voices')).toBe(true);
+    expect(isPublicRead('POST', '/api/v1/models')).toBe(false);
+    expect(isPublicRead('POST', '/api/v1/audio/transcriptions')).toBe(false);
+  });
   it('blocks auth, key management (admin and personal), resets and unknown routes', () => {
     expect(requiredScope('POST', '/api/auth/sign-in/email')).toBeNull();
     expect(requiredScope('GET', '/api/api-keys')).toBeNull();
@@ -43,6 +55,8 @@ describe('role ceiling', () => {
     expect(roleAllowsScope('super-admin', 'settings:write')).toBe(true);
     expect(roleAllowsScope('admin', 'mcp')).toBe(false);
     expect(roleAllowsScope('super-admin', 'mcp')).toBe(true);
-    expect(scopesForRole('user')).toEqual(['posts:write', 'me:read']);
+    expect(roleAllowsScope('user', 'stt:transcribe')).toBe(true);
+    expect(roleAllowsScope('user', 'tts:speak')).toBe(true);
+    expect(scopesForRole('user')).toEqual(['posts:write', 'me:read', 'stt:transcribe', 'tts:speak']);
   });
 });
