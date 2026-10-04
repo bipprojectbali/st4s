@@ -172,7 +172,7 @@ export function SttPanel({
           />
           <TextInput
             label="Kata kunci (opsional)"
-            placeholder="Makuro, Supertonic"
+            placeholder="st4s, Supertonic"
             description="Dipisah koma; membantu ejaan nama"
             value={keywords}
             onChange={(e) => setKeywords(e.currentTarget.value)}

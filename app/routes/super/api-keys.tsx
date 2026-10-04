@@ -44,7 +44,7 @@ import { toJson } from '~/lib/loader-json';
 import type { Route } from './+types/api-keys';
 
 export function meta() {
-  return [{ title: 'API Keys — Makuro Dev' }];
+  return [{ title: 'API Keys — st4s' }];
 }
 
 const LIMIT = 25;

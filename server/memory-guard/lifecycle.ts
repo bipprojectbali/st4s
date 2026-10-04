@@ -10,7 +10,7 @@ import type { GuardEngine } from './machine';
 import { setGuardHandle } from './state';
 import { installSysctlFfi } from './sysctl-ffi';
 
-const g = globalThis as typeof globalThis & { __s4sMemoryGuardRunner?: MemoryGuard };
+const g = globalThis as typeof globalThis & { __st4sMemoryGuardRunner?: MemoryGuard };
 
 const LABEL: Record<GuardEngine, string> = { stt: 'STT', tts: 'TTS' };
 
@@ -47,7 +47,7 @@ export function auditAutoUnload(e: GuardAuditEntry): void {
  * start the guard once; returns null when MEM_GUARD_ENABLED=false.
  */
 export function startMemoryGuard(): MemoryGuard | null {
-  if (g.__s4sMemoryGuardRunner) return g.__s4sMemoryGuardRunner;
+  if (g.__st4sMemoryGuardRunner) return g.__st4sMemoryGuardRunner;
   const cfg = loadGuardConfig();
   if (!cfg.enabled) {
     logger.warn('memory guard disabled (MEM_GUARD_ENABLED=false)');
@@ -60,7 +60,7 @@ export function startMemoryGuard(): MemoryGuard | null {
     engines: () => ({ stt: registered(getStt), tts: registered(getTts) }),
     audit: auditAutoUnload,
   });
-  g.__s4sMemoryGuardRunner = guard;
+  g.__st4sMemoryGuardRunner = guard;
   setGuardHandle(guard);
   guard.start();
   logger.info(
@@ -78,7 +78,7 @@ export function startMemoryGuard(): MemoryGuard | null {
 
 /** Stop the timer chain and drop the handle (shutdown); no-op when not started. */
 export function stopMemoryGuard(): void {
-  g.__s4sMemoryGuardRunner?.stop();
-  delete g.__s4sMemoryGuardRunner;
+  g.__st4sMemoryGuardRunner?.stop();
+  delete g.__st4sMemoryGuardRunner;
   setGuardHandle(null);
 }

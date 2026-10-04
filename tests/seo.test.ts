@@ -4,7 +4,7 @@ import { shouldSkip } from '../server/middleware/visitor';
 import { isSeoFile, robotsTxt, seoResponse, sitemapXml } from '../server/seo';
 import { isMaintenanceExempt } from '../server/settings-maintenance';
 
-const SITE = 'https://makuro.example/'; // test-only
+const SITE = 'https://st4s.example/'; // test-only
 
 describe('robots.txt', () => {
   it('keeps crawlers out of auth flows, role areas and the API, and points to the sitemap', () => {
@@ -12,7 +12,7 @@ describe('robots.txt', () => {
     for (const p of ['/api/', '/login', '/go', '/banned', '/profile', '/dashboard', '/dev'])
       expect(txt).toContain(`Disallow: ${p}\n`);
     expect(txt).toContain('Allow: /\n');
-    expect(txt).toContain('Sitemap: https://makuro.example/sitemap.xml');
+    expect(txt).toContain('Sitemap: https://st4s.example/sitemap.xml');
   });
 });
 
@@ -21,7 +21,7 @@ describe('sitemap.xml', () => {
     const xml = sitemapXml(SITE);
     expect(xml.startsWith('<?xml')).toBe(true);
     expect([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])).toEqual([
-      'https://makuro.example/',
+      'https://st4s.example/',
     ]);
   });
 });

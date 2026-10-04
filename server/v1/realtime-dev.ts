@@ -12,7 +12,7 @@ import { realtimeWebsocket, serveApi } from './realtime-server';
 const REALTIME_PATH = '/api/v1/realtime';
 
 const g = globalThis as typeof globalThis & {
-  __s4sRealtimeDev?: { stop(force?: boolean): unknown };
+  __st4sRealtimeDev?: { stop(force?: boolean): unknown };
 };
 
 /** Route `upgrade` requests for /api/v1/realtime on `server` to the shared realtime handler. */
@@ -21,7 +21,7 @@ export function attachRealtimeDevBridge(
   handle: (r: Request) => Response | Promise<Response>,
 ): void {
   // --hot re-runs dev.ts in the same process: drop the previous inner server first.
-  g.__s4sRealtimeDev?.stop(true);
+  g.__st4sRealtimeDev?.stop(true);
   /** Pipe socket's local port → real client IP (the inner server only sees 127.0.0.1). */
   const peers = new Map<number, string>();
   const inner = Bun.serve({
@@ -36,7 +36,7 @@ export function attachRealtimeDevBridge(
       return serveApi(request, srv, handle);
     },
   });
-  g.__s4sRealtimeDev = inner;
+  g.__st4sRealtimeDev = inner;
   process.once('exit', () => inner.stop(true));
 
   server.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {

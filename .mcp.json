@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "makuro-debug": {
+    "st4s-debug": {
       "type": "http",
       "url": "http://localhost:3005/api/mcp",
       "headers": {

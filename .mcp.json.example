@@ -1,17 +1,17 @@
 {
   "mcpServers": {
-    "makuro-debug-staging": {
+    "st4s-debug-staging": {
       "type": "http",
       "url": "https://staging.your-app.example.com/api/mcp",
       "headers": {
-        "Authorization": "Bearer ${MAKURO_MCP_KEY}"
+        "Authorization": "Bearer ${ST4S_MCP_KEY}"
       }
     },
-    "makuro-debug-prod": {
+    "st4s-debug-prod": {
       "type": "http",
       "url": "https://your-app.example.com/api/mcp",
       "headers": {
-        "Authorization": "Bearer ${MAKURO_MCP_KEY}"
+        "Authorization": "Bearer ${ST4S_MCP_KEY}"
       }
     }
   }

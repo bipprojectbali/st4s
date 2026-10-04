@@ -29,7 +29,7 @@ export function sttChildEnv(
   return { ...env, CRISPASR_VAD_FAILOVER: '0' };
 }
 
-/** Spawn `bun child.ts <config-json>` (or `<binary> --s4s-engine-child stt <config-json>`) directly, no shell, with IPC. */
+/** Spawn `bun child.ts <config-json>` (or `<binary> --st4s-engine-child stt <config-json>`) directly, no shell, with IPC. */
 export function spawnBunChild(childPath = CHILD_PATH): SttSpawner {
   return (cfg, on) => {
     const proc = Bun.spawn([...engineChildCommand('stt', childPath), JSON.stringify(cfg)], {

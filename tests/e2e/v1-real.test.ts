@@ -1,5 +1,5 @@
 // Real-engine e2e through /api/v1 + the openai SDK. Run only under the model lock (see .claude/rules/engines.md "Konvensi Engine Suara"):
-// S4S_REAL_ENGINE=1 NODE_ENV=test timeout 600 bun test tests/e2e/v1-real.test.ts
+// ST4S_REAL_ENGINE=1 NODE_ENV=test timeout 600 bun test tests/e2e/v1-real.test.ts
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import os from 'node:os';
 import path from 'node:path';
@@ -9,7 +9,7 @@ import { createSttEngine } from '../../server/engines/stt';
 import { createTtsEngine } from '../../server/engines/tts';
 import { appFetch, SESSION_TOKEN, stubSession } from '../v1/fake-stt';
 
-const REAL = process.env.S4S_REAL_ENGINE === '1';
+const REAL = process.env.ST4S_REAL_ENGINE === '1';
 const WAV = process.env.STT_TEST_WAV ?? path.join(os.homedir(), 'tmp/stt/audio.wav');
 const MIN_WORD_ACCURACY = 0.8;
 const SENTENCES = [

@@ -20,7 +20,7 @@ import { type DeviceSession, hasPasswordAccount, type LinkedAccount } from '~/li
 import type { Route } from './+types/profile';
 
 export function meta(_: Route.MetaArgs) {
-  return [{ title: 'Profile — Makuro' }];
+  return [{ title: 'Profile — st4s' }];
 }
 
 const HISTORY = 8;

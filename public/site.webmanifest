@@ -1,7 +1,7 @@
 {
-  "name": "Makuro",
-  "short_name": "Makuro",
-  "description": "Fullstack base template: Bun, Elysia, React Router SSR, Drizzle, Better Auth.",
+  "name": "st4s",
+  "short_name": "st4s",
+  "description": "st4s — speech-to-text & text-to-speech server kompatibel OpenAI.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#1a1b1e",

@@ -1,5 +1,5 @@
 /**
- * Black-box checks a running Makuro server (script or binary) must pass.
+ * Black-box checks a running st4s server (script or binary) must pass.
  * Pure data + evaluator so the list is unit-tested and shared by the runner.
  */
 export type SmokeCheck = {
@@ -109,7 +109,7 @@ export const SMOKE_CHECKS: SmokeCheck[] = [
     path: '/llms.txt',
     status: 200,
     contentType: 'text/plain',
-    bodyIncludes: '# Makuro',
+    bodyIncludes: '# st4s',
   },
   {
     name: 'landing meta OG',

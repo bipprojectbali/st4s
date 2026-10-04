@@ -57,7 +57,7 @@ type Props = {
   navBadges?: Record<string, NavBadge>;
   env?: string;
   version?: string;
-  /** App name/tagline from settings (defaults to Makuro). */
+  /** App name/tagline from settings (defaults to st4s). */
   branding?: Branding;
   /** Show the maintenance banner to admins who can still use the app. */
   maintenance?: boolean;
@@ -88,7 +88,7 @@ export function AppFrame(props: Props) {
     maintenance,
     initialCollapsed = false,
   } = props;
-  const appName = branding?.appName ?? 'Makuro';
+  const appName = branding?.appName ?? 'st4s';
   const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure();
   // Initialized from server-resolved value — no useEffect needed, no flash.
   const [collapsed, setCollapsed] = useState(initialCollapsed);

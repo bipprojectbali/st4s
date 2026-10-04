@@ -31,7 +31,7 @@ export type MemorySnapshot = {
  * server/memory-guard/sysctl-ffi.ts. Kept on globalThis so this module — also bundled by Vite
  * for SSR — never imports bun:ffi itself.
  */
-const g = globalThis as typeof globalThis & { __s4sSysctlInt?: (name: string) => number };
+const g = globalThis as typeof globalThis & { __st4sSysctlInt?: (name: string) => number };
 
 function runSysctl(): string {
   const r = Bun.spawnSync(['sysctl', '-n', 'kern.memorystatus_level'], {
@@ -43,7 +43,7 @@ function runSysctl(): string {
 }
 
 function defaultLevel(): string {
-  const ffi = g.__s4sSysctlInt;
+  const ffi = g.__st4sSysctlInt;
   if (ffi) {
     try {
       return String(ffi('kern.memorystatus_level'));
@@ -55,7 +55,7 @@ function defaultLevel(): string {
 }
 
 function defaultPressure(): number | null {
-  const ffi = g.__s4sSysctlInt;
+  const ffi = g.__st4sSysctlInt;
   if (!ffi) return null;
   try {
     return ffi('kern.memorystatus_vm_pressure_level');

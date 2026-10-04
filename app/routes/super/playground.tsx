@@ -11,7 +11,7 @@ import { TtsPanel } from '~/components/playground/TtsPanel';
 import type { Route } from './+types/playground';
 
 export function meta() {
-  return [{ title: 'Playground — Makuro Dev' }];
+  return [{ title: 'Playground — st4s' }];
 }
 
 export async function loader({ request }: Route.LoaderArgs) {

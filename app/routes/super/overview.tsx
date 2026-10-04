@@ -11,7 +11,7 @@ import { useTimeFormat } from '~/lib/time-format';
 import type { Route } from './+types/overview';
 
 export function meta() {
-  return [{ title: 'Overview — Makuro Dev' }];
+  return [{ title: 'Overview — st4s' }];
 }
 
 /** Everything is gathered server-side so the overview is complete at first paint. */

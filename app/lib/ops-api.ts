@@ -19,7 +19,7 @@ export type McpInfo = {
   auth: { header: string; scope: string; legacyQuery: string; legacyEnvVar: string };
 };
 /** Env var the MCP client expands into the API key (never write the key inline). */
-export const MCP_KEY_ENV = 'MAKURO_MCP_KEY';
+export const MCP_KEY_ENV = 'ST4S_MCP_KEY';
 export type ResetTarget = { key: string; label: string; description: string };
 
 const BASE = '/api/ops';
@@ -49,7 +49,7 @@ export function mcpConfigSnippet(endpoint: string): string {
   return JSON.stringify(
     {
       mcpServers: {
-        'makuro-debug': {
+        'st4s-debug': {
           type: 'http',
           url: endpoint,
           headers: { Authorization: `Bearer \${${MCP_KEY_ENV}}` },

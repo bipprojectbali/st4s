@@ -11,7 +11,7 @@ type Props = { error: unknown; appName?: string };
  * Standalone error page for the root boundary (no app shell available):
  * brings its own MantineProvider because the boundary renders outside <App />.
  */
-export function ErrorPage({ error, appName = 'Makuro' }: Props) {
+export function ErrorPage({ error, appName = 'st4s' }: Props) {
   const info = describeError(error, import.meta.env.DEV);
   return (
     <MantineProvider theme={theme} defaultColorScheme="auto">

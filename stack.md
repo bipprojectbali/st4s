@@ -1,4 +1,4 @@
-# Makuro — Fullstack Base Template Stack (2026)
+# st4s — Stack (2026)
 
 Status: **scaffolded & verified** (dev + prod build, DB migrations, auth flow all
 tested end-to-end). See README.md for usage.

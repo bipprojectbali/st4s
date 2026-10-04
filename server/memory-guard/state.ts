@@ -46,17 +46,17 @@ export interface GuardHandle {
   admit(engine?: GuardEngine): Admission;
 }
 
-const g = globalThis as typeof globalThis & { __s4sMemoryGuard?: GuardHandle };
+const g = globalThis as typeof globalThis & { __st4sMemoryGuard?: GuardHandle };
 
 /** The running guard, or null when it is disabled or not started (tests, scripts). */
 export function guardHandle(): GuardHandle | null {
-  return g.__s4sMemoryGuard ?? null;
+  return g.__st4sMemoryGuard ?? null;
 }
 
 /** Install or clear the process-wide guard (boot code and tests). */
 export function setGuardHandle(h: GuardHandle | null): void {
-  if (h) g.__s4sMemoryGuard = h;
-  else delete g.__s4sMemoryGuard;
+  if (h) g.__st4sMemoryGuard = h;
+  else delete g.__st4sMemoryGuard;
 }
 
 const DISABLED: MemoryGuardStatus = {

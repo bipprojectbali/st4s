@@ -2,15 +2,31 @@ node_modules
 build
 .react-router
 .env
-.env.local
+.env.*
+!.env.example
 *.log
 .DS_Store
 .vite
 /logs/
+# secrets / credentials
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+service-account.json
+.aws/
+.gcp/
+# model weights, native libs, local databases
+*.gguf
+*.onnx
+*.dylib
+*.db
+*.sqlite
 # compiled binaries (bun build --compile)
-makuro
-makuro-linux-x64
-makuro-linux-musl
-makuro.exe
+/st4s
+/st4s-linux-x64
+/st4s-linux-musl
+/st4s.exe
 # libcrispasr build (scripts/crispasr/build.sh)
 /.crispasr/

@@ -26,7 +26,7 @@ import {
   FiZap,
 } from 'react-icons/fi';
 
-export const GITHUB_URL = 'https://github.com/bipprojectbali/makuro-template';
+export const GITHUB_URL = 'https://github.com/bipprojectbali/st4s';
 
 export type Feature = { icon: IconType; color: string; title: string; desc: string };
 
@@ -252,7 +252,7 @@ bun run db:migrate
 bun run dev
 
 # 5. Produksi: satu binary, tanpa Bun di server
-bun run build:binary:linux && scp makuro-linux-x64 server:/srv/app/`;
+bun run build:binary:linux && scp st4s-linux-x64 server:/srv/app/`;
 
 export const ARCH = `Browser
   │

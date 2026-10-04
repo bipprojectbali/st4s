@@ -33,7 +33,7 @@ export const escapeHtml = (v: string) =>
 export function errorHtml({
   status,
   requestId,
-  appName = 'Makuro',
+  appName = 'st4s',
   message,
 }: ErrorPageInput): string {
   const c = CATALOG[status] ?? FALLBACK;

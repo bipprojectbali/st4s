@@ -77,7 +77,7 @@ describe('session', () => {
       expect(e.error.code).toBe(bad[i][1]);
     }
     expect((await c.next('error', 2)).error.event_id).toBe('e1');
-    c.send(transcriptionUpdate(null, { model: 'gpt-4o-transcribe', prompt: 'Makuro' }));
+    c.send(transcriptionUpdate(null, { model: 'gpt-4o-transcribe', prompt: 'st4s' }));
     const u = await c.next('session.updated');
     expect(u.session.audio.input.transcription.language).toBe('id');
     expect(c.closeCode).toBeNull();

@@ -115,7 +115,7 @@ describe('/skill.md endpoint', () => {
     const base = env.APP_URL.replace(/\/$/, '');
     expect(body).not.toContain('{{');
     expect(body).toContain(`base_url = ${base}/api/v1`);
-    expect(body.startsWith('---\nname: s4s-speech\n')).toBe(true);
+    expect(body.startsWith('---\nname: st4s-speech\n')).toBe(true);
   });
 
   test('skillText strips a trailing slash from the base URL', async () => {

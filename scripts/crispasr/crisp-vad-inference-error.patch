@@ -1,4 +1,4 @@
-s4s's only libcrispasr patch, and the pending upstream submission (CrispStrobe/CrispASR, not sent yet).
+st4s's only libcrispasr patch, and the pending upstream submission (CrispStrobe/CrispASR, not sent yet).
 Made with git format-patch against upstream main 199de52d9; applies unchanged on the v0.8.41 pin in build.sh.
 Delete it, and drop it from PATCHES in build.sh, once upstream ships it.
 

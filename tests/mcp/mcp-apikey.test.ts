@@ -59,7 +59,7 @@ describe('MCP auth via API key', () => {
     const res = await app.handle(req);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { result?: { serverInfo?: { name: string } } };
-    expect(body.result?.serverInfo?.name).toBe('makuro-debug');
+    expect(body.result?.serverInfo?.name).toBe('st4s-debug');
     expect(res.headers.get('mcp-session-id')).toBeTruthy();
   });
 });

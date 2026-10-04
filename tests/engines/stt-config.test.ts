@@ -19,11 +19,11 @@ describe('loadSttConfig CRISPASR_LIB', () => {
   });
 
   test('default resolves against the given project dir', () => {
-    expect(defaultCrispasrLib('/srv/s4s')).toBe('/srv/s4s/.crispasr/build/src/libcrispasr.dylib');
+    expect(defaultCrispasrLib('/srv/st4s')).toBe('/srv/st4s/.crispasr/build/src/libcrispasr.dylib');
   });
 
   test('a missing lib fails with its path and the build command', () => {
-    const missing = path.join(os.tmpdir(), 's4s-no-such-dir/libcrispasr.dylib');
+    const missing = path.join(os.tmpdir(), 'st4s-no-such-dir/libcrispasr.dylib');
     expect(() => dlopenCrispasr(missing)).toThrow(
       `libcrispasr not found at ${missing} — run \`bash scripts/crispasr/build.sh\` or set CRISPASR_LIB`,
     );

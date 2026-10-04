@@ -25,4 +25,4 @@ Saat bekerja dengan `bun build --compile --asset`:
 - SSR bundle di-embed via **static import** (`import * as ssrBuild from '../build/server/index.js'`) — Bun mengikuti static import dan mem-bundle seluruh deps ke binary.
 - `Bun.embeddedFiles` berguna untuk debug: menampilkan path dan ukuran semua file yang di-embed.
 
-Child engine di binary (re-exec `--s4s-engine-child`, `libonnxruntime` di samping binary): lihat `.claude/rules/engines.md` bagian **Binary**.
+Child engine di binary (re-exec `--st4s-engine-child`, `libonnxruntime` di samping binary): lihat `.claude/rules/engines.md` bagian **Binary**.

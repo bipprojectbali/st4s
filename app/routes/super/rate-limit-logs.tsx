@@ -33,7 +33,7 @@ import {
 import type { Route } from './+types/rate-limit-logs';
 
 export function meta() {
-  return [{ title: 'Rate Limit Logs — Makuro Dev' }];
+  return [{ title: 'Rate Limit Logs — st4s' }];
 }
 
 const LIMIT = 25;

@@ -15,7 +15,7 @@ describe.skipIf(process.platform !== 'darwin')('sysctlbyname over bun:ffi', () =
   });
 
   test('unknown name throws with its name', () => {
-    expect(() => read('kern.no_such_thing_s4s')).toThrow('kern.no_such_thing_s4s');
+    expect(() => read('kern.no_such_thing_st4s')).toThrow('kern.no_such_thing_st4s');
   });
 
   test('one read stays well under a millisecond', () => {

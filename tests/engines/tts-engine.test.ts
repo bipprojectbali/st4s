@@ -8,7 +8,7 @@ import type { ChildMsg, ParentMsg } from '../../server/engines/tts/protocol';
 import type { Spawner } from '../../server/engines/tts/spawner';
 import { EngineBusyError, type SpeakRequest } from '../../server/engines/types';
 
-const modelDir = fs.mkdtempSync(path.join(os.tmpdir(), 's4s-tts-test-'));
+const modelDir = fs.mkdtempSync(path.join(os.tmpdir(), 'st4s-tts-test-'));
 fs.mkdirSync(path.join(modelDir, 'onnx'));
 fs.mkdirSync(path.join(modelDir, 'voice_styles'));
 fs.writeFileSync(

@@ -1,4 +1,4 @@
-# Optional local Postgres for the Makuro template.
+# Optional local Postgres for the st4s template.
 #
 # You already run a shared Postgres (infra-postgres / pgvector on :5432), so by
 # default this file does NOTHING unless you opt in with the `local-db` profile:

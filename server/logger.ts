@@ -61,8 +61,8 @@ async function createLogger() {
 // Process-wide singleton: server modules imported from app/ are bundled again
 // into build/server/index.js (and re-evaluated on Vite SSR reloads). Without this
 // each copy would open its own pino-roll writer and pino-pretty worker.
-const g = globalThis as typeof globalThis & { __makuroLogger?: pino.Logger };
-g.__makuroLogger ??= await createLogger();
-export const logger: pino.Logger = g.__makuroLogger;
+const g = globalThis as typeof globalThis & { __st4sLogger?: pino.Logger };
+g.__st4sLogger ??= await createLogger();
+export const logger: pino.Logger = g.__st4sLogger;
 // Let the SSR entry log through this instance without importing pino (see ssr-log.ts).
 registerProcessLogger(logger);

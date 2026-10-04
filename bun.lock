@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "makuro-template",
+      "name": "st4s",
       "dependencies": {
         "@better-auth/api-key": "1.7.3",
         "@dagrejs/dagre": "^3.1.1",

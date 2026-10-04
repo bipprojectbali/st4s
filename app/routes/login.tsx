@@ -23,7 +23,7 @@ import { type AuthNotice, describeAuthError, loginNotice } from '~/lib/auth-erro
 import type { Route } from './+types/login';
 
 export function meta({ loaderData }: Route.MetaArgs) {
-  const app = loaderData?.branding.appName ?? 'Makuro';
+  const app = loaderData?.branding.appName ?? 'st4s';
   return [
     { title: `Masuk — ${app}` },
     {

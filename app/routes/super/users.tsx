@@ -28,7 +28,7 @@ import { toJson } from '~/lib/loader-json';
 import type { Route } from './+types/users';
 
 export function meta() {
-  return [{ title: 'Users — Makuro Dev' }];
+  return [{ title: 'Users — st4s' }];
 }
 
 const LIMIT = 25;

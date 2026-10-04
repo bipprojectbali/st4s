@@ -92,7 +92,7 @@ describe('full app', () => {
     expect(ids).toContain('whisper-1');
 
     const one = await json(await call('/api/v1/models/whisper-1'));
-    expect(one).toMatchObject({ id: 'whisper-1', object: 'model', owned_by: 's4s' });
+    expect(one).toMatchObject({ id: 'whisper-1', object: 'model', owned_by: 'st4s' });
     expect(typeof one.created).toBe('number');
 
     await expectV1(await call('/api/v1/models/gpt-9'), 404, 'not_found_error', 'model_not_found');

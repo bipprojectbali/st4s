@@ -45,9 +45,9 @@ describe('createVadBridge', () => {
 });
 
 // Needs the patched libcrispasr (scripts/crispasr/build.sh) in CRISPASR_LIB; loads only the Silero VAD (~1 MB), no ASR model.
-describe.skipIf(process.env.S4S_REAL_ENGINE !== '1')('vadSlices on the real libcrispasr', () => {
+describe.skipIf(process.env.ST4S_REAL_ENGINE !== '1')('vadSlices on the real libcrispasr', () => {
   const cfg = loadSttConfig();
-  const junk = path.join(os.tmpdir(), `s4s-junk-vad-${process.pid}.bin`);
+  const junk = path.join(os.tmpdir(), `st4s-junk-vad-${process.pid}.bin`);
   let lib: ReturnType<typeof openCrispasr>;
   beforeAll(() => {
     lib = openCrispasr(cfg.libPath);

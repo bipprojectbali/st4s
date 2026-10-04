@@ -22,8 +22,9 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export function meta({ loaderData, error }: Route.MetaArgs) {
-  const name = loaderData?.branding.appName ?? 'Makuro';
-  const tagline = loaderData?.branding.appTagline ?? 'Fullstack Template';
+  const name = loaderData?.branding.appName ?? 'st4s';
+  const tagline =
+    loaderData?.branding.appTagline ?? 'speech-to-text & text-to-speech server kompatibel OpenAI';
   // Error boundaries reuse the root meta: a 404 must not be titled like the home page.
   if (error) {
     const info = describeError(error);

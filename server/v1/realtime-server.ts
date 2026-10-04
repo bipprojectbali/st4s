@@ -20,15 +20,15 @@ export type RtUpgrader = {
 };
 
 const g = globalThis as typeof globalThis & {
-  __s4sRealtime?: {
+  __st4sRealtime?: {
     active: number;
     upgraders: WeakMap<Request, RtUpgrader>;
     upgraded: WeakSet<Request>;
   };
 };
 // globalThis: the SSR bundle copy and --hot reloads must share one session counter.
-g.__s4sRealtime ??= { active: 0, upgraders: new WeakMap(), upgraded: new WeakSet() };
-const state = g.__s4sRealtime;
+g.__st4sRealtime ??= { active: 0, upgraders: new WeakMap(), upgraded: new WeakSet() };
+const state = g.__st4sRealtime;
 
 /** Open realtime sessions (including ones upgrading right now). */
 export const realtimeActiveSessions = () => state.active;

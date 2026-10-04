@@ -125,7 +125,10 @@ describe('settings ops API', () => {
     const all = await call('/settings/all');
     expect(
       (all.body.branding as { effective: { appName: string; appTagline: string } }).effective,
-    ).toMatchObject({ appName: 'Acme', appTagline: 'Fullstack Template' });
+    ).toMatchObject({
+      appName: 'Acme',
+      appTagline: 'speech-to-text & text-to-speech server kompatibel OpenAI',
+    });
     await call(
       '/settings/branding',
       json('PUT', { appName: null, appTagline: null, supportUrl: null }),

@@ -46,7 +46,7 @@ import { toJson } from '~/lib/loader-json';
 import type { Route } from './+types/audit';
 
 export function meta() {
-  return [{ title: 'Audit Log — Makuro Dev' }];
+  return [{ title: 'Audit Log — st4s' }];
 }
 
 const LIMIT = 25;
