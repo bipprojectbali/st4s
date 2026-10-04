@@ -4,7 +4,7 @@ import { newRequestId } from '../api-error';
 import { v1Error } from '../v1/errors';
 import { BUDGET_MESSAGE } from './budget';
 import type { GuardEngine } from './machine';
-import { guardHandle, type Admission } from './state';
+import { type Admission, guardHandle } from './state';
 
 /** User-facing reason for a shed request (Indonesian, actionable). */
 export const SHED_MESSAGE = (retryAfterSec: number) =>

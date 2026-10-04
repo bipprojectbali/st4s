@@ -27,7 +27,14 @@ export function TruncatedText({ children, tooltipMaw = 420, ...textProps }: Prop
   }, []);
 
   return (
-    <Tooltip label={children} disabled={!clipped} withArrow multiline maw={tooltipMaw} openDelay={250}>
+    <Tooltip
+      label={children}
+      disabled={!clipped}
+      withArrow
+      multiline
+      maw={tooltipMaw}
+      openDelay={250}
+    >
       <Text ref={ref} truncate {...textProps}>
         {children}
       </Text>

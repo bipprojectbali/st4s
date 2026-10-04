@@ -5,7 +5,8 @@ import { readAvailableMemory, readMemorySnapshot } from '../server/system-memory
 
 const GB = 1024 ** 3;
 const base = { totalmem: () => 8 * GB, freemem: () => 100 * 1024 ** 2, pressure: () => 1 };
-const MEMINFO = 'MemTotal:        8000000 kB\nMemFree:          100000 kB\nMemAvailable:    2000000 kB\n';
+const MEMINFO =
+  'MemTotal:        8000000 kB\nMemFree:          100000 kB\nMemAvailable:    2000000 kB\n';
 const warn = spyOn(logger, 'warn');
 afterEach(() => warn.mockClear());
 // Bun's spyOn reuses a live spy, so leaving it would leak calls into later files.
@@ -39,7 +40,9 @@ describe('readAvailableMemory', () => {
     const sysctl = () => {
       throw new Error('must not run');
     };
-    expect(readAvailableMemory({ ...base, platform: 'linux', sysctl, meminfo: () => MEMINFO })).toBe(2000000 * 1024);
+    expect(
+      readAvailableMemory({ ...base, platform: 'linux', sysctl, meminfo: () => MEMINFO }),
+    ).toBe(2000000 * 1024);
     expect(warn).not.toHaveBeenCalled();
   });
 
@@ -48,7 +51,9 @@ describe('readAvailableMemory', () => {
       throw new Error('ENOENT');
     };
     expect(readAvailableMemory({ ...base, platform: 'linux', meminfo })).toBe(100 * 1024 ** 2);
-    expect(readAvailableMemory({ ...base, platform: 'linux', meminfo: () => 'MemTotal: 1 kB\n' })).toBe(100 * 1024 ** 2);
+    expect(
+      readAvailableMemory({ ...base, platform: 'linux', meminfo: () => 'MemTotal: 1 kB\n' }),
+    ).toBe(100 * 1024 ** 2);
     expect(warn).toHaveBeenCalledTimes(2);
   });
 
@@ -59,8 +64,18 @@ describe('readAvailableMemory', () => {
 
 describe('readMemorySnapshot', () => {
   test('darwin: free percent and kernel pressure level', () => {
-    const s = readMemorySnapshot({ ...base, platform: 'darwin', sysctl: () => '18', pressure: () => 4 });
-    expect(s).toEqual({ freeBytes: Math.round(0.18 * 8 * GB), totalBytes: 8 * GB, freePct: 18, pressure: 4 });
+    const s = readMemorySnapshot({
+      ...base,
+      platform: 'darwin',
+      sysctl: () => '18',
+      pressure: () => 4,
+    });
+    expect(s).toEqual({
+      freeBytes: Math.round(0.18 * 8 * GB),
+      totalBytes: 8 * GB,
+      freePct: 18,
+      pressure: 4,
+    });
   });
 
   test('darwin fallback reports freePct null so the guard does not act on free pages alone', () => {

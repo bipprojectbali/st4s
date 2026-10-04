@@ -65,7 +65,8 @@ function defaultPressure(): number | null {
   }
 }
 
-const pctOf = (free: number, total: number) => (total > 0 ? Math.round((free / total) * 1000) / 10 : 0);
+const pctOf = (free: number, total: number) =>
+  total > 0 ? Math.round((free / total) * 1000) / 10 : 0;
 
 function linuxSnapshot(probe: MemoryProbe): MemorySnapshot {
   try {
@@ -73,7 +74,8 @@ function linuxSnapshot(probe: MemoryProbe): MemorySnapshot {
     const kb = (key: string) => Number(new RegExp(`^${key}:\\s+(\\d+) kB`, 'm').exec(text)?.[1]);
     const free = kb('MemAvailable') * 1024;
     const total = kb('MemTotal') * 1024;
-    if (!(free >= 0 && total > 0)) throw new Error('MemAvailable/MemTotal missing in /proc/meminfo');
+    if (!(free >= 0 && total > 0))
+      throw new Error('MemAvailable/MemTotal missing in /proc/meminfo');
     return { freeBytes: free, totalBytes: total, freePct: pctOf(free, total), pressure: null };
   } catch (err) {
     logger.warn({ err }, '/proc/meminfo unavailable; reporting os.freemem()');
@@ -95,11 +97,22 @@ export function readMemorySnapshot(probe: MemoryProbe = {}): MemorySnapshot {
   try {
     const raw = (probe.sysctl ?? defaultLevel)().trim();
     const pct = Number(raw);
-    if (!/^\d+$/.test(raw) || pct > 100) throw new Error(`unexpected kern.memorystatus_level: "${raw}"`);
-    return { freeBytes: Math.round((pct / 100) * total), totalBytes: total, freePct: pct, pressure };
+    if (!/^\d+$/.test(raw) || pct > 100)
+      throw new Error(`unexpected kern.memorystatus_level: "${raw}"`);
+    return {
+      freeBytes: Math.round((pct / 100) * total),
+      totalBytes: total,
+      freePct: pct,
+      pressure,
+    };
   } catch (err) {
     logger.warn({ err }, 'kern.memorystatus_level unavailable; reporting os.freemem()');
-    return { freeBytes: (probe.freemem ?? os.freemem)(), totalBytes: total, freePct: null, pressure };
+    return {
+      freeBytes: (probe.freemem ?? os.freemem)(),
+      totalBytes: total,
+      freePct: null,
+      pressure,
+    };
   }
 }
 

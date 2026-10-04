@@ -30,7 +30,15 @@ export function auditAutoUnload(e: GuardAuditEntry): void {
     targetType: 'engine',
     targetId: e.engine,
     summary: `Unload otomatis engine ${LABEL[e.engine]} oleh memory guard (${e.level}, sisa RAM ${e.freePct ?? '?'}%)${e.ok ? '' : ' — belum selesai'}`,
-    meta: { by: 'memory-guard', engine: e.engine, reason: e.reason, level: e.level, freePct: e.freePct, ms: e.ms, ok: e.ok },
+    meta: {
+      by: 'memory-guard',
+      engine: e.engine,
+      reason: e.reason,
+      level: e.level,
+      freePct: e.freePct,
+      ms: e.ms,
+      ok: e.ok,
+    },
   });
 }
 

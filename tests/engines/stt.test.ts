@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { createSttEngine } from '../../server/engines/stt';
 import { EngineUnloadedError } from '../../server/engines/errors';
+import { createSttEngine } from '../../server/engines/stt';
 import type { SttChildEvents, SttSpawner } from '../../server/engines/stt/host';
 import type { ToChild, TranscribeMsg } from '../../server/engines/stt/protocol';
 import { EngineBusyError, type TranscribeResult } from '../../server/engines/types';
@@ -13,7 +13,10 @@ function fakeSpawner(opts: { autoReady?: boolean; holdExit?: boolean } = {}) {
   const spawn: SttSpawner = (_cfg, on) => {
     const c: FakeChild = { on, sent: [], killed: false, exit: () => on.exit(null, 'SIGTERM') };
     children.push(c);
-    if (opts.autoReady !== false) queueMicrotask(() => on.message({ t: 'ready', loadMs: 1, rss: 1000, backend: 'fake', gpu: false }));
+    if (opts.autoReady !== false)
+      queueMicrotask(() =>
+        on.message({ t: 'ready', loadMs: 1, rss: 1000, backend: 'fake', gpu: false }),
+      );
     return {
       send: (m) => c.sent.push(m),
       kill: () => {
@@ -28,14 +31,22 @@ function fakeSpawner(opts: { autoReady?: boolean; holdExit?: boolean } = {}) {
 const tick = () => Bun.sleep(1);
 const jobs = (c: FakeChild) => c.sent.filter((m): m is TranscribeMsg => m.t === 'transcribe');
 const audio = (sec = 1) => new Float32Array(16_000 * sec);
-const result = (text: string): TranscribeResult => ({ text, language: 'id', duration: 1, segments: [] });
+const result = (text: string): TranscribeResult => ({
+  text,
+  language: 'id',
+  duration: 1,
+  segments: [],
+});
 
 function reply(c: FakeChild, id: number, text: string) {
   c.on.message({ t: 'result', id, result: result(text), rss: 2000 });
 }
 
 const make = (spawn: SttSpawner, config = {}) =>
-  createSttEngine({ spawn, config: { maxQueue: 4, idleTimeoutSec: 0, modelPath: '/m/qwen3-asr.gguf', ...config } });
+  createSttEngine({
+    spawn,
+    config: { maxQueue: 4, idleTimeoutSec: 0, modelPath: '/m/qwen3-asr.gguf', ...config },
+  });
 
 describe('stt engine (fake child)', () => {
   test('lazy loads and runs the queue serially in FIFO order', async () => {
@@ -70,7 +81,9 @@ describe('stt engine (fake child)', () => {
     const f = fakeSpawner();
     const eng = make(f.spawn);
     const seen: string[] = [];
-    const p = eng.transcribe({ audio: audio(), onDelta: (d) => seen.push(`delta:${d}`) }).then((r) => seen.push(`final:${r.text}`));
+    const p = eng
+      .transcribe({ audio: audio(), onDelta: (d) => seen.push(`delta:${d}`) })
+      .then((r) => seen.push(`final:${r.text}`));
     await tick();
     const c = f.children[0]!;
     c.on.message({ t: 'delta', id: 1, text: 'halo' });
@@ -104,7 +117,11 @@ describe('stt engine (fake child)', () => {
     const running = new AbortController();
     const queued = new AbortController();
     const deltas: string[] = [];
-    const p1 = eng.transcribe({ audio: audio(), signal: running.signal, onDelta: (d) => deltas.push(d) });
+    const p1 = eng.transcribe({
+      audio: audio(),
+      signal: running.signal,
+      onDelta: (d) => deltas.push(d),
+    });
     const p2 = eng.transcribe({ audio: audio(), signal: queued.signal });
     const p3 = eng.transcribe({ audio: audio() });
     await tick();
@@ -279,7 +296,10 @@ describe('stt engine (fake child)', () => {
     let kills = 0;
     const c = f.children[0]!;
     const origOn = c.on.exit;
-    c.on.exit = (...a) => (kills++, origOn(...a));
+    c.on.exit = (...a) => {
+      kills++;
+      return origOn(...a);
+    };
     const done = await Promise.all([eng.unload(), eng.unload(), eng.unload()]);
     expect(done).toHaveLength(3);
     expect(kills).toBe(1);

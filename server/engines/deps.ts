@@ -25,7 +25,9 @@ export function checkEngineDeps(probe: DepsProbe = {}): EngineDep[] {
   const which = probe.which ?? ((bin: string) => Bun.which(bin));
   const stt = loadSttConfig(env);
   const ttsDir = ttsModelDir(env);
-  const ttsMissing = ['onnx', 'voice_styles'].map((d) => path.join(ttsDir, d)).filter((p) => !exists(p));
+  const ttsMissing = ['onnx', 'voice_styles']
+    .map((d) => path.join(ttsDir, d))
+    .filter((p) => !exists(p));
   const ffmpeg = env.FFMPEG_PATH || 'ffmpeg';
   const ffmpegAt = which(ffmpeg);
   return [
@@ -40,7 +42,11 @@ export function checkEngineDeps(probe: DepsProbe = {}): EngineDep[] {
       : { name: 'TTS_MODEL_DIR', ok: true, detail: ttsDir },
     ffmpegAt
       ? { name: 'FFMPEG_PATH', ok: true, detail: ffmpegAt }
-      : { name: 'FFMPEG_PATH', ok: false, detail: `tidak ditemukan: ${ffmpeg} (format selain wav/pcm ditolak)` },
+      : {
+          name: 'FFMPEG_PATH',
+          ok: false,
+          detail: `tidak ditemukan: ${ffmpeg} (format selain wav/pcm ditolak)`,
+        },
   ];
 }
 

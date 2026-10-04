@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { splitLong, speechUnits, takeSentences } from '../../server/text/speech-units';
+import { speechUnits, splitLong, takeSentences } from '../../server/text/speech-units';
 
 describe('takeSentences', () => {
   test('splits on terminator + whitespace, keeps decimals and the unfinished tail', () => {
@@ -28,7 +28,9 @@ describe('splitLong', () => {
 
 describe('speechUnits', () => {
   test('first unit is only the first sentence; the rest is joined up to maxChars', () => {
-    const units = speechUnits('Halo. Ini kalimat kedua. Ini ketiga. Dan keempat.', { maxChars: 400 });
+    const units = speechUnits('Halo. Ini kalimat kedua. Ini ketiga. Dan keempat.', {
+      maxChars: 400,
+    });
     expect(units).toEqual(['Halo.', 'Ini kalimat kedua. Ini ketiga. Dan keempat.']);
   });
 

@@ -38,7 +38,16 @@ class FakeTts implements TtsEngine {
   }
   status() {
     const stats = { requests: 0, errors: 0, p50Ms: null, p95Ms: null, rtfP50: null };
-    return { kind: 'tts' as const, model: 'fake', state: 'ready' as const, queued: 0, loadedAt: null, lastError: null, rssBytes: null, stats };
+    return {
+      kind: 'tts' as const,
+      model: 'fake',
+      state: 'ready' as const,
+      queued: 0,
+      loadedAt: null,
+      lastError: null,
+      rssBytes: null,
+      stats,
+    };
   }
   async warmup() {}
   async unload() {}
@@ -49,7 +58,9 @@ setEngines({ tts: fake });
 const ctx: { signedIn: boolean } = { signedIn: true };
 const spies = [
   spyOn(auth.api, 'getSession').mockImplementation((async () =>
-    ctx.signedIn ? { user: { id: 'v1-speech-test', email: 'v1-speech@test.local' } } : null) as unknown as typeof auth.api.getSession),
+    ctx.signedIn
+      ? { user: { id: 'v1-speech-test', email: 'v1-speech@test.local' } }
+      : null) as unknown as typeof auth.api.getSession),
   spyOn(rolesMod, 'resolveUserRole').mockImplementation(async () => 'user' as const),
 ];
 const app = new Elysia({ prefix: '/api/v1' }).use(speechApi);
@@ -71,7 +82,12 @@ const speak = (body: unknown, signal?: AbortSignal) =>
       signal,
     }),
   );
-const ok = (extra: Record<string, unknown>) => ({ model: 'tts-1', voice: 'alloy', input: 'Halo dunia.', ...extra });
+const ok = (extra: Record<string, unknown>) => ({
+  model: 'tts-1',
+  voice: 'alloy',
+  input: 'Halo dunia.',
+  ...extra,
+});
 const bytes = async (res: Response) => new Uint8Array(await res.arrayBuffer());
 
 describe('POST /api/v1/audio/speech', () => {
@@ -89,13 +105,23 @@ describe('POST /api/v1/audio/speech', () => {
   });
 
   test('wav, multi unit: streaming header, all samples', async () => {
-    const b = await bytes(await speak(ok({ response_format: 'wav', input: 'Satu.\n\nDua.\n\nTiga.' })));
+    const b = await bytes(
+      await speak(ok({ response_format: 'wav', input: 'Satu.\n\nDua.\n\nTiga.' })),
+    );
     expect(new DataView(b.buffer).getUint32(40, true)).toBe(0xffffffff);
     expect(b.length).toBe(44 + 2 * 3 * SAMPLES);
   });
 
   test('pcm length = 2 × samples; first unit is the first sentence', async () => {
-    const res = await speak(ok({ response_format: 'pcm', input: 'Halo. Ini kalimat kedua. Dan ketiga.', speed: 1.5, steps: 99, language: 'EN' }));
+    const res = await speak(
+      ok({
+        response_format: 'pcm',
+        input: 'Halo. Ini kalimat kedua. Dan ketiga.',
+        speed: 1.5,
+        steps: 99,
+        language: 'EN',
+      }),
+    );
     expect(res.headers.get('content-type')).toBe('audio/pcm');
     expect((await bytes(res)).length).toBe(2 * 2 * SAMPLES);
     expect(fake.calls.map((c) => c.text)).toEqual(['Halo.', 'Ini kalimat kedua. Dan ketiga.']);
@@ -103,7 +129,14 @@ describe('POST /api/v1/audio/speech', () => {
   });
 
   test('sse yields one delta per unit, then done with usage', async () => {
-    const res = await speak(ok({ model: 'supertonic-3', response_format: 'pcm', stream_format: 'sse', input: 'Satu.\n\nDua.\n\nTiga.' }));
+    const res = await speak(
+      ok({
+        model: 'supertonic-3',
+        response_format: 'pcm',
+        stream_format: 'sse',
+        input: 'Satu.\n\nDua.\n\nTiga.',
+      }),
+    );
     expect(res.headers.get('content-type')).toBe('text/event-stream');
     const events = (await res.text())
       .split('\n\n')
@@ -112,12 +145,17 @@ describe('POST /api/v1/audio/speech', () => {
     const deltas = events.filter((e) => e.type === 'speech.audio.delta');
     expect(deltas.length).toBe(3);
     expect(Buffer.from(deltas[0].audio, 'base64').length).toBe(2 * SAMPLES);
-    expect(events.at(-1)).toEqual({ type: 'speech.audio.done', usage: { input_tokens: 5, output_tokens: 0, total_tokens: 5 } });
+    expect(events.at(-1)).toEqual({
+      type: 'speech.audio.done',
+      usage: { input_tokens: 5, output_tokens: 0, total_tokens: 5 },
+    });
   });
 
   test('client cancel mid-stream stops further engine calls', async () => {
     fake.delayMs = 150;
-    const res = await speak(ok({ response_format: 'pcm', input: 'Satu.\n\nDua.\n\nTiga.\n\nEmpat.' }));
+    const res = await speak(
+      ok({ response_format: 'pcm', input: 'Satu.\n\nDua.\n\nTiga.\n\nEmpat.' }),
+    );
     const reader = res.body!.getReader();
     expect((await reader.read()).value!.length).toBe(2 * SAMPLES);
     await reader.cancel();
@@ -160,7 +198,9 @@ describe('POST /api/v1/audio/speech', () => {
     try {
       const res = await speak(ok({ response_format: 'wav' }));
       expect(res.status).toBe(503);
-      const { error } = (await res.json()) as { error: { code: string; type: string; message: string } };
+      const { error } = (await res.json()) as {
+        error: { code: string; type: string; message: string };
+      };
       expect(error.code).toBe('engine_unavailable');
       expect(error.message).not.toContain('/nonexistent');
     } finally {
@@ -193,9 +233,20 @@ describe('openai SDK against /api/v1', () => {
   });
 
   test('speech.create wav and pcm', async () => {
-    const wav = await client.audio.speech.create({ model: 'tts-1', voice: 'alloy', input: 'Halo dunia.', response_format: 'wav' });
+    const wav = await client.audio.speech.create({
+      model: 'tts-1',
+      voice: 'alloy',
+      input: 'Halo dunia.',
+      response_format: 'wav',
+    });
     expect((await wav.arrayBuffer()).byteLength).toBe(44 + 2 * SAMPLES);
-    const pcm = await client.audio.speech.create({ model: 'gpt-4o-mini-tts', voice: 'echo', input: 'Halo.', response_format: 'pcm', instructions: 'ceria' });
+    const pcm = await client.audio.speech.create({
+      model: 'gpt-4o-mini-tts',
+      voice: 'echo',
+      input: 'Halo.',
+      response_format: 'pcm',
+      instructions: 'ceria',
+    });
     expect((await pcm.arrayBuffer()).byteLength).toBe(2 * SAMPLES);
   });
 

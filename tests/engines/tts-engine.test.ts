@@ -2,17 +2,21 @@ import { afterAll, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { EngineUnloadedError } from '../../server/engines/errors';
 import { createTtsEngine } from '../../server/engines/tts';
 import type { ChildMsg, ParentMsg } from '../../server/engines/tts/protocol';
 import type { Spawner } from '../../server/engines/tts/spawner';
-import { EngineUnloadedError } from '../../server/engines/errors';
 import { EngineBusyError, type SpeakRequest } from '../../server/engines/types';
 
 const modelDir = fs.mkdtempSync(path.join(os.tmpdir(), 's4s-tts-test-'));
 fs.mkdirSync(path.join(modelDir, 'onnx'));
 fs.mkdirSync(path.join(modelDir, 'voice_styles'));
-fs.writeFileSync(path.join(modelDir, 'onnx', 'tts.json'), JSON.stringify({ ae: { sample_rate: 1000 } }));
-for (const v of ['M1', 'F1']) fs.writeFileSync(path.join(modelDir, 'voice_styles', `${v}.json`), '{}');
+fs.writeFileSync(
+  path.join(modelDir, 'onnx', 'tts.json'),
+  JSON.stringify({ ae: { sample_rate: 1000 } }),
+);
+for (const v of ['M1', 'F1'])
+  fs.writeFileSync(path.join(modelDir, 'voice_styles', `${v}.json`), '{}');
 afterAll(() => fs.rmSync(modelDir, { recursive: true, force: true }));
 
 interface FakeChild {
@@ -41,7 +45,11 @@ function fakeSpawner(opts: FakeOpts = {}) {
         child.sent.push(m);
         if (m.type !== 'load' || opts.holdLoad) return;
         queueMicrotask(() =>
-          msg(opts.failLoad ? { type: 'error', message: 'model missing', rss: 1 } : { type: 'loaded', sampleRate: 1000, loadMs: 3, rss: 1234 }),
+          msg(
+            opts.failLoad
+              ? { type: 'error', message: 'model missing', rss: 1 }
+              : { type: 'loaded', sampleRate: 1000, loadMs: 3, rss: 1234 },
+          ),
         );
       },
       kill() {
@@ -53,7 +61,8 @@ function fakeSpawner(opts: FakeOpts = {}) {
         queueMicrotask(() => onExit(null, 'SIGTERM'));
       },
       loaded: () => msg({ type: 'loaded', sampleRate: 1000, loadMs: 3, rss: 1234 }),
-      reply: (id: number, samples = 500) => msg({ type: 'result', id, pcm: new Float32Array(samples).fill(0.5), rss: 2000 }),
+      reply: (id: number, samples = 500) =>
+        msg({ type: 'result', id, pcm: new Float32Array(samples).fill(0.5), rss: 2000 }),
       fail: (id: number) => msg({ type: 'error', id, message: 'onnx exploded', rss: 2000 }),
       crash: () => onExit(139, null),
     };
@@ -65,11 +74,20 @@ function fakeSpawner(opts: FakeOpts = {}) {
 
 const tick = () => Bun.sleep(1);
 const synthIds = (c: FakeChild) => c.sent.flatMap((m) => (m.type === 'synth' ? [m.id] : []));
-const req = (extra: Partial<SpeakRequest> = {}): SpeakRequest => ({ text: 'Halo.', voice: 'F1', language: 'id', speed: 1, ...extra });
+const req = (extra: Partial<SpeakRequest> = {}): SpeakRequest => ({
+  text: 'Halo.',
+  voice: 'F1',
+  language: 'id',
+  speed: 1,
+  ...extra,
+});
 
 function setup(config: Record<string, number> = {}, opts: FakeOpts = {}) {
   const fake = fakeSpawner(opts);
-  const engine = createTtsEngine({ spawn: fake.spawn, config: { modelDir, steps: 8, threads: 0, maxQueue: 8, idleTimeoutSec: 0, ...config } });
+  const engine = createTtsEngine({
+    spawn: fake.spawn,
+    config: { modelDir, steps: 8, threads: 0, maxQueue: 8, idleTimeoutSec: 0, ...config },
+  });
   return { engine, ...fake };
 }
 
@@ -91,14 +109,24 @@ describe('tts engine', () => {
 
   test('runs requests serially in FIFO order and records stats', async () => {
     const { engine, children } = setup();
-    const results = [engine.synthesize(req()), engine.synthesize(req({ steps: 4 })), engine.synthesize(req())];
+    const results = [
+      engine.synthesize(req()),
+      engine.synthesize(req({ steps: 4 })),
+      engine.synthesize(req()),
+    ];
     await tick();
     const child = children[0]!;
     expect(synthIds(child)).toEqual([1]);
     expect(engine.status()).toMatchObject({ state: 'busy', queued: 2 });
     child.reply(1, 100);
     expect(synthIds(child)).toEqual([1, 2]);
-    expect(child.sent.at(-1)).toMatchObject({ type: 'synth', id: 2, steps: 4, voice: 'F1', language: 'id' });
+    expect(child.sent.at(-1)).toMatchObject({
+      type: 'synth',
+      id: 2,
+      steps: 4,
+      voice: 'F1',
+      language: 'id',
+    });
     child.reply(2, 200);
     child.reply(3, 300);
     expect((await Promise.all(results)).map((p) => p.length)).toEqual([100, 200, 300]);
@@ -155,7 +183,9 @@ describe('tts engine', () => {
     ac.abort(new Error('already'));
     await expect(engine.synthesize(req({ signal: ac.signal }))).rejects.toThrow('already');
     await expect(engine.synthesize(req({ voice: 'Z9' }))).rejects.toThrow('Unknown TTS voice "Z9"');
-    await expect(engine.synthesize(req({ language: 'xx' }))).rejects.toThrow('Unsupported TTS language');
+    await expect(engine.synthesize(req({ language: 'xx' }))).rejects.toThrow(
+      'Unsupported TTS language',
+    );
     await expect(engine.synthesize(req({ text: '  ' }))).rejects.toThrow('empty');
     await expect(engine.synthesize(req({ speed: 9 }))).rejects.toThrow('out of range');
     expect(children).toHaveLength(0);

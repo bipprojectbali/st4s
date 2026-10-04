@@ -1,8 +1,14 @@
 import { Group, Paper, SimpleGrid, Skeleton, Text, ThemeIcon } from '@mantine/core';
-import { TruncatedText } from './TruncatedText';
 import type { IconType } from 'react-icons';
+import { TruncatedText } from './TruncatedText';
 
-export type StatTileProps = { label: string; value: string; hint?: string; icon: IconType; color?: string };
+export type StatTileProps = {
+  label: string;
+  value: string;
+  hint?: string;
+  icon: IconType;
+  color?: string;
+};
 
 const SKELETON_KEYS = ['s0', 's1', 's2', 's3', 's4', 's5'];
 

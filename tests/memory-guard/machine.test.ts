@@ -76,7 +76,9 @@ describe('step: unload decisions', () => {
     const busy: EngineStates = { stt: 'busy', tts: 'loading' };
     const a = step(INITIAL_STATE, r(18), busy, 0, cfg);
     expect(a.unloads).toEqual([]);
-    expect(step(a.state, r(18), busy, 500, cfg).unloads).toEqual([{ engine: 'stt', reason: 'busy' }]);
+    expect(step(a.state, r(18), busy, 500, cfg).unloads).toEqual([
+      { engine: 'stt', reason: 'busy' },
+    ]);
   });
 
   test('emergency unloads STT then TTS at once, ignoring cooldown', () => {
@@ -90,7 +92,9 @@ describe('step: unload decisions', () => {
   });
 
   test('unloaded, errored and unregistered engines are left alone', () => {
-    expect(step(INITIAL_STATE, r(10), { stt: 'unloaded', tts: 'error' }, 0, cfg).unloads).toEqual([]);
+    expect(step(INITIAL_STATE, r(10), { stt: 'unloaded', tts: 'error' }, 0, cfg).unloads).toEqual(
+      [],
+    );
     expect(step(INITIAL_STATE, r(10), NONE, 0, cfg).unloads).toEqual([]);
   });
 
@@ -134,7 +138,9 @@ describe('loadGuardConfig', () => {
     expect(loadGuardConfig({ MEM_GUARD_ENABLED: 'false' }).enabled).toBe(false);
   });
   test('out-of-order thresholds fail with an actionable message', () => {
-    expect(() => loadGuardConfig({ MEM_GUARD_CRITICAL_PCT: '35' })).toThrow('EMERGENCY < CRITICAL < WARN < RECOVER');
+    expect(() => loadGuardConfig({ MEM_GUARD_CRITICAL_PCT: '35' })).toThrow(
+      'EMERGENCY < CRITICAL < WARN < RECOVER',
+    );
     expect(() => loadGuardConfig({ MEM_GUARD_RECOVER_PCT: '30' })).toThrow('Perbaiki .env');
   });
   test('malformed values are rejected', () => {
@@ -143,7 +149,9 @@ describe('loadGuardConfig', () => {
     expect(() => loadGuardConfig({ MEM_GUARD_RECOVER_SEC: '-1' })).toThrow('MEM_GUARD_RECOVER_SEC');
   });
   test('MEM_BUDGET_*_MB: integer MB ≥ 0, 0 disables, anything else fails', () => {
-    expect(loadGuardConfig({ MEM_BUDGET_STT_MB: '3000', MEM_BUDGET_TTS_MB: '0' }).budgetMb).toEqual({ stt: 3000, tts: 0 });
+    expect(loadGuardConfig({ MEM_BUDGET_STT_MB: '3000', MEM_BUDGET_TTS_MB: '0' }).budgetMb).toEqual(
+      { stt: 3000, tts: 0 },
+    );
     expect(() => loadGuardConfig({ MEM_BUDGET_STT_MB: '-1' })).toThrow('MEM_BUDGET_STT_MB');
     expect(() => loadGuardConfig({ MEM_BUDGET_TTS_MB: '1.5' })).toThrow('bilangan bulat MB');
     expect(() => loadGuardConfig({ MEM_BUDGET_TTS_MB: 'banyak' })).toThrow('MEM_BUDGET_TTS_MB');

@@ -15,11 +15,21 @@ const LABEL: Record<GuardEngine, string> = { stt: 'STT', tts: 'TTS' };
 const nf = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 });
 
 /** Indonesian, actionable reason for a refused cold load (MB in id-ID format). */
-export const BUDGET_MESSAGE = (r: { engine: GuardEngine; neededMb: number; availableMb: number; retryAfterSec: number }) =>
+export const BUDGET_MESSAGE = (r: {
+  engine: GuardEngine;
+  neededMb: number;
+  availableMb: number;
+  retryAfterSec: number;
+}) =>
   `RAM server tidak cukup untuk memuat engine ${LABEL[r.engine]}: butuh ${nf.format(r.neededMb)} MB, tersedia ${nf.format(r.availableMb)} MB. Tutup aplikasi lain yang berat atau coba lagi dalam ${r.retryAfterSec} detik.`;
 
 /** Last cold load the budget refused (shown on /dev/engines). */
-export type BudgetRefusal = { engine: GuardEngine; neededMb: number; availableMb: number; at: string };
+export type BudgetRefusal = {
+  engine: GuardEngine;
+  neededMb: number;
+  availableMb: number;
+  at: string;
+};
 
 export type BudgetCheck = { ok: true } | { ok: false; neededMb: number; availableMb: number };
 
@@ -57,13 +67,24 @@ export function createBudget(budgetMb: Record<GuardEngine, number>) {
      * unknown states and an unknown free figure pass; otherwise free RAM minus other reservations must
      * cover the budget, and passing reserves it.
      */
-    check(engine: GuardEngine, state: EngineState | null, freeBytes: () => number | null, now: number): BudgetCheck {
+    check(
+      engine: GuardEngine,
+      state: EngineState | null,
+      freeBytes: () => number | null,
+      now: number,
+    ): BudgetCheck {
       const needed = budgetMb[engine];
-      if (needed <= 0 || state === null || isLoaded(state) || reservations.has(engine)) return { ok: true };
+      if (needed <= 0 || state === null || isLoaded(state) || reservations.has(engine))
+        return { ok: true };
       const free = freeBytes();
       if (free === null) return { ok: true };
       const available = free - reservedBytes(engine);
-      if (available < needed * MB) return { ok: false, neededMb: needed, availableMb: Math.max(0, Math.floor(available / MB)) };
+      if (available < needed * MB)
+        return {
+          ok: false,
+          neededMb: needed,
+          availableMb: Math.max(0, Math.floor(available / MB)),
+        };
       reservations.set(engine, { bytes: needed * MB, since: now, sawLoading: false });
       return { ok: true };
     },

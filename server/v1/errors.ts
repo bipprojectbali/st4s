@@ -27,7 +27,12 @@ export function isV1Path(pathname: string): boolean {
   return pathname === V1_PREFIX || pathname.startsWith(`${V1_PREFIX}/`);
 }
 
-export function v1ErrorBody(status: number, message: string, code: string | null = null, param: string | null = null) {
+export function v1ErrorBody(
+  status: number,
+  message: string,
+  code: string | null = null,
+  param: string | null = null,
+) {
   return { error: { message, type: TYPE_BY_STATUS[status] ?? 'server_error', param, code } };
 }
 
@@ -36,18 +41,25 @@ export function v1Error(
   message: string,
   opts: { code?: string | null; param?: string | null; headers?: Record<string, string> } = {},
 ): Response {
-  return new Response(JSON.stringify(v1ErrorBody(status, message, opts.code ?? null, opts.param ?? null)), {
-    status,
-    headers: { 'content-type': 'application/json', 'cache-control': 'no-store', ...opts.headers },
-  });
+  return new Response(
+    JSON.stringify(v1ErrorBody(status, message, opts.code ?? null, opts.param ?? null)),
+    {
+      status,
+      headers: { 'content-type': 'application/json', 'cache-control': 'no-store', ...opts.headers },
+    },
+  );
 }
 
 /** 503 engine_unloaded + Retry-After: the job was dropped by an unload; a retry reloads the engine. */
 export function v1EngineUnloaded(err: EngineUnloadedError): Response {
-  return v1Error(503, `Mesin ${err.kind.toUpperCase()} dihentikan karena RAM menipis atau idle. Coba lagi beberapa detik lagi.`, {
-    code: 'engine_unloaded',
-    headers: { 'retry-after': String(err.retryAfterSec) },
-  });
+  return v1Error(
+    503,
+    `Mesin ${err.kind.toUpperCase()} dihentikan karena RAM menipis atau idle. Coba lagi beberapa detik lagi.`,
+    {
+      code: 'engine_unloaded',
+      headers: { 'retry-after': String(err.retryAfterSec) },
+    },
+  );
 }
 
 /** Template error codes (UPPER_SNAKE) become OpenAI-style lower_snake codes. */

@@ -14,7 +14,9 @@ export function makeWav(opts: {
   const dataSize = frames * channels * bytesPer;
   const buf = new ArrayBuffer(44 + dataSize);
   const v = new DataView(buf);
-  const ascii = (off: number, s: string) => [...s].forEach((ch, k) => v.setUint8(off + k, ch.charCodeAt(0)));
+  const ascii = (off: number, s: string) => {
+    for (let k = 0; k < s.length; k++) v.setUint8(off + k, s.charCodeAt(k));
+  };
   ascii(0, 'RIFF');
   v.setUint32(4, 36 + dataSize, true);
   ascii(8, 'WAVE');

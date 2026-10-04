@@ -28,7 +28,10 @@ export function LogPageHeader(p: Props) {
         </Text>
       </div>
       <Group gap="xs" wrap="wrap" justify="flex-end">
-        <Tooltip label={`Unduh CSV sesuai filter aktif (maks. ${nf.format(p.exportMaxRows)} baris)`} withArrow>
+        <Tooltip
+          label={`Unduh CSV sesuai filter aktif (maks. ${nf.format(p.exportMaxRows)} baris)`}
+          withArrow
+        >
           <Button
             component="a"
             href={p.exportHref}
@@ -45,7 +48,13 @@ export function LogPageHeader(p: Props) {
             Export CSV
           </Button>
         </Tooltip>
-        <Button size="sm" variant="light" leftSection={<FiRefreshCw size={14} />} loading={p.refreshing} onClick={p.onRefresh}>
+        <Button
+          size="sm"
+          variant="light"
+          leftSection={<FiRefreshCw size={14} />}
+          loading={p.refreshing}
+          onClick={p.onRefresh}
+        >
           Refresh
         </Button>
         <Menu position="bottom-end" withArrow shadow="md">
@@ -56,10 +65,19 @@ export function LogPageHeader(p: Props) {
           </Menu.Target>
           <Menu.Dropdown>
             <Menu.Label>Pembersihan log</Menu.Label>
-            <Menu.Item leftSection={<FiTrash2 size={14} />} onClick={p.onPurgeOld} disabled={!p.hasData}>
+            <Menu.Item
+              leftSection={<FiTrash2 size={14} />}
+              onClick={p.onPurgeOld}
+              disabled={!p.hasData}
+            >
               Purge log lebih dari 30 hari
             </Menu.Item>
-            <Menu.Item color="red" leftSection={<FiTrash2 size={14} />} onClick={p.onClearAll} disabled={!p.hasData}>
+            <Menu.Item
+              color="red"
+              leftSection={<FiTrash2 size={14} />}
+              onClick={p.onClearAll}
+              disabled={!p.hasData}
+            >
               Hapus semua log
             </Menu.Item>
           </Menu.Dropdown>

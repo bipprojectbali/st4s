@@ -9,7 +9,8 @@ export type WavMono = { samples: Float32Array; sampleRate: number };
 /** True when the bytes start with a RIFF/WAVE header. */
 export function isWav(bytes: Uint8Array): boolean {
   if (bytes.length < 12) return false;
-  const tag = (o: number) => String.fromCharCode(bytes[o], bytes[o + 1], bytes[o + 2], bytes[o + 3]);
+  const tag = (o: number) =>
+    String.fromCharCode(bytes[o], bytes[o + 1], bytes[o + 2], bytes[o + 3]);
   return tag(0) === 'RIFF' && tag(8) === 'WAVE';
 }
 
@@ -19,7 +20,12 @@ export function parseWav(bytes: Uint8Array): WavMono {
   let fmt: { format: number; channels: number; sampleRate: number; bits: number } | null = null;
   let offset = 12;
   while (offset + 8 <= bytes.length) {
-    const id = String.fromCharCode(bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]);
+    const id = String.fromCharCode(
+      bytes[offset],
+      bytes[offset + 1],
+      bytes[offset + 2],
+      bytes[offset + 3],
+    );
     const size = view.getUint32(offset + 4, true);
     const body = offset + 8;
     if (id === 'fmt ') {
@@ -51,7 +57,8 @@ function toMono(
   f: { format: number; channels: number; sampleRate: number; bits: number },
 ): Float32Array {
   const read = sampleReader(view, f.format, f.bits);
-  if (f.channels < 1 || f.sampleRate < 1) throw new Error('header WAV tidak punya jumlah kanal atau sample rate');
+  if (f.channels < 1 || f.sampleRate < 1)
+    throw new Error('header WAV tidak punya jumlah kanal atau sample rate');
   const width = f.bits / 8;
   const frameBytes = width * f.channels;
   const frames = Math.floor(len / frameBytes);

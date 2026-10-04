@@ -37,7 +37,11 @@ export class Semaphore {
       if (done) return;
       done = true;
       this.active--;
-      while (this.active < this.limit() && this.waiters.length) this.waiters.shift()!();
+      while (this.active < this.limit()) {
+        const wake = this.waiters.shift();
+        if (!wake) break;
+        wake();
+      }
     };
   }
 }
@@ -51,11 +55,15 @@ const retryAfterSec = (engine: SttEngine, queued: number) =>
 /** EngineBusyError when the STT queue is already full, so the request is refused before its audio is read. */
 export function queueFullError(engine: SttEngine): EngineBusyError | null {
   const { queued } = engine.status();
-  return queued >= loadSttConfig().maxQueue ? new EngineBusyError('stt', retryAfterSec(engine, queued)) : null;
+  return queued >= loadSttConfig().maxQueue
+    ? new EngineBusyError('stt', retryAfterSec(engine, queued))
+    : null;
 }
 
 /** decodeTo16kMono under the V1_DECODE_CONCURRENCY limit; throws EngineBusyError when no slot frees in time. */
-export async function decodeUpload(file: File): Promise<{ audio: Float32Array; durationSec: number }> {
+export async function decodeUpload(
+  file: File,
+): Promise<{ audio: Float32Array; durationSec: number }> {
   const waitMs = v1Config.decodeWaitMs;
   const release = await decodeSlots.acquire(waitMs);
   if (!release) throw new EngineBusyError('stt', Math.max(1, Math.ceil(waitMs / 1000)));

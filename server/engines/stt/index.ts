@@ -1,9 +1,15 @@
 import path from 'node:path';
 import { logger } from '../../logger';
 import { EngineUnloadedError } from '../errors';
-import { EngineBusyError, type EngineState, type SttEngine, type TranscribeRequest, type TranscribeResult } from '../types';
+import {
+  EngineBusyError,
+  type EngineState,
+  type SttEngine,
+  type TranscribeRequest,
+  type TranscribeResult,
+} from '../types';
 import { loadSttConfig, type SttConfig } from './config';
-import { spawnBunChild, type SttChild, type SttSpawner } from './host';
+import { type SttChild, type SttSpawner, spawnBunChild } from './host';
 import type { FromChild } from './protocol';
 import { RollingStats } from './stats';
 
@@ -23,7 +29,8 @@ type Job = {
   startedAt: number;
 };
 
-const abortError = (s: AbortSignal) => s.reason ?? new DOMException('STT request aborted', 'AbortError');
+const abortError = (s: AbortSignal) =>
+  s.reason ?? new DOMException('STT request aborted', 'AbortError');
 
 /** Qwen3-ASR engine: one child process, serial FIFO queue, lazy load, idle unload, crash respawn. */
 export function createSttEngine(opts: SttEngineOptions = {}): SttEngine {
@@ -57,7 +64,10 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine {
       loadedAt = new Date().toISOString();
       rss = m.rss;
       state = 'ready';
-      log.info({ loadMs: Math.round(m.loadMs), rss: m.rss, backend: m.backend, gpu: m.gpu }, 'stt model loaded');
+      log.info(
+        { loadMs: Math.round(m.loadMs), rss: m.rss, backend: m.backend, gpu: m.gpu },
+        'stt model loaded',
+      );
       settleReady?.ok();
       return;
     }
@@ -87,7 +97,15 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine {
       log.info({ id: job.id, ms: Math.round(ms) }, 'stt cancelled between spans');
     } else if (m.t === 'result') {
       stats.ok(ms, m.result.duration);
-      log.info({ ms: Math.round(ms), audioSec: m.result.duration, segments: m.result.segments.length, dropped: job.dropped }, 'stt done');
+      log.info(
+        {
+          ms: Math.round(ms),
+          audioSec: m.result.duration,
+          segments: m.result.segments.length,
+          dropped: job.dropped,
+        },
+        'stt done',
+      );
       if (!job.dropped) job.resolve(m.result);
     } else {
       stats.fail();
@@ -130,8 +148,14 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine {
     state = 'loading';
     const p = new Promise<void>((ok, no) => {
       settleReady = {
-        ok: () => ((settleReady = null), ok()),
-        fail: (e) => ((settleReady = null), no(e)),
+        ok: () => {
+          settleReady = null;
+          ok();
+        },
+        fail: (e) => {
+          settleReady = null;
+          no(e);
+        },
       };
     });
     ready = p;
@@ -179,18 +203,29 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine {
     state = 'busy';
     job.startedAt = performance.now();
     const language = job.req.language ?? cfg.defaultLanguage;
-    child!.send({ t: 'transcribe', id: job.id, audio: job.req.audio, language, hotwords: job.req.hotwords ?? [], words: !!job.req.wordTimestamps });
+    if (!child) throw new Error(`STT child missing after ready for job ${job.id}`);
+    child.send({
+      t: 'transcribe',
+      id: job.id,
+      audio: job.req.audio,
+      language,
+      hotwords: job.req.hotwords ?? [],
+      words: !!job.req.wordTimestamps,
+    });
   }
 
   function transcribe(req: TranscribeRequest): Promise<TranscribeResult> {
     if (req.signal?.aborted) return Promise.reject(abortError(req.signal));
     if (queue.length >= cfg.maxQueue) {
       const p50 = stats.snapshot().p50Ms ?? 10_000;
-      return Promise.reject(new EngineBusyError('stt', Math.max(1, Math.ceil((p50 / 1000) * (queue.length + 1)))));
+      return Promise.reject(
+        new EngineBusyError('stt', Math.max(1, Math.ceil((p50 / 1000) * (queue.length + 1)))),
+      );
     }
     return new Promise<TranscribeResult>((resolve, reject) => {
       const job: Job = { id: nextId++, req, resolve, reject, dropped: false, startedAt: 0 };
-      req.signal?.addEventListener(
+      const { signal } = req;
+      signal?.addEventListener(
         'abort',
         () => {
           const i = queue.indexOf(job);
@@ -200,7 +235,7 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine {
             // The span in flight cannot be interrupted over FFI; the child stops at the next span boundary.
             if (current === job && job.startedAt > 0) child?.send({ t: 'cancel', id: job.id });
           }
-          reject(abortError(req.signal!));
+          reject(abortError(signal));
         },
         { once: true },
       );

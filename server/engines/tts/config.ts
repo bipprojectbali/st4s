@@ -19,7 +19,8 @@ function intEnv(name: string, fallback: number, min: number): number {
   const raw = process.env[name];
   if (raw === undefined || raw === '') return fallback;
   const n = Number(raw);
-  if (!Number.isInteger(n) || n < min) throw new Error(`${name} must be an integer >= ${min}, got "${raw}"`);
+  if (!Number.isInteger(n) || n < min)
+    throw new Error(`${name} must be an integer >= ${min}, got "${raw}"`);
   return n;
 }
 

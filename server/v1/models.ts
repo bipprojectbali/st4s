@@ -15,12 +15,21 @@ const MODELS_CREATED = 1_767_225_600;
 
 const MODEL_IDS = [STT_MODEL_ID, ...STT_MODEL_ALIASES, TTS_MODEL_ID, ...TTS_MODEL_ALIASES];
 
-const model = (id: string) => ({ id, object: 'model' as const, created: MODELS_CREATED, owned_by: 's4s' });
+const model = (id: string) => ({
+  id,
+  object: 'model' as const,
+  created: MODELS_CREATED,
+  owned_by: 's4s',
+});
 
 /** s4s extension: `{ object:'list', data:[{ id, object:'voice', voice }] }` where `voice` is the native style an id maps to. */
 function voiceList() {
   const native = NATIVE_VOICES.map((id) => ({ id, object: 'voice' as const, voice: id }));
-  const aliases = Object.entries(VOICE_ALIASES).map(([id, voice]) => ({ id, object: 'voice' as const, voice }));
+  const aliases = Object.entries(VOICE_ALIASES).map(([id, voice]) => ({
+    id,
+    object: 'voice' as const,
+    voice,
+  }));
   return { object: 'list' as const, data: [...native, ...aliases] };
 }
 
@@ -29,6 +38,9 @@ export const modelsApi = new Elysia()
   .get('/models/:id', ({ params }) =>
     MODEL_IDS.includes(params.id)
       ? model(params.id)
-      : v1Error(404, `Model '${params.id}' tidak ada. Lihat GET /api/v1/models.`, { code: 'model_not_found', param: 'model' }),
+      : v1Error(404, `Model '${params.id}' tidak ada. Lihat GET /api/v1/models.`, {
+          code: 'model_not_found',
+          param: 'model',
+        }),
   )
   .get('/audio/voices', voiceList);

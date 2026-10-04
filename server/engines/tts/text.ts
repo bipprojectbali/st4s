@@ -2,17 +2,61 @@
 
 /** Language codes Supertonic 3 accepts ("na" = language-agnostic). */
 export const TTS_LANGUAGES = [
-  'en', 'ko', 'ja', 'ar', 'bg', 'cs', 'da', 'de', 'el', 'es', 'et', 'fi', 'fr', 'hi', 'hr', 'hu',
-  'id', 'it', 'lt', 'lv', 'nl', 'pl', 'pt', 'ro', 'ru', 'sk', 'sl', 'sv', 'tr', 'uk', 'vi', 'na',
+  'en',
+  'ko',
+  'ja',
+  'ar',
+  'bg',
+  'cs',
+  'da',
+  'de',
+  'el',
+  'es',
+  'et',
+  'fi',
+  'fr',
+  'hi',
+  'hr',
+  'hu',
+  'id',
+  'it',
+  'lt',
+  'lv',
+  'nl',
+  'pl',
+  'pt',
+  'ro',
+  'ru',
+  'sk',
+  'sl',
+  'sv',
+  'tr',
+  'uk',
+  'vi',
+  'na',
 ] as const;
 
 const EMOJI =
   /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E6}-\u{1F1FF}]+/gu;
 
 const CHAR_REPLACEMENTS: Record<string, string> = {
-  '–': '-', '‑': '-', '—': '-', _: ' ',
-  '“': '"', '”': '"', '‘': "'", '’': "'", '´': "'", '`': "'",
-  '[': ' ', ']': ' ', '|': ' ', '/': ' ', '#': ' ', '→': ' ', '←': ' ',
+  '–': '-',
+  '‑': '-',
+  '—': '-',
+  _: ' ',
+  '“': '"',
+  '”': '"',
+  '‘': "'",
+  '’': "'",
+  '´': "'",
+  '`': "'",
+  '[': ' ',
+  ']': ' ',
+  '|': ' ',
+  '/': ' ',
+  '#': ' ',
+  '→': ' ',
+  '←': ' ',
 };
 
 const EXPR_REPLACEMENTS: Record<string, string> = {
@@ -51,7 +95,7 @@ export function preprocessText(input: string, lang: string): string {
 export function textToIds(text: string, indexer: readonly number[]): BigInt64Array {
   const chars = Array.from(text);
   const ids = new BigInt64Array(chars.length);
-  for (let i = 0; i < chars.length; i++) ids[i] = BigInt(indexer[chars[i]!.charCodeAt(0)] ?? -1);
+  for (let i = 0; i < chars.length; i++) ids[i] = BigInt(indexer[chars[i].charCodeAt(0)] ?? -1);
   return ids;
 }
 

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'bun:test';
-import { findFfmpeg } from '../../server/audio/decode-ffmpeg';
 import { AudioDecodeError, decodeTo16kMono, resampleLinear } from '../../server/audio/decode';
+import { findFfmpeg } from '../../server/audio/decode-ffmpeg';
 import { makeWav } from '../v1/wav-fixture';
 
 const ORIGINAL_FFMPEG = process.env.FFMPEG_PATH;
@@ -33,7 +33,13 @@ describe('decodeTo16kMono — WAV (native)', () => {
   });
 
   it('averages channels into mono', async () => {
-    const wav = makeWav({ sampleRate: 16_000, channels: 2, bits: 16, frames: 100, value: (_i, c) => (c ? 0.5 : -0.25) });
+    const wav = makeWav({
+      sampleRate: 16_000,
+      channels: 2,
+      bits: 16,
+      frames: 100,
+      value: (_i, c) => (c ? 0.5 : -0.25),
+    });
     const { audio } = await decodeTo16kMono(wav);
     expect(audio.length).toBe(100);
     expect(audio[50]).toBeCloseTo(0.125, 3);
@@ -41,7 +47,13 @@ describe('decodeTo16kMono — WAV (native)', () => {
 
   it('reads 8-bit, 24-bit and 32-bit PCM', async () => {
     for (const bits of [8, 24, 32] as const) {
-      const wav = makeWav({ sampleRate: 8_000, channels: 1, bits, frames: 8_000, value: () => 0.5 });
+      const wav = makeWav({
+        sampleRate: 8_000,
+        channels: 1,
+        bits,
+        frames: 8_000,
+        value: () => 0.5,
+      });
       const { audio, durationSec } = await decodeTo16kMono(wav);
       expect(durationSec).toBeCloseTo(1, 6);
       expect(audio.length).toBe(16_000);
@@ -70,17 +82,22 @@ describe('decodeTo16kMono — other formats', () => {
   });
 
   it.skipIf(!findFfmpeg())('with ffmpeg, garbage input is invalid_audio', async () => {
-    const err = await decodeTo16kMono(new Uint8Array(64).fill(7), { filename: 'x.ogg' }).catch((e: unknown) => e);
+    const err = await decodeTo16kMono(new Uint8Array(64).fill(7), { filename: 'x.ogg' }).catch(
+      (e: unknown) => e,
+    );
     expect((err as AudioDecodeError).code).toBe('invalid_audio');
   });
 
-  it.skipIf(!findFfmpeg())('with ffmpeg, a WAV routed through ffmpeg decodes to 16 kHz', async () => {
-    const bin = findFfmpeg() as string;
-    const { ffmpegTo16kMono } = await import('../../server/audio/decode-ffmpeg');
-    const wav = makeWav({ sampleRate: 22_050, channels: 2, bits: 16, frames: 22_050 });
-    const audio = await ffmpegTo16kMono(bin, wav);
-    expect(Math.abs(audio.length - 16_000)).toBeLessThan(200);
-  });
+  it.skipIf(!findFfmpeg())(
+    'with ffmpeg, a WAV routed through ffmpeg decodes to 16 kHz',
+    async () => {
+      const bin = findFfmpeg() as string;
+      const { ffmpegTo16kMono } = await import('../../server/audio/decode-ffmpeg');
+      const wav = makeWav({ sampleRate: 22_050, channels: 2, bits: 16, frames: 22_050 });
+      const audio = await ffmpegTo16kMono(bin, wav);
+      expect(Math.abs(audio.length - 16_000)).toBeLessThan(200);
+    },
+  );
 });
 
 describe('resampleLinear', () => {

@@ -4,7 +4,8 @@ import type { SttEngine, TtsEngine } from './types';
 type Slots = { stt: SttEngine | null; tts: TtsEngine | null };
 
 const g = globalThis as typeof globalThis & { __s4sEngines?: Slots };
-const slots: Slots = (g.__s4sEngines ??= { stt: null, tts: null });
+g.__s4sEngines ??= { stt: null, tts: null };
+const slots: Slots = g.__s4sEngines;
 
 export function setEngines(next: Partial<Slots>): void {
   Object.assign(slots, next);

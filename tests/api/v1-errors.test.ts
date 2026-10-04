@@ -6,11 +6,13 @@ import { setApiKeyIdentity } from '../../server/api-keys/identity';
 import { maintenancePlugin } from '../../server/middleware/maintenance';
 import { RateLimiter, rateLimitPlugin } from '../../server/middleware/rate-limiter';
 import * as maintenanceMod from '../../server/settings-maintenance';
-import { STT_MODEL_ID } from '../../server/v1/aliases';
 import { v1Api } from '../../server/v1';
+import { STT_MODEL_ID } from '../../server/v1/aliases';
 import { call, stubSession, withIp } from '../v1/fake-stt';
 
-type V1Error = { error: { message: string; type: string; param: string | null; code: string | null } };
+type V1Error = {
+  error: { message: string; type: string; param: string | null; code: string | null };
+};
 const json = async (res: Response) => (await res.json()) as Record<string, unknown>;
 const expectV1 = async (res: Response, status: number, type: string, code?: string | null) => {
   expect(res.status).toBe(status);
@@ -48,7 +50,10 @@ describe('full app', () => {
   });
 
   test('protected route without credentials is OpenAI 401', async () => {
-    const res = await call('/api/v1/audio/transcriptions', { method: 'POST', body: new FormData() });
+    const res = await call('/api/v1/audio/transcriptions', {
+      method: 'POST',
+      body: new FormData(),
+    });
     await expectV1(res, 401, 'authentication_error', 'invalid_api_key');
   });
 
@@ -63,7 +68,10 @@ describe('full app', () => {
   });
 
   test('an api-key identity passes the v1 auth gate', async () => {
-    const req = new Request('http://localhost/api/v1/audio/translations', withIp({ method: 'POST', body: new FormData() }));
+    const req = new Request(
+      'http://localhost/api/v1/audio/translations',
+      withIp({ method: 'POST', body: new FormData() }),
+    );
     setApiKeyIdentity(req, {
       keyId: 'k',
       keyName: 'k',
@@ -104,12 +112,17 @@ describe('full app', () => {
         }),
     );
     try {
-      const app = new Elysia({ prefix: '/api' }).use(maintenancePlugin()).use(v1Api).get('/x', () => 'x');
+      const app = new Elysia({ prefix: '/api' })
+        .use(maintenancePlugin())
+        .use(v1Api)
+        .get('/x', () => 'x');
       const res = await app.handle(new Request('http://localhost/api/v1/models'));
       expect(res.headers.get('retry-after')).toBe('120');
       const err = await expectV1(res, 503, 'server_error', 'maintenance');
       expect(err.message).toBe('Sedang perawatan');
-      expect(await json(await app.handle(new Request('http://localhost/api/x')))).toMatchObject({ error: 'maintenance' });
+      expect(await json(await app.handle(new Request('http://localhost/api/x')))).toMatchObject({
+        error: 'maintenance',
+      });
     } finally {
       gate.mockRestore();
     }
@@ -126,7 +139,8 @@ describe('plugins in isolation', () => {
     })
     .get('/v1/limited', () => 'ok')
     .get('/limited', () => 'ok');
-  const hit = (path: string, init: RequestInit = {}) => app.handle(new Request(`http://localhost${path}`, withIp(init)));
+  const hit = (path: string, init: RequestInit = {}) =>
+    app.handle(new Request(`http://localhost${path}`, withIp(init)));
 
   test('validation 422 becomes OpenAI 400 with param', async () => {
     const res = await hit('/api/v1/check', {

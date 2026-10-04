@@ -3,7 +3,12 @@ import { spyOn } from 'bun:test';
 import { api } from '../../server/api';
 import { auth } from '../../server/auth';
 import { EngineUnloadedError } from '../../server/engines/errors';
-import { EngineBusyError, type SttEngine, type TranscribeRequest, type TranscribeResult } from '../../server/engines/types';
+import {
+  EngineBusyError,
+  type SttEngine,
+  type TranscribeRequest,
+  type TranscribeResult,
+} from '../../server/engines/types';
 import * as rolesMod from '../../server/roles';
 
 export const TRANSCRIPT: TranscribeResult = {
@@ -21,7 +26,13 @@ export const TRANSCRIPT: TranscribeResult = {
         { word: 'dunia.', start: 0.2, end: 0.5 },
       ],
     },
-    { id: 1, start: 0.5, end: 1, text: ' Apa kabar?', words: [{ word: 'Apa', start: 0.5, end: 0.7 }] },
+    {
+      id: 1,
+      start: 0.5,
+      end: 1,
+      text: ' Apa kabar?',
+      words: [{ word: 'Apa', start: 0.5, end: 0.7 }],
+    },
   ],
 };
 export const DELTAS = ['Halo', ' dunia.', ' Apa kabar?'];
@@ -51,7 +62,9 @@ export const fakeStt = {
     }
     if (this.mode === 'hang-after-delta') {
       req.onDelta?.(DELTAS[0]);
-      return new Promise((_, reject) => req.signal?.addEventListener('abort', () => reject(new Error('aborted'))));
+      return new Promise((_, reject) =>
+        req.signal?.addEventListener('abort', () => reject(new Error('aborted'))),
+      );
     }
     for (const d of DELTAS) {
       await Bun.sleep(1);
@@ -61,21 +74,22 @@ export const fakeStt = {
   },
   status() {
     return {
-    kind: 'stt' as const,
-    model: 'fake',
-    state: 'ready' as const,
-    queued: fakeQueued(),
-    loadedAt: null,
-    lastError: null,
-    rssBytes: null,
-    stats: { requests: 0, errors: 0, p50Ms: null, p95Ms: null, rtfP50: null },
+      kind: 'stt' as const,
+      model: 'fake',
+      state: 'ready' as const,
+      queued: fakeQueued(),
+      loadedAt: null,
+      lastError: null,
+      rssBytes: null,
+      stats: { requests: 0, errors: 0, p50Ms: null, p95Ms: null, rtfP50: null },
     };
   },
   warmup: async () => {},
   unload: async () => {},
 } satisfies SttEngine & Record<string, unknown>;
 
-export const resetFake = () => Object.assign(fakeStt, { mode: 'ok', last: null, aborted: false, queued: 0 });
+export const resetFake = () =>
+  Object.assign(fakeStt, { mode: 'ok', last: null, aborted: false, queued: 0 });
 
 /** Bearer token the stubbed session lookup treats as a signed-in user (not an mk_live key). */
 export const SESSION_TOKEN = 'test-session-token';
@@ -85,7 +99,10 @@ export function stubSession() {
   return [
     spyOn(auth.api, 'getSession').mockImplementation((async ({ headers }: { headers: Headers }) =>
       headers.get('authorization') === `Bearer ${SESSION_TOKEN}`
-        ? { user: { id: 'v1-test-user', email: 'v1@test.local', banned: false }, session: { id: 's' } }
+        ? {
+            user: { id: 'v1-test-user', email: 'v1@test.local', banned: false },
+            session: { id: 's' },
+          }
         : null) as unknown as typeof auth.api.getSession),
     spyOn(rolesMod, 'resolveUserRole').mockImplementation(async () => 'user'),
   ];
@@ -105,10 +122,15 @@ export const appFetch = (url: string | URL | Request, init?: RequestInit) =>
   api.handle(new Request(url, withIp(init)));
 
 /** Call the app directly. */
-export const call = (path: string, init?: RequestInit) => api.handle(new Request(`http://localhost${path}`, withIp(init)));
+export const call = (path: string, init?: RequestInit) =>
+  api.handle(new Request(`http://localhost${path}`, withIp(init)));
 
 /** multipart body with the given string fields + a file. */
-export function form(fields: Record<string, string | string[]>, file: Uint8Array<ArrayBuffer> | null, name = 'a.wav') {
+export function form(
+  fields: Record<string, string | string[]>,
+  file: Uint8Array<ArrayBuffer> | null,
+  name = 'a.wav',
+) {
   const fd = new FormData();
   if (file) fd.set('file', new File([file], name, { type: 'audio/wav' }));
   for (const [k, v] of Object.entries(fields)) for (const x of [v].flat()) fd.append(k, x);

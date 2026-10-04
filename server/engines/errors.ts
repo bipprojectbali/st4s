@@ -14,9 +14,15 @@ export class EngineUnloadedError extends Error {
 }
 
 /** Type guard for EngineUnloadedError. */
-export const isEngineUnloadedError = (err: unknown): err is EngineUnloadedError => err instanceof EngineUnloadedError;
+export const isEngineUnloadedError = (err: unknown): err is EngineUnloadedError =>
+  err instanceof EngineUnloadedError;
 
 /** Template-shaped 503 body (`{ error, code, status, requestId }`) for non-v1 routes. */
 export function engineUnloadedApiError(requestId: string) {
-  return { error: ENGINE_UNLOADED_MESSAGE, code: 'ENGINE_UNLOADED', status: 503 as const, requestId };
+  return {
+    error: ENGINE_UNLOADED_MESSAGE,
+    code: 'ENGINE_UNLOADED',
+    status: 503 as const,
+    requestId,
+  };
 }

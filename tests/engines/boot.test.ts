@@ -1,6 +1,10 @@
 import { afterAll, describe, expect, spyOn, test } from 'bun:test';
 import { bootEngines, shutdownEngines } from '../../server/engines/boot';
-import { ENGINE_CHILD_FLAG, engineChildCommand, engineChildKind } from '../../server/engines/child-argv';
+import {
+  ENGINE_CHILD_FLAG,
+  engineChildCommand,
+  engineChildKind,
+} from '../../server/engines/child-argv';
 import { getStt, getTts, setEngines } from '../../server/engines/registry';
 
 const g = globalThis as { __s4sBootedEngines?: unknown };
@@ -38,16 +42,27 @@ describe('engine child argv', () => {
   });
 
   test('flag selects the engine child', () => {
-    expect(engineChildKind(['bun', '/$bunfs/root/makuro', ENGINE_CHILD_FLAG, 'stt', '{}'])).toBe('stt');
+    expect(engineChildKind(['bun', '/$bunfs/root/makuro', ENGINE_CHILD_FLAG, 'stt', '{}'])).toBe(
+      'stt',
+    );
     expect(engineChildKind(['bun', '/$bunfs/root/makuro', ENGINE_CHILD_FLAG, 'tts'])).toBe('tts');
   });
 
   test('unknown child kind fails loudly', () => {
-    expect(() => engineChildKind(['bun', 'makuro', ENGINE_CHILD_FLAG, 'gpu'])).toThrow('expects "stt" or "tts"');
+    expect(() => engineChildKind(['bun', 'makuro', ENGINE_CHILD_FLAG, 'gpu'])).toThrow(
+      'expects "stt" or "tts"',
+    );
   });
 
   test('binary re-execs itself; source mode runs the .ts entry', () => {
-    expect(engineChildCommand('stt', '/src/child.ts', true, '/opt/makuro')).toEqual(['/opt/makuro', ENGINE_CHILD_FLAG, 'stt']);
-    expect(engineChildCommand('tts', '/src/child.ts', false, '/usr/bin/bun')).toEqual(['/usr/bin/bun', '/src/child.ts']);
+    expect(engineChildCommand('stt', '/src/child.ts', true, '/opt/makuro')).toEqual([
+      '/opt/makuro',
+      ENGINE_CHILD_FLAG,
+      'stt',
+    ]);
+    expect(engineChildCommand('tts', '/src/child.ts', false, '/usr/bin/bun')).toEqual([
+      '/usr/bin/bun',
+      '/src/child.ts',
+    ]);
   });
 });

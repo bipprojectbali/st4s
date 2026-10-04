@@ -19,7 +19,10 @@ export function createSysctlInt(): (name: string) => number {
   const names = new Map<string, Buffer>();
   return (name) => {
     let cName = names.get(name);
-    if (!cName) names.set(name, (cName = Buffer.from(`${name}\0`)));
+    if (!cName) {
+      cName = Buffer.from(`${name}\0`);
+      names.set(name, cName);
+    }
     len[0] = 4n;
     const rc = lib.symbols.sysctlbyname(cName, out, len, null, 0);
     if (rc !== 0) throw new Error(`sysctlbyname(${name}) returned ${rc}`);

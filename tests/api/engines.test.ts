@@ -7,10 +7,14 @@ import { setApiKeyIdentity } from '../../server/api-keys/identity';
 import { auth } from '../../server/auth';
 import { db } from '../../server/db';
 import { auditLog, user } from '../../server/db/schema';
-import { ENGINE_UNLOADED_MESSAGE, EngineUnloadedError, UNLOADED_RETRY_SEC } from '../../server/engines/errors';
+import {
+  ENGINE_UNLOADED_MESSAGE,
+  EngineUnloadedError,
+  UNLOADED_RETRY_SEC,
+} from '../../server/engines/errors';
 import { setEngines } from '../../server/engines/registry';
-import { setGuardHandle } from '../../server/memory-guard/state';
 import type { EngineState, EngineStatus, SttEngine, TtsEngine } from '../../server/engines/types';
+import { setGuardHandle } from '../../server/memory-guard/state';
 import * as rolesMod from '../../server/roles';
 
 type FakeActor = { user: { id: string; email: string }; role: string; viaApiKey: boolean } | null;
@@ -186,7 +190,11 @@ describe('/api/engines', () => {
     ctx.actor = superAdmin;
     const stt = fakeEngine('stt');
     setEngines({ stt: stt.engine as unknown as SttEngine });
-    expect((await call('/')).body.memoryGuard).toMatchObject({ enabled: false, level: 'normal', shedding: false });
+    expect((await call('/')).body.memoryGuard).toMatchObject({
+      enabled: false,
+      level: 'normal',
+      shedding: false,
+    });
 
     const status = {
       enabled: true,
@@ -200,13 +208,22 @@ describe('/api/engines', () => {
       reservedMb: 0,
       lastRefusal: null,
     };
-    setGuardHandle({ status: () => status, admit: () => ({ ok: false, reason: 'pressure', retryAfterSec: 17 }) });
+    setGuardHandle({
+      status: () => status,
+      admit: () => ({ ok: false, reason: 'pressure', retryAfterSec: 17 }),
+    });
     expect((await call('/')).body.memoryGuard).toEqual(status);
-    const res = await app.handle(new Request('http://localhost/engines/stt/warmup', { method: 'POST' }));
+    const res = await app.handle(
+      new Request('http://localhost/engines/stt/warmup', { method: 'POST' }),
+    );
     expect(res.status).toBe(503);
     expect(res.headers.get('retry-after')).toBe('17');
     const body = (await res.json()) as Record<string, unknown>;
-    expect(body).toMatchObject({ code: 'MEMORY_PRESSURE', status: 503, requestId: expect.any(String) });
+    expect(body).toMatchObject({
+      code: 'MEMORY_PRESSURE',
+      status: 503,
+      requestId: expect.any(String),
+    });
     expect(body.error).toContain('17 detik');
     expect((await call('/stt/unload', 'POST')).status).toBe(200);
     expect(stt.calls).toEqual(['unload']);
@@ -224,14 +241,27 @@ describe('/api/engines', () => {
       },
       admit: (engine) => {
         asked.push(engine);
-        return { ok: false, reason: 'budget', retryAfterSec: 30, engine: 'tts', neededMb: 600, availableMb: 412 };
+        return {
+          ok: false,
+          reason: 'budget',
+          retryAfterSec: 30,
+          engine: 'tts',
+          neededMb: 600,
+          availableMb: 412,
+        };
       },
     });
-    const res = await app.handle(new Request('http://localhost/engines/tts/warmup', { method: 'POST' }));
+    const res = await app.handle(
+      new Request('http://localhost/engines/tts/warmup', { method: 'POST' }),
+    );
     expect(res.status).toBe(503);
     expect(res.headers.get('retry-after')).toBe('30');
     const body = (await res.json()) as Record<string, unknown>;
-    expect(body).toMatchObject({ code: 'MEMORY_PRESSURE', status: 503, requestId: expect.any(String) });
+    expect(body).toMatchObject({
+      code: 'MEMORY_PRESSURE',
+      status: 503,
+      requestId: expect.any(String),
+    });
     expect(body.error).toContain('butuh 600 MB, tersedia 412 MB');
     expect(asked).toEqual(['tts']);
     expect(tts.calls).toEqual([]);
@@ -245,7 +275,9 @@ describe('/api/engines', () => {
       throw new EngineUnloadedError('stt');
     };
     setEngines({ stt: stt.engine as unknown as SttEngine });
-    const res = await app.handle(new Request('http://localhost/engines/stt/warmup', { method: 'POST' }));
+    const res = await app.handle(
+      new Request('http://localhost/engines/stt/warmup', { method: 'POST' }),
+    );
     expect(res.status).toBe(503);
     expect(res.headers.get('retry-after')).toBe(String(UNLOADED_RETRY_SEC));
     expect(await res.json()).toEqual({

@@ -19,9 +19,21 @@ export function ffmpegAvailable(bin: string): boolean {
 /** ffmpeg argv that reads s16le mono at `sampleRate` from stdin and writes `format` to stdout. */
 export function ffmpegArgv(bin: string, format: FfmpegFormat, sampleRate: number): string[] {
   return [
-    bin, '-hide_banner', '-loglevel', 'error', '-nostdin',
-    '-f', 's16le', '-ar', String(sampleRate), '-ac', '1', '-i', 'pipe:0',
-    ...CODEC_ARGS[format], 'pipe:1',
+    bin,
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-nostdin',
+    '-f',
+    's16le',
+    '-ar',
+    String(sampleRate),
+    '-ac',
+    '1',
+    '-i',
+    'pipe:0',
+    ...CODEC_ARGS[format],
+    'pipe:1',
   ];
 }
 
@@ -75,7 +87,8 @@ export async function* encodeFfmpeg(opts: {
     await proc.stdin.end();
   })().catch((err) => {
     // EPIPE after ffmpeg died; the exit code is reported below.
-    if (!opts.signal.aborted) logger.warn({ err, format: opts.format }, 'ffmpeg stdin feed stopped');
+    if (!opts.signal.aborted)
+      logger.warn({ err, format: opts.format }, 'ffmpeg stdin feed stopped');
   });
   try {
     for await (const chunk of proc.stdout) {
@@ -90,7 +103,10 @@ export async function* encodeFfmpeg(opts: {
     if (proc.exitCode === null) proc.kill('SIGKILL');
     const code = await proc.exited;
     if (idledOut && !opts.signal.aborted)
-      logger.warn({ format: opts.format, idleMs: opts.idleTimeoutMs }, 'ffmpeg encode idle timeout; killed');
+      logger.warn(
+        { format: opts.format, idleMs: opts.idleTimeoutMs },
+        'ffmpeg encode idle timeout; killed',
+      );
     else if (code !== 0 && !opts.signal.aborted) {
       const stderr = (await new Response(proc.stderr).text()).slice(0, 300);
       logger.warn({ code, format: opts.format, stderr }, 'ffmpeg exited with an error');

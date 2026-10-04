@@ -1,7 +1,11 @@
 import { afterAll, describe, expect, spyOn, test } from 'bun:test';
 import Elysia from 'elysia';
 import { auth } from '../../server/auth';
-import { EngineUnloadedError, engineUnloadedApiError, isEngineUnloadedError } from '../../server/engines/errors';
+import {
+  EngineUnloadedError,
+  engineUnloadedApiError,
+  isEngineUnloadedError,
+} from '../../server/engines/errors';
 import { setEngines } from '../../server/engines/registry';
 import type { SttEngine, TtsEngine } from '../../server/engines/types';
 import * as rolesMod from '../../server/roles';
@@ -18,7 +22,16 @@ const unloadedTts: TtsEngine = {
   synthesize: async () => {
     throw new EngineUnloadedError('tts');
   },
-  status: () => ({ kind: 'tts', model: 'fake', state: 'unloaded', queued: 0, loadedAt: null, lastError: null, rssBytes: null, stats }),
+  status: () => ({
+    kind: 'tts',
+    model: 'fake',
+    state: 'unloaded',
+    queued: 0,
+    loadedAt: null,
+    lastError: null,
+    rssBytes: null,
+    stats,
+  }),
   ...control,
 };
 
@@ -52,12 +65,20 @@ describe('EngineUnloadedError mapping', () => {
       new Request('http://localhost/api/v1/audio/speech', {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: 'Bearer x' },
-        body: JSON.stringify({ model: 'tts-1', input: 'Halo.', voice: 'alloy', response_format: 'wav' }),
+        body: JSON.stringify({
+          model: 'tts-1',
+          input: 'Halo.',
+          voice: 'alloy',
+          response_format: 'wav',
+        }),
       }),
     );
     expect(res.status).toBe(503);
     expect(res.headers.get('retry-after')).toBe('5');
-    expect(((await res.json()) as V1Body).error).toMatchObject({ type: 'server_error', code: 'engine_unloaded' });
+    expect(((await res.json()) as V1Body).error).toMatchObject({
+      type: 'server_error',
+      code: 'engine_unloaded',
+    });
   });
 
   test('STT stream: unload after the first delta ends with an engine_unloaded error event', async () => {
@@ -67,7 +88,16 @@ describe('EngineUnloadedError mapping', () => {
         await Bun.sleep(1);
         throw new EngineUnloadedError('stt');
       },
-      status: () => ({ kind: 'stt', model: 'fake', state: 'unloaded', queued: 0, loadedAt: null, lastError: null, rssBytes: null, stats }),
+      status: () => ({
+        kind: 'stt',
+        model: 'fake',
+        state: 'unloaded',
+        queued: 0,
+        loadedAt: null,
+        lastError: null,
+        rssBytes: null,
+        stats,
+      }),
       ...control,
     };
     let ended = 0;

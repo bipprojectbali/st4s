@@ -5,7 +5,8 @@ import type { Supertonic } from './supertonic';
 const rss = () => process.memoryUsage().rss;
 
 function reply(msg: ChildMsg): void {
-  process.send!(msg);
+  if (!process.send) throw new Error('TTS child started without an IPC channel');
+  process.send(msg);
 }
 
 // `bun build --compile` embeds onnxruntime_binding.node but not its @rpath dependency libonnxruntime.1.dylib/.so.
@@ -26,10 +27,19 @@ export function runTtsChild(): void {
         // Lazy so the binary can start this child (and report the error) even when onnxruntime-node is missing.
         const { Supertonic } = await import('./supertonic');
         tts = await Supertonic.load(msg.modelDir, msg.threads);
-        reply({ type: 'loaded', sampleRate: tts.sampleRate, loadMs: performance.now() - t0, rss: rss() });
+        reply({
+          type: 'loaded',
+          sampleRate: tts.sampleRate,
+          loadMs: performance.now() - t0,
+          rss: rss(),
+        });
       } catch (e) {
         const reason = (e as Error).message;
-        reply({ type: 'error', message: `TTS model load failed (${msg.modelDir}): ${reason}${binaryHint(reason)}`, rss: rss() });
+        reply({
+          type: 'error',
+          message: `TTS model load failed (${msg.modelDir}): ${reason}${binaryHint(reason)}`,
+          rss: rss(),
+        });
       }
       return;
     }
@@ -38,7 +48,12 @@ export function runTtsChild(): void {
       const pcm = await tts.synthesize(msg.text, msg.language, msg.voice, msg.steps, msg.speed);
       reply({ type: 'result', id: msg.id, pcm, rss: rss() });
     } catch (e) {
-      reply({ type: 'error', id: msg.id, message: `TTS synthesis failed: ${(e as Error).message}`, rss: rss() });
+      reply({
+        type: 'error',
+        id: msg.id,
+        message: `TTS synthesis failed: ${(e as Error).message}`,
+        rss: rss(),
+      });
     }
   }
 

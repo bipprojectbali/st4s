@@ -6,13 +6,19 @@
  *   bun run admin:verify owner@example.com
  */
 import { superAdminEmails } from '../server/env';
-import { maskEmail, type VerifyOutcome, verifySuperAdminEmail } from '../server/super-admin-bootstrap';
+import {
+  maskEmail,
+  type VerifyOutcome,
+  verifySuperAdminEmail,
+} from '../server/super-admin-bootstrap';
 
 const MESSAGES: Record<VerifyOutcome, string> = {
   verified: 'Email ditandai terverifikasi. Masuk ulang untuk mendapat akses super-admin.',
   already_verified: 'Email sudah terverifikasi — tidak ada perubahan.',
-  not_allowlisted: 'Ditolak: email tidak ada di SUPER_ADMIN_EMAILS. Tambahkan dulu lalu jalankan lagi.',
-  user_not_found: 'Ditolak: belum ada user dengan email ini. Daftar dulu (sign-up) lalu jalankan lagi.',
+  not_allowlisted:
+    'Ditolak: email tidak ada di SUPER_ADMIN_EMAILS. Tambahkan dulu lalu jalankan lagi.',
+  user_not_found:
+    'Ditolak: belum ada user dengan email ini. Daftar dulu (sign-up) lalu jalankan lagi.',
 };
 
 const email = process.argv[2];

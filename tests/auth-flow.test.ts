@@ -11,7 +11,6 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
-import { redirect } from 'react-router';
 import { api } from '../server/api';
 import { db } from '../server/db';
 import { appSetting, loginLog, user } from '../server/db/schema';
@@ -19,8 +18,8 @@ import { redirectToHome } from '../server/guard';
 import {
   invalidateSettingsCache,
   readSettingsRow,
-  SINGLETON_ID,
   type SettingsRow,
+  SINGLETON_ID,
   upsertSettingsRow,
 } from '../server/settings.core';
 

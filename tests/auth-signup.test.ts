@@ -12,14 +12,14 @@ import { AUTH_GATE_ERRORS } from '../server/auth';
 import { db } from '../server/db';
 import { appSetting, user } from '../server/db/schema';
 import { EnvSchema, resolveSignupDisabled } from '../server/env';
-import { resolveEmailAuthGate } from '../server/settings-auth';
 import {
   invalidateSettingsCache,
   readSettingsRow,
-  SINGLETON_ID,
   type SettingsRow,
+  SINGLETON_ID,
   upsertSettingsRow,
 } from '../server/settings.core';
+import { resolveEmailAuthGate } from '../server/settings-auth';
 
 const ROOT = path.join(import.meta.dir, '..');
 const PASSWORD = 'TestPass123!';
@@ -93,7 +93,11 @@ beforeAll(async () => {
   invalidateSettingsCache();
   original = await readSettingsRow();
   await setAuth(true, true);
-  const res = await post('sign-up/email', { email: EXISTING, password: PASSWORD, name: 'Existing' });
+  const res = await post('sign-up/email', {
+    email: EXISTING,
+    password: PASSWORD,
+    name: 'Existing',
+  });
   expect(res.status).toBe(200);
 });
 

@@ -39,9 +39,14 @@ describe('checkEngineDeps', () => {
   });
 
   test('missing files and ffmpeg are reported with the missing path', () => {
-    const exists = (p: string) => present.has(p) && p !== '/m/stt.gguf' && !p.endsWith('voice_styles');
+    const exists = (p: string) =>
+      present.has(p) && p !== '/m/stt.gguf' && !p.endsWith('voice_styles');
     const deps = byName(checkEngineDeps({ env, exists, which: () => null }));
-    expect(deps.STT_MODEL).toEqual({ name: 'STT_MODEL', ok: false, detail: 'tidak ditemukan: /m/stt.gguf' });
+    expect(deps.STT_MODEL).toEqual({
+      name: 'STT_MODEL',
+      ok: false,
+      detail: 'tidak ditemukan: /m/stt.gguf',
+    });
     expect(deps.TTS_MODEL_DIR.ok).toBe(false);
     expect(deps.TTS_MODEL_DIR.detail).toContain('voice_styles');
     expect(deps.TTS_MODEL_DIR.detail).not.toContain('onnx');
@@ -56,7 +61,10 @@ describe('checkEngineDeps', () => {
       checkEngineDeps({
         env: { ...env, STT_VAD_MODEL: '', FFMPEG_PATH: undefined },
         exists: () => false,
-        which: (b) => (seen.push(b), null),
+        which: (b) => {
+          seen.push(b);
+          return null;
+        },
       }),
     );
     expect(deps.STT_VAD_MODEL.ok).toBe(true);
@@ -82,7 +90,10 @@ describe('logEngineDeps', () => {
     spies.push(error, warn);
     expect(logEngineDeps(deps, true)).toBe(2);
     expect(error).toHaveBeenCalledTimes(2);
-    expect(error.mock.calls[0]?.[0]).toEqual({ dep: 'STT_MODEL', detail: 'tidak ditemukan: /m/stt.gguf' });
+    expect(error.mock.calls[0]?.[0]).toEqual({
+      dep: 'STT_MODEL',
+      detail: 'tidak ditemukan: /m/stt.gguf',
+    });
     expect(warn).not.toHaveBeenCalled();
   });
 

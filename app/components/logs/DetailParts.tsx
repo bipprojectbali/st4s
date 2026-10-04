@@ -1,6 +1,6 @@
 import { ActionIcon, CopyButton, Group, Stack, Text, Tooltip } from '@mantine/core';
-import { TruncatedText } from './TruncatedText';
 import { FiCheck, FiCopy } from 'react-icons/fi';
+import { TruncatedText } from './TruncatedText';
 
 /** Label/value row used inside detail drawers. */
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -35,7 +35,13 @@ export function Copyable({ value }: { value: string }) {
       <CopyButton value={value} timeout={1500}>
         {({ copied, copy }) => (
           <Tooltip label={copied ? 'Tersalin' : 'Salin'} withArrow>
-            <ActionIcon variant="subtle" color={copied ? 'teal' : 'gray'} size="sm" onClick={copy} aria-label="Salin">
+            <ActionIcon
+              variant="subtle"
+              color={copied ? 'teal' : 'gray'}
+              size="sm"
+              onClick={copy}
+              aria-label="Salin"
+            >
               {copied ? <FiCheck size={13} /> : <FiCopy size={13} />}
             </ActionIcon>
           </Tooltip>

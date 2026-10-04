@@ -3,7 +3,9 @@ import { describe, expect, test } from 'bun:test';
 import { planSpans, runSpans, SpanCancelledError, SR } from '../../server/engines/stt/spans';
 import type { TranscriptSegment } from '../../server/engines/types';
 
-const seg = (text: string, start: number): TranscriptSegment[] => [{ id: 0, start, end: start + 1, text }];
+const seg = (text: string, start: number): TranscriptSegment[] => [
+  { id: 0, start, end: start + 1, text },
+];
 
 describe('planSpans', () => {
   test('without VAD (null or empty) slices into spans of at most maxChunkSec covering the whole file', () => {

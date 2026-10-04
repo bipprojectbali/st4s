@@ -1,4 +1,4 @@
-import { dlopen, FFIType, ptr, toArrayBuffer, type Pointer } from 'bun:ffi';
+import { dlopen, FFIType, type Pointer, ptr, toArrayBuffer } from 'bun:ffi';
 import type { TranscriptSegment } from '../types';
 
 const { ptr: P, cstring, i32, i64_fast, f32, void: V } = FFIType;
@@ -19,9 +19,15 @@ const SYMBOLS = {
   crispasr_session_result_word_t1: { args: [P, i32, i32], returns: i64_fast },
   crispasr_session_result_word_p: { args: [P, i32, i32], returns: f32 },
   crispasr_session_result_free: { args: [P], returns: V },
-  crispasr_vad_slices: { args: [cstring, P, i32, i32, f32, i32, i32, i32, f32, i32, P], returns: i32 },
+  crispasr_vad_slices: {
+    args: [cstring, P, i32, i32, f32, i32, i32, i32, f32, i32, P],
+    returns: i32,
+  },
   crispasr_vad_free: { args: [P], returns: V },
-  crispasr_detect_language_pcm: { args: [P, i32, i32, cstring, i32, i32, i32, i32, P, i32, P], returns: i32 },
+  crispasr_detect_language_pcm: {
+    args: [P, i32, i32, cstring, i32, i32, i32, i32, P, i32, P],
+    returns: i32,
+  },
 } as const;
 
 const SR = 16_000;
@@ -34,19 +40,40 @@ export function openCrispasr(libPath: string) {
   function openSession(modelPath: string, threads: number, useGpu: boolean): Pointer | null {
     // crispasr_open_params_v1: abi_version, n_threads, use_gpu, verbosity, + v2 fields/padding (12 ints).
     const params = new Int32Array([1, threads, useGpu ? 1 : 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-    return L.crispasr_session_open_with_params(cstr(modelPath), null, ptr(params)) as Pointer | null;
+    return L.crispasr_session_open_with_params(
+      cstr(modelPath),
+      null,
+      ptr(params),
+    ) as Pointer | null;
   }
 
-  function vadSlices(vadModel: string, pcm: Float32Array, maxChunkSec: number, threads: number): [number, number][] | null {
+  function vadSlices(
+    vadModel: string,
+    pcm: Float32Array,
+    maxChunkSec: number,
+    threads: number,
+  ): [number, number][] | null {
     const out = new BigUint64Array(1);
-    const n = L.crispasr_vad_slices(cstr(vadModel), ptr(pcm), pcm.length, SR, 0, 0, 0, 30, maxChunkSec, threads, ptr(out));
+    const n = L.crispasr_vad_slices(
+      cstr(vadModel),
+      ptr(pcm),
+      pcm.length,
+      SR,
+      0,
+      0,
+      0,
+      30,
+      maxChunkSec,
+      threads,
+      ptr(out),
+    );
     if (n < 0) return null;
     if (n === 0 || out[0] === 0n) return [];
     // Copy out of native memory before freeing it; toArrayBuffer is a view, not a copy.
     const spans = new Float32Array(toArrayBuffer(Number(out[0]) as Pointer, 0, n * 2 * 4)).slice();
     L.crispasr_vad_free(Number(out[0]) as Pointer);
     const res: [number, number][] = [];
-    for (let i = 0; i < n; i++) res.push([spans[i * 2]!, spans[i * 2 + 1]!]);
+    for (let i = 0; i < n; i++) res.push([spans[i * 2], spans[i * 2 + 1]]);
     return res;
   }
 
@@ -54,13 +81,36 @@ export function openCrispasr(libPath: string) {
     const buf = Buffer.alloc(16);
     const conf = new Float32Array(1);
     const head = pcm.subarray(0, Math.min(pcm.length, 30 * SR));
-    const rc = L.crispasr_detect_language_pcm(ptr(head), head.length, 0, cstr(lidModel), threads, 0, 0, 0, ptr(buf), buf.length, ptr(conf));
+    const rc = L.crispasr_detect_language_pcm(
+      ptr(head),
+      head.length,
+      0,
+      cstr(lidModel),
+      threads,
+      0,
+      0,
+      0,
+      ptr(buf),
+      buf.length,
+      ptr(conf),
+    );
     return rc === 0 ? buf.toString('utf8', 0, buf.indexOf(0)) : null;
   }
 
   /** Transcribe one span; timestamps are shifted by `offsetSec`. Returns null when the library fails. */
-  function transcribe(s: Pointer, pcm: Float32Array, lang: string | null, words: boolean, offsetSec: number): TranscriptSegment[] | null {
-    const r = L.crispasr_session_transcribe_lang(s, ptr(pcm), pcm.length, lang ? cstr(lang) : null) as Pointer | null;
+  function transcribe(
+    s: Pointer,
+    pcm: Float32Array,
+    lang: string | null,
+    words: boolean,
+    offsetSec: number,
+  ): TranscriptSegment[] | null {
+    const r = L.crispasr_session_transcribe_lang(
+      s,
+      ptr(pcm),
+      pcm.length,
+      lang ? cstr(lang) : null,
+    ) as Pointer | null;
     if (!r) return null;
     try {
       const segs: TranscriptSegment[] = [];
@@ -102,7 +152,8 @@ export function openCrispasr(libPath: string) {
   return {
     openSession,
     backend: (s: Pointer) => String(L.crispasr_session_backend(s)),
-    setHotwords: (s: Pointer, words: string[]) => L.crispasr_session_set_hotwords(s, cstr(words.join(', ')), 0),
+    setHotwords: (s: Pointer, words: string[]) =>
+      L.crispasr_session_set_hotwords(s, cstr(words.join(', ')), 0),
     closeSession: (s: Pointer) => L.crispasr_session_close(s),
     vadSlices,
     detectLanguage,

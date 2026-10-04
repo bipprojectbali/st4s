@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { chunkText, isTtsLanguage, maxChunkLen, preprocessText, textToIds } from '../../server/engines/tts/text';
+import {
+  chunkText,
+  isTtsLanguage,
+  maxChunkLen,
+  preprocessText,
+  textToIds,
+} from '../../server/engines/tts/text';
 
 describe('preprocessText', () => {
   test('wraps in language tags and appends a period', () => {
@@ -12,7 +18,9 @@ describe('preprocessText', () => {
   });
 
   test('normalises quotes, dashes, brackets and spacing', () => {
-    expect(preprocessText('“Hi” — it’s [ok] fine , right ?', 'en')).toBe(`<en>"Hi" - it's ok fine, right?</en>`);
+    expect(preprocessText('“Hi” — it’s [ok] fine , right ?', 'en')).toBe(
+      `<en>"Hi" - it's ok fine, right?</en>`,
+    );
   });
 
   test('removes emoji and collapses whitespace', () => {
@@ -49,11 +57,18 @@ describe('chunkText', () => {
   });
 
   test('splits on sentence boundaries when over maxLen', () => {
-    expect(chunkText('First sentence. Second sentence! Third?', 20)).toEqual(['First sentence.', 'Second sentence!', 'Third?']);
+    expect(chunkText('First sentence. Second sentence! Third?', 20)).toEqual([
+      'First sentence.',
+      'Second sentence!',
+      'Third?',
+    ]);
   });
 
   test('splits paragraphs and does not split after abbreviations', () => {
-    expect(chunkText('Dr. Smith came.\n\nNext para.', 10)).toEqual(['Dr. Smith came.', 'Next para.']);
+    expect(chunkText('Dr. Smith came.\n\nNext para.', 10)).toEqual([
+      'Dr. Smith came.',
+      'Next para.',
+    ]);
   });
 
   test('uses shorter chunks for ko/ja', () => {

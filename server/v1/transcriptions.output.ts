@@ -1,19 +1,30 @@
 /** Transcription results in OpenAI response formats: json/text/srt/vtt/verbose_json and the SSE stream. */
-import { EngineBusyError, type SttEngine, type TranscribeRequest, type TranscribeResult } from '../engines/types';
+
 import { EngineUnloadedError } from '../engines/errors';
+import {
+  EngineBusyError,
+  type SttEngine,
+  type TranscribeRequest,
+  type TranscribeResult,
+} from '../engines/types';
 import { logger } from '../logger';
 import { v1EngineUnloaded, v1Error, v1ErrorBody } from './errors';
 import { toSrt, toVtt } from './subtitles';
 import type { ResponseFormat } from './transcriptions.form';
 
 /** OpenAI bills audio per started second; `usage` mirrors that. */
-export const usage = (seconds: number) => ({ type: 'duration' as const, seconds: Math.ceil(seconds) });
+export const usage = (seconds: number) => ({
+  type: 'duration' as const,
+  seconds: Math.ceil(seconds),
+});
 
 const plain = (body: string, type = 'text/plain; charset=utf-8') =>
   new Response(body, { headers: { 'content-type': type, 'cache-control': 'no-store' } });
 
 const json = (body: unknown) =>
-  new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+  new Response(JSON.stringify(body), {
+    headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+  });
 
 function verbose(r: TranscribeResult, duration: number, withWords: boolean) {
   const segments = r.segments.map((s) => ({
@@ -28,7 +39,9 @@ function verbose(r: TranscribeResult, duration: number, withWords: boolean) {
     compression_ratio: 0,
     no_speech_prob: 0,
   }));
-  const words = r.segments.flatMap((s) => (s.words ?? []).map(({ word, start, end }) => ({ word, start, end })));
+  const words = r.segments.flatMap((s) =>
+    (s.words ?? []).map(({ word, start, end }) => ({ word, start, end })),
+  );
   return {
     task: 'transcribe' as const,
     language: r.language,
@@ -41,7 +54,12 @@ function verbose(r: TranscribeResult, duration: number, withWords: boolean) {
 }
 
 /** Non-streamed response body in the requested format. */
-export function formatResult(r: TranscribeResult, format: ResponseFormat, duration: number, withWords: boolean): Response {
+export function formatResult(
+  r: TranscribeResult,
+  format: ResponseFormat,
+  duration: number,
+  withWords: boolean,
+): Response {
   switch (format) {
     case 'text':
       return plain(r.text);
@@ -85,7 +103,14 @@ type StreamArgs = {
  * SSE in OpenAI's transcript.text.delta / transcript.text.done events. Headers wait for the first
  * delta (or the result), so busy/failure before any text is still a plain JSON error response.
  */
-export async function streamTranscript({ engine, req, ctrl, duration, requestId, onEnd }: StreamArgs): Promise<Response> {
+export async function streamTranscript({
+  engine,
+  req,
+  ctrl,
+  duration,
+  requestId,
+  onEnd,
+}: StreamArgs): Promise<Response> {
   let controller!: ReadableStreamDefaultController<Uint8Array>;
   let closed = false;
   let sentDelta = false;
@@ -120,7 +145,13 @@ export async function streamTranscript({ engine, req, ctrl, duration, requestId,
     },
   });
 
-  const early = await Promise.race([gotDelta.then(() => null), run.then(() => null, (err: unknown) => ({ err }))]);
+  const early = await Promise.race([
+    gotDelta.then(() => null),
+    run.then(
+      () => null,
+      (err: unknown) => ({ err }),
+    ),
+  ]);
   if (early) return engineErrorResponse(early.err, requestId);
 
   run.then(
@@ -132,11 +163,16 @@ export async function streamTranscript({ engine, req, ctrl, duration, requestId,
     },
     (err: unknown) => {
       const unloaded = err instanceof EngineUnloadedError;
-      if (!ctrl.signal.aborted && !unloaded) logger.error({ err, requestId }, 'stt stream failed mid-way');
+      if (!ctrl.signal.aborted && !unloaded)
+        logger.error({ err, requestId }, 'stt stream failed mid-way');
       push({
         type: 'error',
         ...(unloaded
-          ? v1ErrorBody(503, 'Mesin STT dihentikan di tengah stream karena RAM menipis atau idle. Coba lagi.', 'engine_unloaded')
+          ? v1ErrorBody(
+              503,
+              'Mesin STT dihentikan di tengah stream karena RAM menipis atau idle. Coba lagi.',
+              'engine_unloaded',
+            )
           : v1ErrorBody(500, 'Transkripsi terhenti di tengah stream. Coba lagi.', 'server_error')),
       });
       close();
@@ -144,6 +180,10 @@ export async function streamTranscript({ engine, req, ctrl, duration, requestId,
     },
   );
   return new Response(body, {
-    headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' },
+    headers: {
+      'content-type': 'text/event-stream',
+      'cache-control': 'no-store',
+      connection: 'keep-alive',
+    },
   });
 }

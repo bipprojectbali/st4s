@@ -3,7 +3,11 @@ import { afterAll, afterEach, describe, expect, spyOn, test } from 'bun:test';
 import type { EngineControl, EngineState } from '../../server/engines/types';
 import { logger } from '../../server/logger';
 import { GUARD_DEFAULTS } from '../../server/memory-guard/config';
-import { createMemoryGuard, type GuardAuditEntry, WAKE_GRACE_MS } from '../../server/memory-guard/guard';
+import {
+  createMemoryGuard,
+  type GuardAuditEntry,
+  WAKE_GRACE_MS,
+} from '../../server/memory-guard/guard';
 import { FAST_MS, SLOW_MS } from '../../server/memory-guard/machine';
 
 const logError = spyOn(logger, 'error').mockImplementation(() => {});
@@ -22,7 +26,12 @@ afterAll(() => {
 
 type Fake = EngineControl & { state: EngineState; unloads: number };
 
-function fakeEngine(state: EngineState, unload: (e: Fake) => Promise<void> = async (e) => void (e.state = 'unloaded')): Fake {
+function fakeEngine(
+  state: EngineState,
+  unload: (e: Fake) => Promise<void> = async (e) => {
+    e.state = 'unloaded';
+  },
+): Fake {
   const e: Fake = {
     state,
     unloads: 0,
@@ -36,7 +45,9 @@ function fakeEngine(state: EngineState, unload: (e: Fake) => Promise<void> = asy
   return e;
 }
 
-function harness(opts: { stt?: Fake; tts?: Fake; freePct?: number; unloadTimeoutMs?: number } = {}) {
+function harness(
+  opts: { stt?: Fake; tts?: Fake; freePct?: number; unloadTimeoutMs?: number } = {},
+) {
   let clock = 1_000_000;
   const env = { freePct: opts.freePct ?? 70, pressure: 1 as number | null };
   const delays: number[] = [];
@@ -62,7 +73,9 @@ function harness(opts: { stt?: Fake; tts?: Fake; freePct?: number; unloadTimeout
     env,
     delays,
     audits,
-    advance: (ms: number) => void (clock += ms),
+    advance: (ms: number) => {
+      clock += ms;
+    },
     armed: () => pending !== null,
   };
 }
@@ -126,15 +139,33 @@ describe('actions', () => {
     expect(tts.unloads).toBe(1);
     expect(stt.unloads).toBe(0);
     expect(h.audits).toEqual([
-      { engine: 'tts', reason: 'idle', level: 'critical', freePct: 18, ms: expect.any(Number), ok: true },
+      {
+        engine: 'tts',
+        reason: 'idle',
+        level: 'critical',
+        freePct: 18,
+        ms: expect.any(Number),
+        ok: true,
+      },
     ]);
-    expect(h.guard.status().lastAction).toMatchObject({ kind: 'unload', engine: 'tts', reason: 'idle', ok: true });
+    expect(h.guard.status().lastAction).toMatchObject({
+      kind: 'unload',
+      engine: 'tts',
+      reason: 'idle',
+      ok: true,
+    });
   });
 
   test('emergency unloads STT before TTS', async () => {
     const order: string[] = [];
-    const stt = fakeEngine('busy', async (e) => void (order.push('stt'), (e.state = 'unloaded')));
-    const tts = fakeEngine('ready', async (e) => void (order.push('tts'), (e.state = 'unloaded')));
+    const stt = fakeEngine('busy', async (e) => {
+      order.push('stt');
+      e.state = 'unloaded';
+    });
+    const tts = fakeEngine('ready', async (e) => {
+      order.push('tts');
+      e.state = 'unloaded';
+    });
     const h = harness({ stt, tts, freePct: 8 });
     await h.guard.tick();
     expect(order).toEqual(['stt', 'tts']);
@@ -150,7 +181,10 @@ describe('actions', () => {
       ['stt', false],
       ['tts', true],
     ]);
-    expect(logError).toHaveBeenCalledWith(expect.objectContaining({ engine: 'stt', timeoutMs: 20 }), expect.any(String));
+    expect(logError).toHaveBeenCalledWith(
+      expect.objectContaining({ engine: 'stt', timeoutMs: 20 }),
+      expect.any(String),
+    );
   });
 
   test('never reloads an engine on recovery', async () => {

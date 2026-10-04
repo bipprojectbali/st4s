@@ -5,7 +5,7 @@ const WINDOW = 200;
 function percentile(values: readonly number[], p: number): number | null {
   if (values.length === 0) return null;
   const sorted = [...values].sort((a, b) => a - b);
-  return sorted[Math.max(0, Math.ceil(p * sorted.length) - 1)]!;
+  return sorted[Math.max(0, Math.ceil(p * sorted.length) - 1)];
 }
 
 /** Request counters plus latency/RTF percentiles over the last 200 requests. */

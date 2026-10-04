@@ -12,11 +12,11 @@ import { changelogOverview } from './changelog';
 import { db } from './db';
 import { auditLog, loginLog, post, session, user, visitLog } from './db/schema';
 import { migrationStatus } from './db/schema-stats';
-import { env } from './env';
 import { getStt, getTts } from './engines/registry';
 import type { EngineStatus } from './engines/types';
-import { memoryGuardStatus, type MemoryGuardStatus } from './memory-guard/state';
+import { env } from './env';
 import { scanFileHealth } from './file-health/file-health.scan';
+import { type MemoryGuardStatus, memoryGuardStatus } from './memory-guard/state';
 import { settingsOverview } from './settings';
 
 export type SidebarBadge = {
@@ -92,8 +92,11 @@ export function engineBadge(
       1,
       'orange',
       [
-        guard.shedding && `RAM menipis (sisa ${guard.freePct ?? '?'}%): permintaan audio baru ditolak sementara`,
-        recent && last && `Memory guard melepas engine ${last.engine.toUpperCase()} pada ${new Date(last.at).toLocaleTimeString('id-ID')}`,
+        guard.shedding &&
+          `RAM menipis (sisa ${guard.freePct ?? '?'}%): permintaan audio baru ditolak sementara`,
+        recent &&
+          last &&
+          `Memory guard melepas engine ${last.engine.toUpperCase()} pada ${new Date(last.at).toLocaleTimeString('id-ID')}`,
       ]
         .filter(Boolean)
         .join('; '),

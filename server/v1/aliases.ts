@@ -3,7 +3,11 @@
 export const STT_MODEL_ID = 'qwen3-asr-1.7b';
 export const TTS_MODEL_ID = 'supertonic-3';
 
-export const STT_MODEL_ALIASES = ['whisper-1', 'gpt-4o-transcribe', 'gpt-4o-mini-transcribe'] as const;
+export const STT_MODEL_ALIASES = [
+  'whisper-1',
+  'gpt-4o-transcribe',
+  'gpt-4o-mini-transcribe',
+] as const;
 export const TTS_MODEL_ALIASES = ['tts-1', 'tts-1-hd', 'gpt-4o-mini-tts'] as const;
 
 export const NATIVE_VOICES = ['F1', 'F2', 'F3', 'F4', 'F5', 'M1', 'M2', 'M3', 'M4', 'M5'] as const;

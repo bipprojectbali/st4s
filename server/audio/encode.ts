@@ -80,7 +80,8 @@ export async function* encodeNative(
   units: AsyncIterable<Float32Array>,
   knownSamples: number | null = null,
 ): AsyncGenerator<Uint8Array> {
-  if (format === 'wav') yield wavHeader(sampleRate, knownSamples === null ? null : knownSamples * 2);
+  if (format === 'wav')
+    yield wavHeader(sampleRate, knownSamples === null ? null : knownSamples * 2);
   for await (const x of units) {
     yield floatToS16le(format === 'pcm' ? resampleLinear(x, sampleRate, PCM_RATE) : x);
   }

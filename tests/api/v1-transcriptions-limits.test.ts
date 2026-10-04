@@ -1,5 +1,14 @@
 /** /api/v1/audio/transcriptions admission control, unload mapping, hotword caps and the mid-stream SSE error. */
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, spyOn, test } from 'bun:test';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  spyOn,
+  test,
+} from 'bun:test';
 import * as decodeMod from '../../server/audio/decode';
 import { setEngines } from '../../server/engines/registry';
 import { Semaphore } from '../../server/v1/transcriptions.limits';
@@ -8,8 +17,13 @@ import { makeWav } from '../v1/wav-fixture';
 
 const wav = makeWav({ sampleRate: 16_000, channels: 1, bits: 16, frames: 16_000 });
 const post = (fd: FormData) =>
-  call('/api/v1/audio/transcriptions', { method: 'POST', body: fd, headers: { authorization: `Bearer ${SESSION_TOKEN}` } });
-const errorOf = async (res: Response) => ((await res.json()) as { error: Record<string, unknown> }).error;
+  call('/api/v1/audio/transcriptions', {
+    method: 'POST',
+    body: fd,
+    headers: { authorization: `Bearer ${SESSION_TOKEN}` },
+  });
+const errorOf = async (res: Response) =>
+  ((await res.json()) as { error: Record<string, unknown> }).error;
 const ENV_KEYS = ['STT_MAX_QUEUE', 'V1_DECODE_CONCURRENCY', 'V1_DECODE_WAIT_MS'];
 
 let spies: { mockRestore(): void }[] = [];
@@ -86,7 +100,10 @@ describe('admission control', () => {
     try {
       process.env.V1_DECODE_CONCURRENCY = '1';
       process.env.V1_DECODE_WAIT_MS = '30';
-      const [a, b] = await Promise.all([post(form({ model: 'whisper-1' }, wav)), post(form({ model: 'whisper-1' }, wav))]);
+      const [a, b] = await Promise.all([
+        post(form({ model: 'whisper-1' }, wav)),
+        post(form({ model: 'whisper-1' }, wav)),
+      ]);
       expect([a.status, b.status].sort()).toEqual([200, 429]);
       const busy = a.status === 429 ? a : b;
       expect(busy.headers.get('retry-after')).toBe('1');
@@ -113,9 +130,17 @@ describe('engine errors and validation', () => {
     for (const keywords of [many, long]) {
       const res = await post(form({ model: 'whisper-1', keywords }, wav));
       expect(res.status).toBe(400);
-      expect(await errorOf(res)).toMatchObject({ type: 'invalid_request_error', param: 'keywords' });
+      expect(await errorOf(res)).toMatchObject({
+        type: 'invalid_request_error',
+        param: 'keywords',
+      });
     }
-    const ok = await post(form({ model: 'whisper-1', keywords: Array.from({ length: 50 }, (_, i) => `t${i}`).join(',') }, wav));
+    const ok = await post(
+      form(
+        { model: 'whisper-1', keywords: Array.from({ length: 50 }, (_, i) => `t${i}`).join(',') },
+        wav,
+      ),
+    );
     expect(ok.status).toBe(200);
     expect(fakeStt.last?.hotwords).toHaveLength(50);
   });
@@ -129,6 +154,9 @@ describe('engine errors and validation', () => {
       .filter(Boolean)
       .map((e) => JSON.parse(e.replace(/^data: /, '')));
     expect(events[0]).toEqual({ type: 'transcript.text.delta', delta: DELTAS[0] });
-    expect(events.at(-1)).toMatchObject({ type: 'error', error: { type: 'server_error', code: 'server_error' } });
+    expect(events.at(-1)).toMatchObject({
+      type: 'error',
+      error: { type: 'server_error', code: 'server_error' },
+    });
   });
 });

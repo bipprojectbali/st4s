@@ -14,13 +14,20 @@ import { engineErrorResponse, formatResult, streamTranscript } from './transcrip
 
 type LogMeta = { model?: string; bytes?: number; durationSec?: number; stream: boolean };
 
-async function transcribe(request: Request, requestId: string, meta: LogMeta, onEnd: (s: number) => void): Promise<Response> {
+async function transcribe(
+  request: Request,
+  requestId: string,
+  meta: LogMeta,
+  onEnd: (s: number) => void,
+): Promise<Response> {
   let engine: SttEngine;
   try {
     engine = getStt();
   } catch (err) {
     logger.error({ err, requestId }, 'stt engine not registered');
-    return v1Error(503, 'Mesin STT belum siap. Coba lagi sebentar lagi.', { code: 'engine_unavailable' });
+    return v1Error(503, 'Mesin STT belum siap. Coba lagi sebentar lagi.', {
+      code: 'engine_unavailable',
+    });
   }
   // Refuse before the multipart body (up to V1_MAX_UPLOAD_MB) is buffered and decoded.
   const full = queueFullError(engine);
@@ -34,15 +41,20 @@ async function transcribe(request: Request, requestId: string, meta: LogMeta, on
   try {
     decoded = await decodeUpload(input.file);
   } catch (err) {
-    if (err instanceof AudioDecodeError) return v1Error(400, err.message, { code: err.code, param: 'file' });
+    if (err instanceof AudioDecodeError)
+      return v1Error(400, err.message, { code: err.code, param: 'file' });
     return engineErrorResponse(err, requestId);
   }
   meta.durationSec = Math.round(decoded.durationSec * 100) / 100;
   if (decoded.durationSec > v1Config.maxAudioSec)
-    return v1Error(400, `Durasi audio ${Math.round(decoded.durationSec)} dtk melebihi batas ${v1Config.maxAudioSec} dtk.`, {
-      code: 'audio_too_long',
-      param: 'file',
-    });
+    return v1Error(
+      400,
+      `Durasi audio ${Math.round(decoded.durationSec)} dtk melebihi batas ${v1Config.maxAudioSec} dtk.`,
+      {
+        code: 'audio_too_long',
+        param: 'file',
+      },
+    );
 
   const ctrl = new AbortController();
   const abort = () => ctrl.abort();
@@ -69,9 +81,15 @@ async function transcribe(request: Request, requestId: string, meta: LogMeta, on
 
   try {
     const result = await engine.transcribe({ ...req, signal: ctrl.signal });
-    return formatResult(result, input.responseFormat, result.duration || decoded.durationSec, input.wordTimestamps);
+    return formatResult(
+      result,
+      input.responseFormat,
+      result.duration || decoded.durationSec,
+      input.wordTimestamps,
+    );
   } catch (err) {
-    if (ctrl.signal.aborted) return v1Error(400, 'Request dibatalkan oleh klien.', { code: 'request_aborted' });
+    if (ctrl.signal.aborted)
+      return v1Error(400, 'Request dibatalkan oleh klien.', { code: 'request_aborted' });
     return engineErrorResponse(err, requestId);
   } finally {
     request.signal.removeEventListener('abort', abort);
@@ -87,7 +105,10 @@ async function handle(request: Request): Promise<Response> {
   const log = (status: number) => {
     if (logged) return;
     logged = true;
-    logger.info({ requestId, ...meta, status, latencyMs: Math.round(performance.now() - t0) }, 'stt transcription');
+    logger.info(
+      { requestId, ...meta, status, latencyMs: Math.round(performance.now() - t0) },
+      'stt transcription',
+    );
   };
 
   const res = await transcribe(request, requestId, meta, log).catch((err: unknown) => {

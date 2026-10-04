@@ -14,7 +14,12 @@ function readWav16k(buf: ArrayBuffer): Float32Array {
   let sr = 16_000;
   let bits = 16;
   while (off + 8 <= v.byteLength) {
-    const id = String.fromCharCode(v.getUint8(off), v.getUint8(off + 1), v.getUint8(off + 2), v.getUint8(off + 3));
+    const id = String.fromCharCode(
+      v.getUint8(off),
+      v.getUint8(off + 1),
+      v.getUint8(off + 2),
+      v.getUint8(off + 3),
+    );
     const size = v.getUint32(off + 4, true);
     if (id === 'fmt ') {
       ch = v.getUint16(off + 10, true);
@@ -34,7 +39,7 @@ function readWav16k(buf: ArrayBuffer): Float32Array {
       for (let i = 0; i < out.length; i++) {
         const x = (i * sr) / 16_000;
         const j = Math.floor(x);
-        out[i] = mono[j]! + ((mono[Math.min(j + 1, frames - 1)] ?? 0) - mono[j]!) * (x - j);
+        out[i] = mono[j] + ((mono[Math.min(j + 1, frames - 1)] ?? 0) - mono[j]) * (x - j);
       }
       return out;
     }
@@ -55,7 +60,10 @@ test.skipIf(!REAL)(
 
       const deltas: { at: number; chars: number }[] = [];
       const t1 = performance.now();
-      const res = await eng.transcribe({ audio, onDelta: (d) => deltas.push({ at: performance.now() - t1, chars: d.length }) });
+      const res = await eng.transcribe({
+        audio,
+        onDelta: (d) => deltas.push({ at: performance.now() - t1, chars: d.length }),
+      });
       const latencyMs = performance.now() - t1;
       const st = eng.status();
 

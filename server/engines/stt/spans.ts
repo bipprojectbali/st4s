@@ -10,7 +10,8 @@ type Span = [number, number];
 export function planSpans(durationSec: number, vad: Span[] | null, maxChunkSec: number): Span[] {
   if (vad?.length) return vad;
   const out: Span[] = [];
-  for (let a = 0; a < durationSec; a += maxChunkSec) out.push([a, Math.min(durationSec, a + maxChunkSec)]);
+  for (let a = 0; a < durationSec; a += maxChunkSec)
+    out.push([a, Math.min(durationSec, a + maxChunkSec)]);
   return out;
 }
 
@@ -34,7 +35,9 @@ export type SpanLoopArgs = {
 };
 
 /** Decode `plan` span by span; checks cancellation before each span (the span in flight cannot be interrupted). */
-export async function runSpans(a: SpanLoopArgs): Promise<{ text: string; segments: TranscriptSegment[] }> {
+export async function runSpans(
+  a: SpanLoopArgs,
+): Promise<{ text: string; segments: TranscriptSegment[] }> {
   const segments: TranscriptSegment[] = [];
   let text = '';
   for (const [s, e] of a.plan) {
@@ -42,9 +45,13 @@ export async function runSpans(a: SpanLoopArgs): Promise<{ text: string; segment
     const sub = a.audio.subarray(Math.floor(s * SR), Math.min(a.audio.length, Math.ceil(e * SR)));
     if (sub.length < MIN_SPAN) continue;
     const segs = a.decode(sub, s);
-    if (!segs) throw new Error(`crispasr transcribe failed on span ${s.toFixed(2)}-${e.toFixed(2)}s`);
+    if (!segs)
+      throw new Error(`crispasr transcribe failed on span ${s.toFixed(2)}-${e.toFixed(2)}s`);
     for (const seg of segs) if (seg.text) segments.push({ ...seg, id: segments.length });
-    const piece = segs.map((x) => x.text).filter(Boolean).join(' ');
+    const piece = segs
+      .map((x) => x.text)
+      .filter(Boolean)
+      .join(' ');
     if (piece) {
       const delta = text ? ` ${piece}` : piece;
       text += delta;

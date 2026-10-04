@@ -7,15 +7,15 @@ import { logger } from '../logger';
 import { type BudgetRefusal, createBudget } from './budget';
 import type { GuardConfig } from './config';
 import {
-  INITIAL_STATE,
-  nextDelay,
-  retryAfterSec,
-  step,
   type EngineStates,
   type GuardEngine,
   type GuardLevel,
+  INITIAL_STATE,
   type MachineState,
+  nextDelay,
   type Reading,
+  retryAfterSec,
+  step,
   type Unload,
 } from './machine';
 import type { Admission, GuardHandle, GuardLastAction, MemoryGuardStatus } from './state';
@@ -112,32 +112,61 @@ export function createMemoryGuard(deps: GuardDeps): MemoryGuard {
   function logTransition(prev: MachineState, next: MachineState): void {
     const ctx = { level: next.level, from: prev.level, freePct: next.freePct, pressure };
     if (next.level !== prev.level) {
-      if (SEVERITY[next.level] <= SEVERITY[prev.level]) logger.info(ctx, 'memory guard: pressure eased');
+      if (SEVERITY[next.level] <= SEVERITY[prev.level])
+        logger.info(ctx, 'memory guard: pressure eased');
       else if (next.level === 'warn') logger.warn(ctx, 'memory guard: RAM low');
       else logger.error(ctx, 'memory guard: RAM critically low');
     }
     if (next.shedding !== prev.shedding) {
-      if (next.shedding) logger.warn({ ...ctx, action: 'shed' }, 'memory guard: rejecting new speech requests');
-      else logger.info({ ...ctx, action: 'admit' }, 'memory guard: RAM recovered, accepting speech requests again');
+      if (next.shedding)
+        logger.warn({ ...ctx, action: 'shed' }, 'memory guard: rejecting new speech requests');
+      else
+        logger.info(
+          { ...ctx, action: 'admit' },
+          'memory guard: RAM recovered, accepting speech requests again',
+        );
     }
   }
 
   async function runUnload(u: Unload, controls: ReturnType<GuardDeps['engines']>): Promise<void> {
     const e = controls[u.engine];
     if (!e) return;
-    const ctx = { engine: u.engine, reason: u.reason, level: state.level, freePct: state.freePct, action: 'unload' };
+    const ctx = {
+      engine: u.engine,
+      reason: u.reason,
+      level: state.level,
+      freePct: state.freePct,
+      action: 'unload',
+    };
     logger.error(ctx, 'memory guard: unloading engine');
     const t0 = performance.now();
     let ok = false;
     try {
       ok = await unloadWithin(e, unloadTimeoutMs);
-      if (!ok) logger.error({ ...ctx, timeoutMs: unloadTimeoutMs }, 'memory guard: engine unload did not finish in time');
+      if (!ok)
+        logger.error(
+          { ...ctx, timeoutMs: unloadTimeoutMs },
+          'memory guard: engine unload did not finish in time',
+        );
     } catch (err) {
       logger.error({ ...ctx, err }, 'memory guard: engine unload failed');
     }
     const ms = Math.round(performance.now() - t0);
-    lastAction = { kind: 'unload', engine: u.engine, reason: u.reason, at: new Date(now()).toISOString(), ok };
-    deps.audit({ engine: u.engine, reason: u.reason, level: state.level, freePct: state.freePct, ms, ok });
+    lastAction = {
+      kind: 'unload',
+      engine: u.engine,
+      reason: u.reason,
+      at: new Date(now()).toISOString(),
+      ok,
+    };
+    deps.audit({
+      engine: u.engine,
+      reason: u.reason,
+      level: state.level,
+      freePct: state.freePct,
+      ms,
+      ok,
+    });
   }
 
   function arm(): void {
@@ -185,12 +214,30 @@ export function createMemoryGuard(deps: GuardDeps): MemoryGuard {
     const c = budget.check(engine, states[engine], freeBytes, now());
     if (c.ok) return c;
     const retry = retryAfterSec(state, now(), cfg);
-    lastRefusal = { engine, neededMb: c.neededMb, availableMb: c.availableMb, at: new Date(now()).toISOString() };
+    lastRefusal = {
+      engine,
+      neededMb: c.neededMb,
+      availableMb: c.availableMb,
+      at: new Date(now()).toISOString(),
+    };
     logger.warn(
-      { engine, neededMb: c.neededMb, availableMb: c.availableMb, freePct: state.freePct, action: 'refuse-load' },
+      {
+        engine,
+        neededMb: c.neededMb,
+        availableMb: c.availableMb,
+        freePct: state.freePct,
+        action: 'refuse-load',
+      },
       'memory guard: not enough free RAM to load engine',
     );
-    return { ok: false, reason: 'budget', retryAfterSec: retry, engine, neededMb: c.neededMb, availableMb: c.availableMb };
+    return {
+      ok: false,
+      reason: 'budget',
+      retryAfterSec: retry,
+      engine,
+      neededMb: c.neededMb,
+      availableMb: c.availableMb,
+    };
   }
 
   function wake(): void {
@@ -212,7 +259,8 @@ export function createMemoryGuard(deps: GuardDeps): MemoryGuard {
     wake,
     admit(engine?: GuardEngine): Admission {
       wake();
-      if (state.shedding) return { ok: false, reason: 'pressure', retryAfterSec: retryAfterSec(state, now(), cfg) };
+      if (state.shedding)
+        return { ok: false, reason: 'pressure', retryAfterSec: retryAfterSec(state, now(), cfg) };
       return engine ? admitEngine(engine) : { ok: true };
     },
     status(): MemoryGuardStatus {

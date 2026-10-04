@@ -37,17 +37,15 @@ async function req(method: string, path: string, body?: unknown) {
 
 beforeAll(async () => {
   for (const id of [owner, other, admin]) {
-    await db
-      .insert(user)
-      .values({
-        id,
-        name: id,
-        email: `${id}@test.local`,
-        emailVerified: false,
-        role: id === admin ? 'admin' : 'user',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
+    await db.insert(user).values({
+      id,
+      name: id,
+      email: `${id}@test.local`,
+      emailVerified: false,
+      role: id === admin ? 'admin' : 'user',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
   }
 });
 afterAll(async () => {

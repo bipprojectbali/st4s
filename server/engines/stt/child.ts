@@ -24,7 +24,10 @@ export function openSttSession(
 /** Run the STT child loop; `cfgJson` is the serialized SttConfig the host passes on argv. */
 export function runSttChild(cfgJson: string | undefined): void {
   const cfg = JSON.parse(cfgJson ?? '') as SttConfig;
-  const send = (m: FromChild) => process.send!(m);
+  const send = (m: FromChild) => {
+    if (!process.send) throw new Error('STT child started without an IPC channel');
+    process.send(m);
+  };
   const rss = () => process.memoryUsage().rss;
   // The child has no pino logger; stderr is inherited by the server log stream.
   const warn = (msg: string) => process.stderr.write(`[stt-child] warn: ${msg}\n`);

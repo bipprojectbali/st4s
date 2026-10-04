@@ -2,8 +2,8 @@ import { Elysia } from 'elysia';
 import { newRequestId } from '../api-error';
 import { CONTENT_TYPES, NATIVE_FORMATS } from '../audio/encode';
 import { ffmpegAvailable } from '../audio/encode-ffmpeg';
-import { getTts } from '../engines/registry';
 import { EngineUnloadedError } from '../engines/errors';
+import { getTts } from '../engines/registry';
 import { EngineBusyError, type TtsEngine } from '../engines/types';
 import { logger } from '../logger';
 import { speechUnits } from '../text/speech-units';
@@ -24,10 +24,14 @@ async function speak(request: Request, body: unknown): Promise<Response> {
   if (params instanceof Response) return params;
 
   if (!NATIVE_FORMATS.includes(params.format) && !ffmpegAvailable(v1Config.ffmpegPath))
-    return v1Error(400, `Format ${params.format} butuh ffmpeg yang tidak terpasang di server; pakai wav atau pcm.`, {
-      code: 'unsupported_format',
-      param: 'response_format',
-    });
+    return v1Error(
+      400,
+      `Format ${params.format} butuh ffmpeg yang tidak terpasang di server; pakai wav atau pcm.`,
+      {
+        code: 'unsupported_format',
+        param: 'response_format',
+      },
+    );
 
   let engine: TtsEngine;
   let sampleRate: number;
@@ -37,16 +41,26 @@ async function speak(request: Request, body: unknown): Promise<Response> {
     sampleRate = engine.sampleRate;
   } catch (err) {
     logger.error({ err, requestId }, 'tts engine unavailable');
-    return v1Error(503, 'Mesin TTS belum siap. Coba lagi sebentar lagi.', { code: 'engine_unavailable' });
+    return v1Error(503, 'Mesin TTS belum siap. Coba lagi sebentar lagi.', {
+      code: 'engine_unavailable',
+    });
   }
   if (!engine.voices().includes(params.voice))
-    return v1Error(400, `Voice ${params.voiceName} tidak tersedia di mesin TTS.`, { code: 'invalid_value', param: 'voice' });
+    return v1Error(400, `Voice ${params.voiceName} tidak tersedia di mesin TTS.`, {
+      code: 'invalid_value',
+      param: 'voice',
+    });
 
   const units = speechUnits(params.input, { maxChars: speechConfig.maxUnitChars });
   const ctrl = new AbortController();
   const abort = () => ctrl.abort();
   request.signal.addEventListener('abort', abort, { once: true });
-  const base = { voice: params.voice, language: params.language, speed: params.speed, steps: params.steps };
+  const base = {
+    voice: params.voice,
+    language: params.language,
+    speed: params.speed,
+    steps: params.steps,
+  };
 
   // The first unit is awaited before any header goes out, so busy/failure can still be a clean error.
   let first: Float32Array;
@@ -61,7 +75,10 @@ async function speak(request: Request, body: unknown): Promise<Response> {
       });
     if (err instanceof EngineUnloadedError) return v1EngineUnloaded(err);
     if (ctrl.signal.aborted) {
-      logger.info({ requestId, units: units.length, totalMs: ms(t0) }, 'tts request aborted before first audio');
+      logger.info(
+        { requestId, units: units.length, totalMs: ms(t0) },
+        'tts request aborted before first audio',
+      );
       return v1Error(400, 'Request dibatalkan oleh klien.', { code: 'request_aborted' });
     }
     logger.error({ err, requestId }, 'tts synthesis failed');
@@ -100,7 +117,8 @@ async function speak(request: Request, body: unknown): Promise<Response> {
   });
   return new Response(stream, {
     headers: {
-      'content-type': params.streamFormat === 'sse' ? 'text/event-stream' : CONTENT_TYPES[params.format],
+      'content-type':
+        params.streamFormat === 'sse' ? 'text/event-stream' : CONTENT_TYPES[params.format],
       'cache-control': 'no-store',
       'x-request-id': requestId,
     },

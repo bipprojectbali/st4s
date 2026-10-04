@@ -85,7 +85,7 @@ describe('writeWebResponse — Set-Cookie handling', () => {
     const res = mockServerResponse();
     await writeWebResponse(res, webRes);
     expect(res.statusCode).toBe(302);
-    expect(res.headers['location']).toBe('/dev');
+    expect(res.headers.location).toBe('/dev');
   });
 
   test('response body is streamed', async () => {

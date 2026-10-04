@@ -34,7 +34,11 @@ const free = (mb: number | null) => () => (mb === null ? null : mb * MB);
 describe('createBudget', () => {
   test('allows a cold load that fits and refuses one that does not, with MB figures', () => {
     const b = createBudget({ stt: 2600, tts: 600 });
-    expect(b.check('stt', 'unloaded', free(2000), 0)).toEqual({ ok: false, neededMb: 2600, availableMb: 2000 });
+    expect(b.check('stt', 'unloaded', free(2000), 0)).toEqual({
+      ok: false,
+      neededMb: 2600,
+      availableMb: 2000,
+    });
     expect(b.reservedMb()).toBe(0);
     expect(b.check('stt', 'unloaded', free(4000), 0)).toEqual({ ok: true });
     expect(b.reservedMb()).toBe(2600);
@@ -43,7 +47,8 @@ describe('createBudget', () => {
   test('0 disables the check; loaded engines, unknown state and unknown free RAM are never checked', () => {
     const b = createBudget({ stt: 0, tts: 600 });
     expect(b.check('stt', 'unloaded', free(10), 0).ok).toBe(true);
-    for (const s of ['ready', 'busy', 'loading'] as EngineState[]) expect(b.check('tts', s, free(10), 0).ok).toBe(true);
+    for (const s of ['ready', 'busy', 'loading'] as EngineState[])
+      expect(b.check('tts', s, free(10), 0).ok).toBe(true);
     expect(b.check('tts', null, free(10), 0).ok).toBe(true);
     expect(b.check('tts', 'unloaded', free(null), 0).ok).toBe(true);
     expect(b.reservedMb()).toBe(0);
@@ -52,7 +57,11 @@ describe('createBudget', () => {
   test('a cold load reserves its budget so a concurrent cold load of the other engine counts both', () => {
     const b = createBudget({ stt: 2600, tts: 600 });
     expect(b.check('stt', 'unloaded', free(3000), 0).ok).toBe(true);
-    expect(b.check('tts', 'unloaded', free(3000), 1)).toEqual({ ok: false, neededMb: 600, availableMb: 400 });
+    expect(b.check('tts', 'unloaded', free(3000), 1)).toEqual({
+      ok: false,
+      neededMb: 600,
+      availableMb: 400,
+    });
     // a second STT request while its load is pending is not charged twice
     expect(b.check('stt', 'unloaded', free(100), 2).ok).toBe(true);
     b.settle({ stt: 'ready', tts: 'unloaded' }, 3);
@@ -79,7 +88,9 @@ describe('createBudget', () => {
   });
 
   test('message states needed vs available RAM in id-ID format', () => {
-    expect(BUDGET_MESSAGE({ engine: 'stt', neededMb: 2600, availableMb: 1234, retryAfterSec: 30 })).toBe(
+    expect(
+      BUDGET_MESSAGE({ engine: 'stt', neededMb: 2600, availableMb: 1234, retryAfterSec: 30 }),
+    ).toBe(
       'RAM server tidak cukup untuk memuat engine STT: butuh 2.600 MB, tersedia 1.234 MB. Tutup aplikasi lain yang berat atau coba lagi dalam 30 detik.',
     );
   });
@@ -95,7 +106,12 @@ function engine(state: EngineState): EngineControl & { state: EngineState } {
   return e;
 }
 
-function guardWith(opts: { freeMb: number; freePct?: number | null; stt?: EngineState; tts?: EngineState }) {
+function guardWith(opts: {
+  freeMb: number;
+  freePct?: number | null;
+  stt?: EngineState;
+  tts?: EngineState;
+}) {
   const stt = engine(opts.stt ?? 'unloaded');
   const tts = engine(opts.tts ?? 'unloaded');
   const env = { freeMb: opts.freeMb, freePct: opts.freePct === undefined ? 50 : opts.freePct };
@@ -126,7 +142,10 @@ describe('guard admission with budget', () => {
       reservedMb: 0,
       lastRefusal: { engine: 'stt', neededMb: 2600, availableMb: 1800, at: expect.any(String) },
     });
-    expect(logWarn).toHaveBeenCalledWith(expect.objectContaining({ engine: 'stt', action: 'refuse-load' }), expect.any(String));
+    expect(logWarn).toHaveBeenCalledWith(
+      expect.objectContaining({ engine: 'stt', action: 'refuse-load' }),
+      expect.any(String),
+    );
     expect(guard.admit()).toEqual({ ok: true });
   });
 
@@ -143,7 +162,12 @@ describe('guard admission with budget', () => {
   test('two cold loads racing: the second is refused while the first holds its reservation', () => {
     const { guard } = guardWith({ freeMb: 3000 });
     expect(guard.admit('stt').ok).toBe(true);
-    expect(guard.admit('tts')).toMatchObject({ ok: false, reason: 'budget', engine: 'tts', availableMb: 400 });
+    expect(guard.admit('tts')).toMatchObject({
+      ok: false,
+      reason: 'budget',
+      engine: 'tts',
+      availableMb: 400,
+    });
   });
 
   test('skips the budget when the reading is the unreliable fallback (freePct null)', () => {
@@ -154,7 +178,14 @@ describe('guard admission with budget', () => {
 
 describe('auto-unload audit', () => {
   test('uses engine.auto_unload with engine, reason, level, freePct, ms and ok in meta', () => {
-    auditAutoUnload({ engine: 'stt', reason: 'emergency', level: 'emergency', freePct: 9, ms: 120, ok: true });
+    auditAutoUnload({
+      engine: 'stt',
+      reason: 'emergency',
+      level: 'emergency',
+      freePct: 9,
+      ms: 120,
+      ok: true,
+    });
     expect(auditSpy).toHaveBeenCalledTimes(1);
     const entry = auditSpy.mock.calls[0][0];
     expect(entry).toMatchObject({
@@ -162,7 +193,15 @@ describe('auto-unload audit', () => {
       action: 'engine.auto_unload',
       targetType: 'engine',
       targetId: 'stt',
-      meta: { by: 'memory-guard', engine: 'stt', reason: 'emergency', level: 'emergency', freePct: 9, ms: 120, ok: true },
+      meta: {
+        by: 'memory-guard',
+        engine: 'stt',
+        reason: 'emergency',
+        level: 'emergency',
+        freePct: 9,
+        ms: 120,
+        ok: true,
+      },
     });
     expect(entry.action).toBe(auditMod.AUDIT_ACTIONS.ENGINE_AUTO_UNLOAD);
   });

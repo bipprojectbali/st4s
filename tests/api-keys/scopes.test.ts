@@ -59,6 +59,11 @@ describe('role ceiling', () => {
     expect(roleAllowsScope('super-admin', 'mcp')).toBe(true);
     expect(roleAllowsScope('user', 'stt:transcribe')).toBe(true);
     expect(roleAllowsScope('user', 'tts:speak')).toBe(true);
-    expect(scopesForRole('user')).toEqual(['posts:write', 'me:read', 'stt:transcribe', 'tts:speak']);
+    expect(scopesForRole('user')).toEqual([
+      'posts:write',
+      'me:read',
+      'stt:transcribe',
+      'tts:speak',
+    ]);
   });
 });

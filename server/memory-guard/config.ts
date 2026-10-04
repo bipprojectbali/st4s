@@ -36,7 +36,8 @@ function pct(env: Env, name: string, fallback: number): number {
   const raw = env[name]?.trim();
   if (!raw) return fallback;
   const v = Number(raw);
-  if (!Number.isFinite(v) || v <= 0 || v >= 100) throw new Error(`${name} harus angka 1–99 (persen RAM bebas), dapat "${raw}".`);
+  if (!Number.isFinite(v) || v <= 0 || v >= 100)
+    throw new Error(`${name} harus angka 1–99 (persen RAM bebas), dapat "${raw}".`);
   return v;
 }
 
@@ -44,7 +45,8 @@ function seconds(env: Env, name: string, fallback: number): number {
   const raw = env[name]?.trim();
   if (!raw) return fallback;
   const v = Number(raw);
-  if (!Number.isFinite(v) || v < 0) throw new Error(`${name} harus angka detik ≥ 0, dapat "${raw}".`);
+  if (!Number.isFinite(v) || v < 0)
+    throw new Error(`${name} harus angka detik ≥ 0, dapat "${raw}".`);
   return v;
 }
 
@@ -52,7 +54,8 @@ function megabytes(env: Env, name: string, fallback: number): number {
   const raw = env[name]?.trim();
   if (!raw) return fallback;
   const v = Number(raw);
-  if (!Number.isInteger(v) || v < 0) throw new Error(`${name} harus bilangan bulat MB ≥ 0 (0 = nonaktif), dapat "${raw}".`);
+  if (!Number.isInteger(v) || v < 0)
+    throw new Error(`${name} harus bilangan bulat MB ≥ 0 (0 = nonaktif), dapat "${raw}".`);
   return v;
 }
 
@@ -72,7 +75,13 @@ export function loadGuardConfig(env: Env = process.env): GuardConfig {
       tts: megabytes(env, 'MEM_BUDGET_TTS_MB', d.budgetMb.tts),
     },
   };
-  if (!(cfg.emergencyPct < cfg.criticalPct && cfg.criticalPct < cfg.warnPct && cfg.warnPct < cfg.recoverPct))
+  if (
+    !(
+      cfg.emergencyPct < cfg.criticalPct &&
+      cfg.criticalPct < cfg.warnPct &&
+      cfg.warnPct < cfg.recoverPct
+    )
+  )
     throw new Error(
       `MEM_GUARD_* harus berurutan EMERGENCY < CRITICAL < WARN < RECOVER, dapat ${cfg.emergencyPct} / ${cfg.criticalPct} / ${cfg.warnPct} / ${cfg.recoverPct}. Perbaiki .env lalu restart.`,
     );

@@ -5,7 +5,11 @@ import { resolveActor } from '../guard';
 import { v1Error } from './errors';
 
 /** beforeHandle hook: 401 OpenAI-shaped when a protected v1 route is called anonymously. */
-export async function requireV1Caller({ request }: { request: Request }): Promise<Response | undefined> {
+export async function requireV1Caller({
+  request,
+}: {
+  request: Request;
+}): Promise<Response | undefined> {
   if (!requiredScope(request.method, new URL(request.url).pathname)) return;
   if (getApiKeyIdentity(request)) return;
   if (await resolveActor(request)) return;

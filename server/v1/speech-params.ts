@@ -32,17 +32,27 @@ export function parseSpeechParams(body: unknown): SpeechParams | Response {
   const b = body as Record<string, unknown>;
 
   if (typeof b.model !== 'string' || !isTtsModel(b.model))
-    return bad(`Model TTS tidak dikenal: ${String(b.model)}. Pakai supertonic-3 atau tts-1.`, 'model', 'model_not_found');
+    return bad(
+      `Model TTS tidak dikenal: ${String(b.model)}. Pakai supertonic-3 atau tts-1.`,
+      'model',
+      'model_not_found',
+    );
 
   if (typeof b.input !== 'string' || b.input.trim().length === 0)
     return bad('`input` wajib berisi teks.', 'input');
   if (b.input.length > speechConfig.maxInputChars)
-    return bad(`\`input\` maksimal ${speechConfig.maxInputChars} karakter.`, 'input', 'string_above_max_length');
+    return bad(
+      `\`input\` maksimal ${speechConfig.maxInputChars} karakter.`,
+      'input',
+      'string_above_max_length',
+    );
 
   const voiceName =
     typeof b.voice === 'string'
       ? b.voice
-      : b.voice && typeof b.voice === 'object' && typeof (b.voice as { id?: unknown }).id === 'string'
+      : b.voice &&
+          typeof b.voice === 'object' &&
+          typeof (b.voice as { id?: unknown }).id === 'string'
         ? (b.voice as { id: string }).id
         : null;
   const voice = voiceName === null ? null : resolveVoice(voiceName);
@@ -51,7 +61,10 @@ export function parseSpeechParams(body: unknown): SpeechParams | Response {
 
   const format = (b.response_format ?? 'mp3') as SpeechFormat;
   if (!SPEECH_FORMATS.includes(format))
-    return bad(`response_format harus salah satu dari ${SPEECH_FORMATS.join(', ')}.`, 'response_format');
+    return bad(
+      `response_format harus salah satu dari ${SPEECH_FORMATS.join(', ')}.`,
+      'response_format',
+    );
 
   const speed = b.speed ?? 1;
   if (typeof speed !== 'number' || !Number.isFinite(speed) || speed < 0.25 || speed > 4)
@@ -61,12 +74,20 @@ export function parseSpeechParams(body: unknown): SpeechParams | Response {
   if (streamFormat !== 'audio' && streamFormat !== 'sse')
     return bad('stream_format harus "audio" atau "sse".', 'stream_format');
   if (streamFormat === 'sse' && NO_SSE_MODELS.includes(b.model))
-    return bad(`stream_format "sse" tidak didukung untuk ${b.model}; pakai gpt-4o-mini-tts.`, 'stream_format', 'unsupported_value');
+    return bad(
+      `stream_format "sse" tidak didukung untuk ${b.model}; pakai gpt-4o-mini-tts.`,
+      'stream_format',
+      'unsupported_value',
+    );
 
   const rawLanguage = b.language ?? speechConfig.defaultLanguage;
   const language = typeof rawLanguage === 'string' ? rawLanguage.toLowerCase() : '';
   if (!isTtsLanguage(language))
-    return bad(`\`language\` tidak didukung: ${String(rawLanguage)}. Pakai kode ISO 639-1, mis. "id" atau "en".`, 'language', 'unsupported_value');
+    return bad(
+      `\`language\` tidak didukung: ${String(rawLanguage)}. Pakai kode ISO 639-1, mis. "id" atau "en".`,
+      'language',
+      'unsupported_value',
+    );
 
   let steps: number | undefined;
   if (b.steps !== undefined && b.steps !== null) {

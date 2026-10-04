@@ -2,7 +2,15 @@
 
 export type ParentMsg =
   | { type: 'load'; modelDir: string; threads: number }
-  | { type: 'synth'; id: number; text: string; voice: string; language: string; speed: number; steps: number };
+  | {
+      type: 'synth';
+      id: number;
+      text: string;
+      voice: string;
+      language: string;
+      speed: number;
+      steps: number;
+    };
 
 export type ChildMsg =
   | { type: 'loaded'; sampleRate: number; loadMs: number; rss: number }

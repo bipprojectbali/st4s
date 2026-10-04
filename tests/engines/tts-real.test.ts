@@ -5,7 +5,8 @@ import { createTtsEngine } from '../../server/engines/tts';
 
 const enabled = process.env.S4S_REAL_ENGINE === '1';
 const PROBE_WAV = '/tmp/s4s-tts-probe.wav';
-const TEXT = 'Halo, selamat pagi. Hari ini kita menguji suara bahasa Indonesia dengan Supertonic tiga.';
+const TEXT =
+  'Halo, selamat pagi. Hari ini kita menguji suara bahasa Indonesia dengan Supertonic tiga.';
 
 function wav16(pcm: Float32Array, sampleRate: number): Buffer {
   const buf = Buffer.alloc(44 + pcm.length * 2);
@@ -21,7 +22,8 @@ function wav16(pcm: Float32Array, sampleRate: number): Buffer {
   buf.writeUInt16LE(16, 34);
   buf.write('data', 36);
   buf.writeUInt32LE(pcm.length * 2, 40);
-  for (let i = 0; i < pcm.length; i++) buf.writeInt16LE(Math.round(Math.max(-1, Math.min(1, pcm[i]!)) * 32767), 44 + i * 2);
+  for (let i = 0; i < pcm.length; i++)
+    buf.writeInt16LE(Math.round(Math.max(-1, Math.min(1, pcm[i])) * 32767), 44 + i * 2);
   return buf;
 }
 
@@ -44,7 +46,12 @@ describe.skipIf(!enabled)('tts real model (Supertonic 3)', () => {
     expect(pcm.some((s) => Math.abs(s) > 0.01)).toBe(true);
 
     t = performance.now();
-    const laugh = await engine.synthesize({ text: 'Itu lucu sekali <laugh> aku tidak bisa berhenti tertawa.', voice: 'M1', language: 'id', speed: 1 });
+    const laugh = await engine.synthesize({
+      text: 'Itu lucu sekali <laugh> aku tidak bisa berhenti tertawa.',
+      voice: 'M1',
+      language: 'id',
+      speed: 1,
+    });
     const laughMs = performance.now() - t;
     expect(laugh.length).toBeGreaterThan(0);
 

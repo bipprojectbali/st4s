@@ -10,7 +10,10 @@ import type { SttEngine, TtsEngine } from './types';
 type Booted = { stt: SttEngine; tts: TtsEngine };
 
 // globalThis survives `bun --hot` re-evaluation, so a reload never orphans a running child.
-const g = globalThis as typeof globalThis & { __s4sBootedEngines?: Booted; __s4sShutdownHooked?: boolean };
+const g = globalThis as typeof globalThis & {
+  __s4sBootedEngines?: Booted;
+  __s4sShutdownHooked?: boolean;
+};
 
 const SHUTDOWN_TIMEOUT_MS = 5_000;
 
@@ -44,7 +47,10 @@ export function exitOnShutdownSignals(): void {
     process.once(signal, () => {
       logger.info({ signal }, 'shutting down: unloading engines');
       setTimeout(() => {
-        logger.error({ signal, timeoutMs: SHUTDOWN_TIMEOUT_MS }, 'engine unload timed out; exiting anyway');
+        logger.error(
+          { signal, timeoutMs: SHUTDOWN_TIMEOUT_MS },
+          'engine unload timed out; exiting anyway',
+        );
         process.exit(1);
       }, SHUTDOWN_TIMEOUT_MS).unref();
       shutdownEngines().then(

@@ -35,7 +35,8 @@ function install(a: Admission) {
   });
 }
 
-const codeOf = async (res: Response) => ((await res.json()) as { error?: { code?: string } }).error?.code;
+const codeOf = async (res: Response) =>
+  ((await res.json()) as { error?: { code?: string } }).error?.code;
 
 const speech = () =>
   app.handle(
@@ -54,20 +55,33 @@ describe('memoryGuardPlugin', () => {
     expect(res.headers.get('retry-after')).toBe('12');
     expect(res.headers.get('x-request-id')).toBe('req-mg-1');
     const body = (await res.json()) as { error: { message: string; type: string; code: string } };
-    expect(body.error).toMatchObject({ type: 'server_error', code: 'memory_pressure', param: null });
+    expect(body.error).toMatchObject({
+      type: 'server_error',
+      code: 'memory_pressure',
+      param: null,
+    });
     expect(body.error.message).toContain('12 detik');
 
     const form = new FormData();
     form.set('model', 'whisper-1');
     form.set('file', new File([new Uint8Array(8)], 'a.wav', { type: 'audio/wav' }));
-    const stt = await app.handle(new Request('http://localhost/api/v1/audio/transcriptions', { method: 'POST', body: form }));
+    const stt = await app.handle(
+      new Request('http://localhost/api/v1/audio/transcriptions', { method: 'POST', body: form }),
+    );
     expect(stt.status).toBe(503);
     expect(admits).toBe(2);
     expect(engines).toEqual(['tts', 'stt']);
   });
 
   test('budget refusal: 503 memory_pressure stating needed vs available MB', async () => {
-    install({ ok: false, reason: 'budget', retryAfterSec: 30, engine: 'tts', neededMb: 600, availableMb: 1 });
+    install({
+      ok: false,
+      reason: 'budget',
+      retryAfterSec: 30,
+      engine: 'tts',
+      neededMb: 600,
+      availableMb: 1,
+    });
     const res = await speech();
     expect(res.status).toBe(503);
     expect(res.headers.get('retry-after')).toBe('30');

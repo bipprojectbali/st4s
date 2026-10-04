@@ -8,6 +8,7 @@ import { maintenancePlugin } from '../middleware/maintenance';
 import { rateLimitPlugin } from '../middleware/rate-limiter';
 import { applyRateLimitSettings } from '../settings';
 import { startRetentionScheduler } from '../settings-retention';
+import { v1Api } from '../v1';
 import { adminApi } from './admin';
 import { analyticsApi } from './analytics';
 import { apiKeysApi } from './api-keys';
@@ -23,7 +24,6 @@ import { postsApi } from './posts';
 import { sessionsApi } from './sessions';
 import { settingsApi } from './settings';
 import { settingsOpsApi } from './settings-ops';
-import { v1Api } from '../v1';
 import { versionApi } from './version';
 
 /**

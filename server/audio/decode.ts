@@ -43,10 +43,17 @@ export async function decodeTo16kMono(
   if (isWav(bytes)) {
     try {
       const { samples, sampleRate } = parseWav(bytes);
-      return { audio: resampleLinear(samples, sampleRate), durationSec: samples.length / sampleRate };
+      return {
+        audio: resampleLinear(samples, sampleRate),
+        durationSec: samples.length / sampleRate,
+      };
     } catch (err) {
       // Unusual WAV encodings (ADPCM, µ-law, 64-bit float) still have a chance with ffmpeg.
-      if (!findFfmpeg()) throw new AudioDecodeError('invalid_audio', `File WAV tidak bisa didekode: ${(err as Error).message}`);
+      if (!findFfmpeg())
+        throw new AudioDecodeError(
+          'invalid_audio',
+          `File WAV tidak bisa didekode: ${(err as Error).message}`,
+        );
     }
   }
   const bin = findFfmpeg();

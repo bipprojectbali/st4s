@@ -12,10 +12,10 @@ import { normalizeIp, resolveClientIp } from '../middleware/client-ip';
 import { resolveGeo } from '../middleware/visitor-geo';
 import { resolveUserRole } from '../roles';
 import { parseLines } from '../settings.core';
+import { isV1Path, v1Code, v1Error } from '../v1/errors';
 import { getApiKeyIdentity, setApiKeyIdentity } from './identity';
 import { isPublicRead, requiredScope, roleAllowsScope, type Scope } from './scopes';
 import { recordUsage } from './usage';
-import { isV1Path, v1Code, v1Error } from '../v1/errors';
 
 export function extractApiKey(headers: Headers): string | null {
   const direct = headers.get('x-api-key');
@@ -40,7 +40,9 @@ const denier =
   (pathname: string) =>
   (status: number, error: string, extra: Record<string, unknown> = {}) =>
     isV1Path(pathname)
-      ? v1Error(status, error, { code: v1Code(extra.code) ?? (status === 401 ? 'invalid_api_key' : null) })
+      ? v1Error(status, error, {
+          code: v1Code(extra.code) ?? (status === 401 ? 'invalid_api_key' : null),
+        })
       : new Response(JSON.stringify({ error, ...extra }), {
           status,
           headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },

@@ -67,7 +67,8 @@ export function step(
   const severe = level === 'critical' || level === 'emergency';
 
   let shedding = prev.shedding || level !== 'normal';
-  const recovered = level === 'normal' && (reading.freePct === null || reading.freePct >= cfg.recoverPct);
+  const recovered =
+    level === 'normal' && (reading.freePct === null || reading.freePct >= cfg.recoverPct);
   let recoveredSince = shedding && recovered ? (prev.recoveredSince ?? now) : null;
   if (recoveredSince !== null && now - recoveredSince >= cfg.recoverSec * 1000) {
     shedding = false;
@@ -82,7 +83,8 @@ export function step(
   } else if (level === 'critical' && cooled) {
     const idle = loaded.filter((k) => engines[k] === 'ready');
     if (idle.length) unloads = idle.map((engine) => ({ engine, reason: 'idle' }));
-    else if (prev.severeTicks > 0 && loaded.length) unloads = [{ engine: loaded[0], reason: 'busy' }];
+    else if (prev.severeTicks > 0 && loaded.length)
+      unloads = [{ engine: loaded[0], reason: 'busy' }];
   }
 
   return {
@@ -102,9 +104,15 @@ export function step(
  * Next poll delay, or null to go idle (no timer): fast while under pressure, while an engine is
  * busy/loading or right after wake(); slow while an engine sits loaded or shedding waits to recover.
  */
-export function nextDelay(state: MachineState, engines: EngineStates, now: number, wakeUntil: number): number | null {
+export function nextDelay(
+  state: MachineState,
+  engines: EngineStates,
+  now: number,
+  wakeUntil: number,
+): number | null {
   const s = Object.values(engines);
-  if (state.level !== 'normal' || now < wakeUntil || s.some((x) => x === 'busy' || x === 'loading')) return FAST_MS;
+  if (state.level !== 'normal' || now < wakeUntil || s.some((x) => x === 'busy' || x === 'loading'))
+    return FAST_MS;
   if (state.shedding || s.some((x) => x === 'ready')) return SLOW_MS;
   return null;
 }

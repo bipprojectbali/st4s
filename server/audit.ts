@@ -39,7 +39,14 @@ export const AUDIT_ACTIONS = {
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
-export type AuditTargetType = 'user' | 'session' | 'settings' | 'logs' | 'post' | 'apikey' | 'engine';
+export type AuditTargetType =
+  | 'user'
+  | 'session'
+  | 'settings'
+  | 'logs'
+  | 'post'
+  | 'apikey'
+  | 'engine';
 
 export type AuditInput = {
   actor: { id: string; email?: string | null } | null;

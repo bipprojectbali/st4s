@@ -26,7 +26,10 @@ export class Supertonic {
 
   private constructor(
     private readonly modelDir: string,
-    cfg: { ae: { sample_rate: number; base_chunk_size: number }; ttl: { chunk_compress_factor: number; latent_dim: number } },
+    cfg: {
+      ae: { sample_rate: number; base_chunk_size: number };
+      ttl: { chunk_compress_factor: number; latent_dim: number };
+    },
     private readonly indexer: readonly number[],
     private readonly dp: ort.InferenceSession,
     private readonly textEnc: ort.InferenceSession,
@@ -43,7 +46,8 @@ export class Supertonic {
   static async load(modelDir: string, threads: number): Promise<Supertonic> {
     const onnxDir = path.join(modelDir, 'onnx');
     const readJson = (f: string) => JSON.parse(fs.readFileSync(path.join(onnxDir, f), 'utf8'));
-    const opts: ort.InferenceSession.SessionOptions = threads > 0 ? { intraOpNumThreads: threads } : {};
+    const opts: ort.InferenceSession.SessionOptions =
+      threads > 0 ? { intraOpNumThreads: threads } : {};
     const open = (f: string) => ort.InferenceSession.create(path.join(onnxDir, f), opts);
     const [dp, textEnc, vectorEst, vocoder] = await Promise.all([
       open('duration_predictor.onnx'),
@@ -51,7 +55,15 @@ export class Supertonic {
       open('vector_estimator.onnx'),
       open('vocoder.onnx'),
     ]);
-    return new Supertonic(modelDir, readJson('tts.json'), readJson('unicode_indexer.json'), dp, textEnc, vectorEst, vocoder);
+    return new Supertonic(
+      modelDir,
+      readJson('tts.json'),
+      readJson('unicode_indexer.json'),
+      dp,
+      textEnc,
+      vectorEst,
+      vocoder,
+    );
   }
 
   private style(voice: string): Style {
@@ -68,7 +80,13 @@ export class Supertonic {
   }
 
   /** Synthesize `text` to mono PCM; long input is chunked and joined with short silences. */
-  async synthesize(text: string, lang: string, voice: string, steps: number, speed: number): Promise<Float32Array> {
+  async synthesize(
+    text: string,
+    lang: string,
+    voice: string,
+    steps: number,
+    speed: number,
+  ): Promise<Float32Array> {
     const style = this.style(voice);
     const parts: Float32Array[] = [];
     const silence = new Float32Array(Math.floor(SILENCE_SEC * this.sampleRate));
@@ -85,14 +103,32 @@ export class Supertonic {
     return out;
   }
 
-  private async infer(chunk: string, lang: string, style: Style, steps: number, speed: number): Promise<Float32Array> {
+  private async infer(
+    chunk: string,
+    lang: string,
+    style: Style,
+    steps: number,
+    speed: number,
+  ): Promise<Float32Array> {
     const ids = textToIds(preprocessText(chunk, lang), this.indexer);
     const textIds = new ort.Tensor('int64', ids, [1, ids.length]);
-    const textMask = new ort.Tensor('float32', new Float32Array(ids.length).fill(1), [1, 1, ids.length]);
+    const textMask = new ort.Tensor('float32', new Float32Array(ids.length).fill(1), [
+      1,
+      1,
+      ids.length,
+    ]);
 
-    const { duration } = await this.dp.run({ text_ids: textIds, style_dp: style.dp, text_mask: textMask });
-    const durationSec = (duration!.data as Float32Array)[0]! / speed;
-    const { text_emb } = await this.textEnc.run({ text_ids: textIds, style_ttl: style.ttl, text_mask: textMask });
+    const { duration } = await this.dp.run({
+      text_ids: textIds,
+      style_dp: style.dp,
+      text_mask: textMask,
+    });
+    const durationSec = (duration.data as Float32Array)[0] / speed;
+    const { text_emb } = await this.textEnc.run({
+      text_ids: textIds,
+      style_ttl: style.ttl,
+      text_mask: textMask,
+    });
 
     const wavLen = Math.floor(durationSec * this.sampleRate);
     const chunkSize = this.baseChunk * this.compress;
@@ -100,24 +136,30 @@ export class Supertonic {
     const dim = this.latentDim * this.compress;
     let latent: Float32Array = gaussian(dim * latentLen);
     const shape = [1, dim, latentLen];
-    const latentMask = new ort.Tensor('float32', new Float32Array(latentLen).fill(1), [1, 1, latentLen]);
+    const latentMask = new ort.Tensor('float32', new Float32Array(latentLen).fill(1), [
+      1,
+      1,
+      latentLen,
+    ]);
     const totalStep = new ort.Tensor('float32', Float32Array.of(steps), [1]);
 
     for (let step = 0; step < steps; step++) {
       const { denoised_latent } = await this.vectorEst.run({
         noisy_latent: new ort.Tensor('float32', latent, shape),
-        text_emb: text_emb!,
+        text_emb,
         style_ttl: style.ttl,
         text_mask: textMask,
         latent_mask: latentMask,
         total_step: totalStep,
         current_step: new ort.Tensor('float32', Float32Array.of(step), [1]),
       });
-      latent = Float32Array.from(denoised_latent!.data as Float32Array);
+      latent = Float32Array.from(denoised_latent.data as Float32Array);
     }
 
-    const { wav_tts } = await this.vocoder.run({ latent: new ort.Tensor('float32', latent, shape) });
-    const wav = wav_tts!.data as Float32Array;
+    const { wav_tts } = await this.vocoder.run({
+      latent: new ort.Tensor('float32', latent, shape),
+    });
+    const wav = wav_tts.data as Float32Array;
     return wav.slice(0, Math.min(wav.length, wavLen));
   }
 }

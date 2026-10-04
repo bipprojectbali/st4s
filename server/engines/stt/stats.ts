@@ -4,7 +4,7 @@ const WINDOW = 200;
 
 function pct(sorted: number[], p: number): number | null {
   if (!sorted.length) return null;
-  return sorted[Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * p + 0.5))]!;
+  return sorted[Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * p + 0.5))];
 }
 
 /** Rolling latency / RTF window (last 200 samples) plus request and error counters. */
@@ -30,6 +30,12 @@ export class RollingStats {
   snapshot(): EngineStats {
     const ms = [...this.ms].sort((a, b) => a - b);
     const rtf = [...this.rtf].sort((a, b) => a - b);
-    return { requests: this.requests, errors: this.errors, p50Ms: pct(ms, 0.5), p95Ms: pct(ms, 0.95), rtfP50: pct(rtf, 0.5) };
+    return {
+      requests: this.requests,
+      errors: this.errors,
+      p50Ms: pct(ms, 0.5),
+      p95Ms: pct(ms, 0.95),
+      rtfP50: pct(rtf, 0.5),
+    };
   }
 }
