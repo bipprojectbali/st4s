@@ -19,11 +19,13 @@ const REASON_TEXT: Record<NonNullable<Guard['lastAction']>['reason'], string> = 
   emergency: 'RAM darurat',
 };
 
-/** Compact notice on /dev/engines while RAM is low or the memory guard unloaded an engine in the last hour. */
+/** Compact notice on /dev/engines while RAM is low, or the memory guard unloaded an engine / refused a cold load in the last hour. */
 export function MemoryGuardAlert({ guard, now, dateTime }: { guard: Guard; now: number; dateTime: (iso: string) => string }) {
   const last = guard.lastAction;
   const recent = last !== null && now - Date.parse(last.at) < RECENT_MS;
-  if (!guard.enabled || (guard.level === 'normal' && !guard.shedding && !recent)) return null;
+  const refusal = guard.lastRefusal;
+  const refused = refusal !== null && now - Date.parse(refusal.at) < RECENT_MS;
+  if (!guard.enabled || (guard.level === 'normal' && !guard.shedding && !recent && !refused)) return null;
   const severe = guard.level === 'critical' || guard.level === 'emergency';
   return (
     <Alert
@@ -43,6 +45,12 @@ export function MemoryGuardAlert({ guard, now, dateTime }: { guard: Guard; now: 
           {last.engine.toUpperCase()} di-unload otomatis pada {dateTime(last.at)} ({REASON_TEXT[last.reason]})
           {last.ok ? '' : ' — unload belum selesai, cek Server Logs'}. Engine tidak dimuat ulang otomatis; warmup
           manual setelah RAM pulih.
+        </Text>
+      )}
+      {refused && refusal && (
+        <Text size="sm">
+          Memuat {refusal.engine.toUpperCase()} ditolak pada {dateTime(refusal.at)}: butuh{' '}
+          {refusal.neededMb.toLocaleString('id-ID')} MB, tersedia {refusal.availableMb.toLocaleString('id-ID')} MB.
         </Text>
       )}
     </Alert>

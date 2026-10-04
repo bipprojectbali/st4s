@@ -111,6 +111,7 @@ const ACTION_META: Record<string, { label: string; color: string }> = {
   'apikey.delete': { label: 'Hapus API key', color: 'red' },
   'engine.warmup': { label: 'Warmup engine', color: 'teal' },
   'engine.unload': { label: 'Unload engine', color: 'orange' },
+  'engine.auto_unload': { label: 'Unload otomatis engine', color: 'red' },
 };
 
 export function actionMeta(action: string): { label: string; color: string } {

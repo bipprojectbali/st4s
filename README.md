@@ -415,7 +415,8 @@ Yang harus ada di mesin (path diatur lewat env, lihat komentar di `.env.example`
 - **Memory guard** — memantau RAM bebas (macOS: level memorystatus kernel + pressure; Linux: `MemAvailable`) dan bertindak bertingkat:
   - di bawah `MEM_GUARD_WARN_PCT` (30%), request baru `/api/v1/audio/*` dan warmup ditolak dengan `503 memory_pressure` + `Retry-After`. Penolakan baru berhenti setelah RAM bebas ≥ `MEM_GUARD_RECOVER_PCT` (40%) selama `MEM_GUARD_RECOVER_SEC` (30 dtk);
   - di bawah `MEM_GUARD_CRITICAL_PCT` (20%) atau saat pressure kernel kritis, engine idle di-unload lebih dulu, lalu engine yang sedang bekerja pada tick berikutnya;
-  - di bawah `MEM_GUARD_EMERGENCY_PCT` (12%), STT lalu TTS di-unload segera.
+  - di bawah `MEM_GUARD_EMERGENCY_PCT` (12%), STT lalu TTS di-unload segera;
+  - sebelum memuat engine yang belum termuat (request `/api/v1/audio/transcriptions`/`speech` atau warmup), RAM bebas dicek terhadap `MEM_BUDGET_STT_MB` (2600) / `MEM_BUDGET_TTS_MB` (600). Bila kurang, request ditolak `503 memory_pressure` + `Retry-After` dengan pesan RAM yang dibutuhkan vs tersedia. Budget dipesan sampai engine siap atau gagal, jadi dua cold load bersamaan dihitung keduanya. Engine yang sudah termuat tidak dicek; `0` menonaktifkan cek engine itu.
 
   Engine tidak dimuat ulang otomatis; warmup manual setelah RAM pulih. Polling bersifat adaptif: tanpa timer saat tidak ada engine termuat, 10 dtk saat engine idle, dan 500 ms saat engine bekerja atau RAM menipis. Tiap unload tercatat di log dan Audit Log, dan statusnya muncul di field `memoryGuard` `GET /api/engines`, peringatan `/dev/engines`, dan badge sidebar. Nonaktifkan dengan `MEM_GUARD_ENABLED=false`.
 

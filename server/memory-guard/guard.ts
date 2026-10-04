@@ -4,6 +4,7 @@
  */
 import type { EngineControl, EngineState } from '../engines/types';
 import { logger } from '../logger';
+import { type BudgetRefusal, createBudget } from './budget';
 import type { GuardConfig } from './config';
 import {
   INITIAL_STATE,
@@ -100,6 +101,8 @@ export function createMemoryGuard(deps: GuardDeps): MemoryGuard {
   let inFlight = false;
   let started = false;
   let wakeUntil = 0;
+  let lastRefusal: BudgetRefusal | null = null;
+  const budget = createBudget(cfg.budgetMb);
 
   const engineStates = (controls: ReturnType<GuardDeps['engines']>): EngineStates => ({
     stt: stateOf(controls.stt, 'stt'),
@@ -155,8 +158,10 @@ export function createMemoryGuard(deps: GuardDeps): MemoryGuard {
       const reading = deps.read();
       pressure = reading.pressure;
       const controls = deps.engines();
+      const states = engineStates(controls);
+      budget.settle(states, now());
       const prev = state;
-      const r = step(prev, reading, engineStates(controls), now(), cfg);
+      const r = step(prev, reading, states, now(), cfg);
       state = r.state;
       logTransition(prev, state);
       for (const u of r.unloads) await runUnload(u, controls);
@@ -166,6 +171,26 @@ export function createMemoryGuard(deps: GuardDeps): MemoryGuard {
       inFlight = false;
       arm();
     }
+  }
+
+  /** Free bytes for the budget; null when the reading is the unreliable fallback (freePct null). */
+  function freeBytes(): number | null {
+    const r = deps.read();
+    return r.freePct === null ? null : (r.freeBytes ?? null);
+  }
+
+  function admitEngine(engine: GuardEngine): Admission {
+    const states = engineStates(deps.engines());
+    budget.settle(states, now());
+    const c = budget.check(engine, states[engine], freeBytes, now());
+    if (c.ok) return c;
+    const retry = retryAfterSec(state, now(), cfg);
+    lastRefusal = { engine, neededMb: c.neededMb, availableMb: c.availableMb, at: new Date(now()).toISOString() };
+    logger.warn(
+      { engine, neededMb: c.neededMb, availableMb: c.availableMb, freePct: state.freePct, action: 'refuse-load' },
+      'memory guard: not enough free RAM to load engine',
+    );
+    return { ok: false, reason: 'budget', retryAfterSec: retry, engine, neededMb: c.neededMb, availableMb: c.availableMb };
   }
 
   function wake(): void {
@@ -185,9 +210,10 @@ export function createMemoryGuard(deps: GuardDeps): MemoryGuard {
       cancel = null;
     },
     wake,
-    admit(): Admission {
+    admit(engine?: GuardEngine): Admission {
       wake();
-      return state.shedding ? { ok: false, retryAfterSec: retryAfterSec(state, now(), cfg) } : { ok: true };
+      if (state.shedding) return { ok: false, reason: 'pressure', retryAfterSec: retryAfterSec(state, now(), cfg) };
+      return engine ? admitEngine(engine) : { ok: true };
     },
     status(): MemoryGuardStatus {
       return {
@@ -198,6 +224,9 @@ export function createMemoryGuard(deps: GuardDeps): MemoryGuard {
         pressure,
         shedding: state.shedding,
         lastAction,
+        budgetMb: { ...cfg.budgetMb },
+        reservedMb: budget.reservedMb(),
+        lastRefusal,
       };
     },
     tick,

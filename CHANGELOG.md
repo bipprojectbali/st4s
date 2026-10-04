@@ -22,6 +22,7 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 - Scope API key baru `stt:transcribe` dan `tts:speak`, bisa dipakai di kunci pribadi maupun kunci yang dibuat admin.
 - Memory guard untuk host dengan RAM terbatas. Saat RAM bebas di bawah 30%, request audio dan warmup baru ditolak dengan `503 memory_pressure` + `Retry-After` sampai RAM pulih. Di bawah 20%, engine yang idle di-unload lebih dulu, dan di bawah 12% STT lalu TTS di-unload segera. Engine tidak dimuat ulang otomatis. Ambang diatur lewat `MEM_GUARD_*`.
 - `/dev/engines` menampilkan peringatan saat RAM menipis atau memory guard baru saja meng-unload engine, dan badge sidebar ikut menyala. Unload otomatis tercatat di Audit Log.
+- Memory guard mengecek RAM bebas sebelum memuat engine yang belum termuat (STT butuh 2.600 MB, TTS 600 MB; diatur lewat `MEM_BUDGET_STT_MB`/`MEM_BUDGET_TTS_MB`, `0` = nonaktif). Bila kurang, request atau warmup ditolak `503 memory_pressure` dengan pesan RAM yang dibutuhkan vs tersedia, dan `/dev/engines` menampilkan penolakan terakhir. Unload otomatis kini tercatat sebagai aksi sendiri "Unload otomatis engine" di Audit Log.
 
 ### Changed
 - Error di bawah `/api/v1` kini berbentuk error OpenAI (`{ error: { message, type, param, code } }`) agar SDK `openai` bisa membacanya. Route `/api/*` lain tetap memakai format lama.
@@ -38,6 +39,7 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 - README dan `.env.example` menjelaskan cara menyiapkan login Google: redirect URI yang perlu didaftarkan (`${BETTER_AUTH_URL}/api/auth/callback/google`), env yang dibutuhkan, dan aturan pendaftaran tertutup.
 
 ### Fixed
+- Request transkripsi/suara yang sedang diproses atau mengantre saat engine dilepas (RAM menipis, idle, shutdown, atau unload manual di `/dev`) kini langsung ditolak dengan 503 `engine_unloaded` + `Retry-After: 5` (di luar `/api/v1`: `ENGINE_UNLOADED`), bukan diam-diam memuat ulang model dan memakan RAM lagi. Request baru setelahnya tetap memuat engine seperti biasa.
 - Saat pendaftaran ditutup (`AUTH_DISABLE_SIGNUP` atau toggle "Pendaftaran" di `/dev/settings`), login Google tidak lagi diam-diam membuat akun baru. Orang yang belum punya akun dikembalikan ke halaman login dengan pesan "Pendaftaran akun baru sedang ditutup"; user lama tetap bisa masuk, dan email di `SUPER_ADMIN_EMAILS` tetap boleh membuat akun.
 - Login Google untuk email yang sudah terdaftar dengan kata sandi tapi belum terverifikasi kini menampilkan petunjuk masuk dengan kata sandi, bukan kode error mentah.
 - Halaman login menampilkan pesan bahasa Indonesia saat aplikasi dibuka dari alamat yang tidak dikenali (sebelumnya "Invalid origin"), dan tombol Google tidak lagi berputar terus bila permintaan ditolak. Kolom email dan kata sandi kini 16px sehingga iPhone tidak lagi memperbesar layar saat diketuk.

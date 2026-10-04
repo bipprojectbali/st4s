@@ -4,12 +4,14 @@ import { Elysia } from 'elysia';
 import { newRequestId } from '../api-error';
 import { AUDIT_ACTIONS, audit } from '../audit';
 import { checkEngineDeps } from '../engines/deps';
+import { engineUnloadedApiError, isEngineUnloadedError } from '../engines/errors';
 import { getStt, getTts } from '../engines/registry';
 import { loadSttConfig } from '../engines/stt/config';
 import { TTS_LANGUAGES } from '../engines/tts/text';
 import type { EngineControl, EngineStatus } from '../engines/types';
 import { resolveActor } from '../guard';
 import { logger } from '../logger';
+import { BUDGET_MESSAGE } from '../memory-guard/budget';
 import { guardHandle, memoryGuardStatus } from '../memory-guard/state';
 import { ROLES } from '../permissions';
 import { availableMemoryBytes } from '../system-memory';
@@ -103,11 +105,14 @@ export const enginesApi = new Elysia({ prefix: '/engines' })
         code: 'ENGINE_NOT_REGISTERED',
       });
     if (action === 'warmup') {
-      const a = guardHandle()?.admit();
+      const a = guardHandle()?.admit(kind);
       if (a && !a.ok) {
         set.headers['retry-after'] = String(a.retryAfterSec);
         return status(503, {
-          error: `RAM server sedang menipis, warmup ${LABEL[kind]} ditunda. Tunggu RAM pulih lalu coba lagi dalam ${a.retryAfterSec} detik.`,
+          error:
+            a.reason === 'budget'
+              ? BUDGET_MESSAGE(a)
+              : `RAM server sedang menipis, warmup ${LABEL[kind]} ditunda. Tunggu RAM pulih lalu coba lagi dalam ${a.retryAfterSec} detik.`,
           code: 'MEMORY_PRESSURE',
           status: 503,
           requestId: newRequestId(),
@@ -118,6 +123,11 @@ export const enginesApi = new Elysia({ prefix: '/engines' })
     try {
       await (action === 'warmup' ? engine.warmup() : engine.unload());
     } catch (err) {
+      if (action === 'warmup' && isEngineUnloadedError(err)) {
+        logger.warn({ kind, action }, 'warmup interrupted by a concurrent unload');
+        set.headers['retry-after'] = String(err.retryAfterSec);
+        return status(503, engineUnloadedApiError(newRequestId()));
+      }
       logger.error({ err, kind, action }, 'engine control failed');
       return status(503, {
         error: `Gagal ${action === 'warmup' ? 'memuat' : 'melepas'} engine ${LABEL[kind]}: ${(err as Error).message}. Cek Server Logs lalu coba lagi.`,

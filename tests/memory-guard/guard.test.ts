@@ -112,7 +112,8 @@ describe('actions', () => {
     h.guard.start();
     await Bun.sleep(0);
     expect(h.guard.status()).toMatchObject({ level: 'warn', shedding: true, freePct: 25 });
-    expect(h.guard.admit()).toEqual({ ok: false, retryAfterSec: 30 });
+    expect(h.guard.admit()).toEqual({ ok: false, reason: 'pressure', retryAfterSec: 30 });
+    expect(h.guard.admit('stt')).toMatchObject({ ok: false, reason: 'pressure' });
     expect(logWarn).toHaveBeenCalled();
     expect(h.audits).toEqual([]);
   });

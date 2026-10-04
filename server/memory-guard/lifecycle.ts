@@ -22,14 +22,15 @@ function registered(get: () => EngineControl): EngineControl | undefined {
   }
 }
 
-function auditUnload(e: GuardAuditEntry): void {
+/** Audit one guard-initiated unload as engine.auto_unload (metrics only). */
+export function auditAutoUnload(e: GuardAuditEntry): void {
   void audit({
     actor: null,
-    action: AUDIT_ACTIONS.ENGINE_UNLOAD,
+    action: AUDIT_ACTIONS.ENGINE_AUTO_UNLOAD,
     targetType: 'engine',
     targetId: e.engine,
     summary: `Unload otomatis engine ${LABEL[e.engine]} oleh memory guard (${e.level}, sisa RAM ${e.freePct ?? '?'}%)${e.ok ? '' : ' — belum selesai'}`,
-    meta: { by: 'memory-guard', reason: e.reason, level: e.level, freePct: e.freePct, ms: e.ms, ok: e.ok },
+    meta: { by: 'memory-guard', engine: e.engine, reason: e.reason, level: e.level, freePct: e.freePct, ms: e.ms, ok: e.ok },
   });
 }
 
@@ -49,13 +50,19 @@ export function startMemoryGuard(): MemoryGuard | null {
     cfg,
     read: () => readMemorySnapshot(),
     engines: () => ({ stt: registered(getStt), tts: registered(getTts) }),
-    audit: auditUnload,
+    audit: auditAutoUnload,
   });
   g.__s4sMemoryGuardRunner = guard;
   setGuardHandle(guard);
   guard.start();
   logger.info(
-    { warnPct: cfg.warnPct, criticalPct: cfg.criticalPct, emergencyPct: cfg.emergencyPct, recoverPct: cfg.recoverPct },
+    {
+      warnPct: cfg.warnPct,
+      criticalPct: cfg.criticalPct,
+      emergencyPct: cfg.emergencyPct,
+      recoverPct: cfg.recoverPct,
+      budgetMb: cfg.budgetMb,
+    },
     'memory guard started',
   );
   return guard;

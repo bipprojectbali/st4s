@@ -19,14 +19,17 @@ afterEach(() => setGuardHandle(null));
 
 const app = new Elysia({ prefix: '/api' }).use(v1Api);
 let admits = 0;
+let engines: unknown[] = [];
 function install(a: Admission) {
   admits = 0;
+  engines = [];
   setGuardHandle({
     status: () => {
       throw new Error('not used');
     },
-    admit: () => {
+    admit: (engine) => {
       admits++;
+      engines.push(engine);
       return a;
     },
   });
@@ -45,7 +48,7 @@ const speech = () =>
 
 describe('memoryGuardPlugin', () => {
   test('sheds speech and transcription requests with 503 + Retry-After', async () => {
-    install({ ok: false, retryAfterSec: 12 });
+    install({ ok: false, reason: 'pressure', retryAfterSec: 12 });
     const res = await speech();
     expect(res.status).toBe(503);
     expect(res.headers.get('retry-after')).toBe('12');
@@ -60,10 +63,21 @@ describe('memoryGuardPlugin', () => {
     const stt = await app.handle(new Request('http://localhost/api/v1/audio/transcriptions', { method: 'POST', body: form }));
     expect(stt.status).toBe(503);
     expect(admits).toBe(2);
+    expect(engines).toEqual(['tts', 'stt']);
+  });
+
+  test('budget refusal: 503 memory_pressure stating needed vs available MB', async () => {
+    install({ ok: false, reason: 'budget', retryAfterSec: 30, engine: 'tts', neededMb: 600, availableMb: 1 });
+    const res = await speech();
+    expect(res.status).toBe(503);
+    expect(res.headers.get('retry-after')).toBe('30');
+    const body = (await res.json()) as { error: { message: string; code: string } };
+    expect(body.error.code).toBe('memory_pressure');
+    expect(body.error.message).toContain('butuh 600 MB, tersedia 1 MB');
   });
 
   test('does not touch non-audio v1 routes', async () => {
-    install({ ok: false, retryAfterSec: 5 });
+    install({ ok: false, reason: 'pressure', retryAfterSec: 5 });
     const res = await app.handle(new Request('http://localhost/api/v1/models'));
     expect(res.status).toBe(200);
     expect(admits).toBe(0);

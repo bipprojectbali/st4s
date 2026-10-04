@@ -6,7 +6,8 @@ export type GuardLevel = 'normal' | 'warn' | 'critical' | 'emergency';
 export type GuardEngine = 'stt' | 'tts';
 /** null = engine not registered (or its unload is still pending). */
 export type EngineStates = Record<GuardEngine, EngineState | null>;
-export type Reading = { freePct: number | null; pressure: number | null };
+/** freeBytes feeds the cold-load budget; it is ignored when freePct is null (unreliable fallback figure). */
+export type Reading = { freePct: number | null; pressure: number | null; freeBytes?: number };
 export type UnloadReason = 'idle' | 'busy' | 'emergency';
 export type Unload = { engine: GuardEngine; reason: UnloadReason };
 
@@ -34,7 +35,7 @@ export const INITIAL_STATE: MachineState = {
 export const FAST_MS = 500;
 export const SLOW_MS = 10_000;
 
-/** Largest model first: STT child ~3 GB RSS, TTS ~460 MB. */
+/** Largest model first: STT child ~1.6 GB after load, ~3.45 GB from the first request on (CPU decode); TTS ~460 MB. */
 const UNLOAD_ORDER: readonly GuardEngine[] = ['stt', 'tts'];
 
 const PRESSURE_CRITICAL = 4;

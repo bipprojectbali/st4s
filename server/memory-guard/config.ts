@@ -1,4 +1,4 @@
-/** MEM_GUARD_* settings, validated once at boot (a bad ordering stops the server with a clear message). */
+/** MEM_GUARD_* and MEM_BUDGET_* settings, validated once at boot (a bad value stops the server with a clear message). */
 
 export type GuardConfig = {
   enabled: boolean;
@@ -13,6 +13,8 @@ export type GuardConfig = {
   recoverSec: number;
   /** Minimum gap between unload rounds so freed memory can show up in the reading. */
   cooldownSec: number;
+  /** Free RAM (MB) a COLD engine load needs before it is admitted; 0 disables that engine's check. */
+  budgetMb: { stt: number; tts: number };
 };
 
 export const GUARD_DEFAULTS: GuardConfig = {
@@ -23,6 +25,9 @@ export const GUARD_DEFAULTS: GuardConfig = {
   recoverPct: 40,
   recoverSec: 30,
   cooldownSec: 3,
+  // STT peak is ~3.45 GB (second GGUF copy + KV), but that copy is pageable on CPU decode; 2600 covers
+  // load + KV/compute with headroom and EMERGENCY still guards the rest. TTS child is ~460 MB.
+  budgetMb: { stt: 2600, tts: 600 },
 };
 
 type Env = Record<string, string | undefined>;
@@ -43,7 +48,15 @@ function seconds(env: Env, name: string, fallback: number): number {
   return v;
 }
 
-/** Parse and validate MEM_GUARD_*; throws when a value is malformed or the thresholds are out of order. */
+function megabytes(env: Env, name: string, fallback: number): number {
+  const raw = env[name]?.trim();
+  if (!raw) return fallback;
+  const v = Number(raw);
+  if (!Number.isInteger(v) || v < 0) throw new Error(`${name} harus bilangan bulat MB ≥ 0 (0 = nonaktif), dapat "${raw}".`);
+  return v;
+}
+
+/** Parse and validate MEM_GUARD_* and MEM_BUDGET_*; throws when a value is malformed or the thresholds are out of order. */
 export function loadGuardConfig(env: Env = process.env): GuardConfig {
   const d = GUARD_DEFAULTS;
   const cfg: GuardConfig = {
@@ -54,6 +67,10 @@ export function loadGuardConfig(env: Env = process.env): GuardConfig {
     recoverPct: pct(env, 'MEM_GUARD_RECOVER_PCT', d.recoverPct),
     recoverSec: seconds(env, 'MEM_GUARD_RECOVER_SEC', d.recoverSec),
     cooldownSec: seconds(env, 'MEM_GUARD_COOLDOWN_SEC', d.cooldownSec),
+    budgetMb: {
+      stt: megabytes(env, 'MEM_BUDGET_STT_MB', d.budgetMb.stt),
+      tts: megabytes(env, 'MEM_BUDGET_TTS_MB', d.budgetMb.tts),
+    },
   };
   if (!(cfg.emergencyPct < cfg.criticalPct && cfg.criticalPct < cfg.warnPct && cfg.warnPct < cfg.recoverPct))
     throw new Error(

@@ -129,6 +129,7 @@ describe('loadGuardConfig', () => {
       recoverPct: 40,
       recoverSec: 30,
       cooldownSec: 3,
+      budgetMb: { stt: 2600, tts: 600 },
     });
     expect(loadGuardConfig({ MEM_GUARD_ENABLED: 'false' }).enabled).toBe(false);
   });
@@ -140,5 +141,11 @@ describe('loadGuardConfig', () => {
     expect(() => loadGuardConfig({ MEM_GUARD_WARN_PCT: 'abc' })).toThrow('MEM_GUARD_WARN_PCT');
     expect(() => loadGuardConfig({ MEM_GUARD_EMERGENCY_PCT: '0' })).toThrow('1–99');
     expect(() => loadGuardConfig({ MEM_GUARD_RECOVER_SEC: '-1' })).toThrow('MEM_GUARD_RECOVER_SEC');
+  });
+  test('MEM_BUDGET_*_MB: integer MB ≥ 0, 0 disables, anything else fails', () => {
+    expect(loadGuardConfig({ MEM_BUDGET_STT_MB: '3000', MEM_BUDGET_TTS_MB: '0' }).budgetMb).toEqual({ stt: 3000, tts: 0 });
+    expect(() => loadGuardConfig({ MEM_BUDGET_STT_MB: '-1' })).toThrow('MEM_BUDGET_STT_MB');
+    expect(() => loadGuardConfig({ MEM_BUDGET_TTS_MB: '1.5' })).toThrow('bilangan bulat MB');
+    expect(() => loadGuardConfig({ MEM_BUDGET_TTS_MB: 'banyak' })).toThrow('MEM_BUDGET_TTS_MB');
   });
 });

@@ -7,6 +7,7 @@ import { setApiKeyIdentity } from '../../server/api-keys/identity';
 import { auth } from '../../server/auth';
 import { db } from '../../server/db';
 import { auditLog, user } from '../../server/db/schema';
+import { ENGINE_UNLOADED_MESSAGE, EngineUnloadedError, UNLOADED_RETRY_SEC } from '../../server/engines/errors';
 import { setEngines } from '../../server/engines/registry';
 import { setGuardHandle } from '../../server/memory-guard/state';
 import type { EngineState, EngineStatus, SttEngine, TtsEngine } from '../../server/engines/types';
@@ -195,8 +196,11 @@ describe('/api/engines', () => {
       pressure: 1,
       shedding: true,
       lastAction: null,
+      budgetMb: { stt: 2600, tts: 600 },
+      reservedMb: 0,
+      lastRefusal: null,
     };
-    setGuardHandle({ status: () => status, admit: () => ({ ok: false, retryAfterSec: 17 }) });
+    setGuardHandle({ status: () => status, admit: () => ({ ok: false, reason: 'pressure', retryAfterSec: 17 }) });
     expect((await call('/')).body.memoryGuard).toEqual(status);
     const res = await app.handle(new Request('http://localhost/engines/stt/warmup', { method: 'POST' }));
     expect(res.status).toBe(503);
@@ -207,5 +211,48 @@ describe('/api/engines', () => {
     expect((await call('/stt/unload', 'POST')).status).toBe(200);
     expect(stt.calls).toEqual(['unload']);
     setGuardHandle(null);
+  });
+
+  test('memory guard budget: a cold warmup short on RAM gets 503 MEMORY_PRESSURE with needed vs available MB', async () => {
+    ctx.actor = superAdmin;
+    const tts = fakeEngine('tts');
+    setEngines({ tts: tts.engine as unknown as TtsEngine });
+    const asked: unknown[] = [];
+    setGuardHandle({
+      status: () => {
+        throw new Error('unused');
+      },
+      admit: (engine) => {
+        asked.push(engine);
+        return { ok: false, reason: 'budget', retryAfterSec: 30, engine: 'tts', neededMb: 600, availableMb: 412 };
+      },
+    });
+    const res = await app.handle(new Request('http://localhost/engines/tts/warmup', { method: 'POST' }));
+    expect(res.status).toBe(503);
+    expect(res.headers.get('retry-after')).toBe('30');
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({ code: 'MEMORY_PRESSURE', status: 503, requestId: expect.any(String) });
+    expect(body.error).toContain('butuh 600 MB, tersedia 412 MB');
+    expect(asked).toEqual(['tts']);
+    expect(tts.calls).toEqual([]);
+    setGuardHandle(null);
+  });
+
+  test('warmup cut short by a concurrent unload: 503 ENGINE_UNLOADED + Retry-After', async () => {
+    ctx.actor = superAdmin;
+    const stt = fakeEngine('stt');
+    stt.engine.warmup = async () => {
+      throw new EngineUnloadedError('stt');
+    };
+    setEngines({ stt: stt.engine as unknown as SttEngine });
+    const res = await app.handle(new Request('http://localhost/engines/stt/warmup', { method: 'POST' }));
+    expect(res.status).toBe(503);
+    expect(res.headers.get('retry-after')).toBe(String(UNLOADED_RETRY_SEC));
+    expect(await res.json()).toEqual({
+      error: ENGINE_UNLOADED_MESSAGE,
+      code: 'ENGINE_UNLOADED',
+      status: 503,
+      requestId: expect.any(String),
+    });
   });
 });
