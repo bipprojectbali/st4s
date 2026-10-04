@@ -1,10 +1,10 @@
-// Real-model probe; run only under the model lock: S4S_REAL_ENGINE=1 NODE_ENV=test bun test tests/engines/tts-real.test.ts
+// Real-model probe; run only under the model lock: ST4S_REAL_ENGINE=1 NODE_ENV=test bun test tests/engines/tts-real.test.ts
 import { afterAll, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import { createTtsEngine } from '../../server/engines/tts';
 
-const enabled = process.env.S4S_REAL_ENGINE === '1';
-const PROBE_WAV = '/tmp/s4s-tts-probe.wav';
+const enabled = process.env.ST4S_REAL_ENGINE === '1';
+const PROBE_WAV = '/tmp/st4s-tts-probe.wav';
 const TEXT =
   'Halo, selamat pagi. Hari ini kita menguji suara bahasa Indonesia dengan Supertonic tiga.';
 

@@ -18,7 +18,7 @@ export type Spawner = (handlers: {
 // Source-mode entry; a compiled binary re-execs itself instead (see child-argv.ts).
 const CHILD_PATH = path.join(import.meta.dir, 'child.ts');
 
-/** Default spawner: `bun child.ts` (or `<binary> --s4s-engine-child tts`) with structured-clone IPC. */
+/** Default spawner: `bun child.ts` (or `<binary> --st4s-engine-child tts`) with structured-clone IPC. */
 export const bunSpawner: Spawner = ({ onMessage, onExit }) => {
   const proc = Bun.spawn(engineChildCommand('tts', CHILD_PATH), {
     serialization: 'advanced',

@@ -1,4 +1,4 @@
-# Makuro production image (single port).
+# st4s production image (single port).
 FROM oven/bun:1 AS build
 WORKDIR /app
 COPY package.json bun.lock* ./

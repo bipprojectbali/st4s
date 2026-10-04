@@ -32,7 +32,7 @@ import {
 import type { Route } from './+types/login-logs';
 
 export function meta() {
-  return [{ title: 'Login Logs — Makuro Dev' }];
+  return [{ title: 'Login Logs — st4s' }];
 }
 
 const LIMIT = 25;

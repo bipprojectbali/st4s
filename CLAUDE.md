@@ -1,4 +1,4 @@
-# CLAUDE.md — makuro-template
+# CLAUDE.md — st4s
 
 Aturan project ini menambah/override global `~/.claude/CLAUDE.md`.
 

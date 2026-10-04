@@ -1,5 +1,5 @@
 /** argv marker that makes the compiled binary run an engine child instead of the server. */
-export const ENGINE_CHILD_FLAG = '--s4s-engine-child';
+export const ENGINE_CHILD_FLAG = '--st4s-engine-child';
 
 /** Engine children the binary can re-exec itself as. */
 export type EngineChildKind = 'stt' | 'tts';

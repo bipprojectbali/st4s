@@ -18,12 +18,13 @@ import {
 import type { Route } from './+types/home';
 
 export function meta({ loaderData }: Route.MetaArgs) {
-  const name = loaderData?.branding.appName ?? 'Makuro';
-  const tagline = loaderData?.branding.appTagline ?? 'Fullstack Template';
+  const name = loaderData?.branding.appName ?? 'st4s';
+  const tagline =
+    loaderData?.branding.appTagline ?? 'speech-to-text & text-to-speech server kompatibel OpenAI';
   const title = `${name} — ${tagline}`;
   const url = `${loaderData?.siteUrl ?? ''}/`;
   const image = `${loaderData?.siteUrl ?? ''}/og.png`;
-  const description = `${name}: template fullstack Bun + Elysia + React Router SSR + Drizzle + Better Auth dengan konsol admin lengkap (user, sesi, log, audit, rate limit, settings) dan deploy satu binary. Siap produksi, MIT.`;
+  const description = `${name}: server speech-to-text & text-to-speech kompatibel OpenAI (Qwen3-ASR, Supertonic) dengan konsol admin, API key ber-scope, dan deploy satu binary.`;
   return [
     { title },
     { name: 'description', content: description },

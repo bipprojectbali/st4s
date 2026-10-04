@@ -135,5 +135,5 @@ const vite = await createViteServer({
 });
 
 server.listen(env.PORT, () => {
-  logger.info(`\u{1F680} Makuro dev server on http://localhost:${env.PORT}`);
+  logger.info(`\u{1F680} st4s dev server on http://localhost:${env.PORT}`);
 });

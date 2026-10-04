@@ -1,6 +1,6 @@
 /**
  * Binary entrypoint (bun build --compile). The engine spawners re-exec this
- * binary with `--s4s-engine-child stt|tts`; that argv is checked first and runs
+ * binary with `--st4s-engine-child stt|tts`; that argv is checked first and runs
  * the child module instead of the server (child source files do not exist
  * inside the binary).
  *
@@ -22,7 +22,7 @@ if (child === 'stt') {
   process.env.NODE_ENV ??= 'production';
   if (process.env.NODE_ENV !== 'production') {
     console.warn(
-      `[makuro] NODE_ENV=${process.env.NODE_ENV} — binary berjalan bukan dalam mode production (cek .env di direktori kerja).`,
+      `[st4s] NODE_ENV=${process.env.NODE_ENV} — binary berjalan bukan dalam mode production (cek .env di direktori kerja).`,
     );
   }
   await import('./prod');

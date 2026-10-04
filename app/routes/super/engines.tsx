@@ -18,7 +18,7 @@ import type { Route } from './+types/engines';
 const REFRESH_MS = 3000;
 
 export function meta() {
-  return [{ title: 'Engines — Makuro Dev' }];
+  return [{ title: 'Engines — st4s' }];
 }
 
 export async function loader({ request }: Route.LoaderArgs) {

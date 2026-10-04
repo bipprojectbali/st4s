@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build libcrispasr at the pinned upstream release plus the s4s patch, in its own source copy.
+# Build libcrispasr at the pinned upstream release plus the st4s patch, in its own source copy.
 # Env: CRISPASR_SRC (git checkout or URL to clone, default upstream GitHub; a local checkout such
 # as ~/tmp/stt skips most of the download), CRISPASR_DIR (build copy, default <repo>/.crispasr,
 # gitignored, whose lib STT loads by default), CRISPASR_TAG + CRISPASR_REF (release tag and the commit it must

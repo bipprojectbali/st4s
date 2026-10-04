@@ -89,7 +89,7 @@ describe('isTextFile', () => {
   });
 
   it('rejects binaries', () => {
-    expect(isTextFile('makuro')).toBe(false);
+    expect(isTextFile('st4s')).toBe(false);
     expect(isTextFile('img/logo.png')).toBe(false);
   });
 });

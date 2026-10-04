@@ -194,7 +194,7 @@ describe('POST /api/v1/audio/speech', () => {
 
   test('missing TTS model dir → 503 engine_unavailable, no synthesis', async () => {
     // Real engine with a model dir that does not exist: the sampleRate getter throws; no child is spawned.
-    setEngines({ tts: createTtsEngine({ config: { modelDir: '/nonexistent-s4s-tts-model' } }) });
+    setEngines({ tts: createTtsEngine({ config: { modelDir: '/nonexistent-st4s-tts-model' } }) });
     try {
       const res = await speak(ok({ response_format: 'wav' }));
       expect(res.status).toBe(503);

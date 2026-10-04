@@ -27,11 +27,11 @@ describe('describeError', () => {
 
 describe('errorHtml', () => {
   test('renders status, copy, request id and escapes input', async () => {
-    const html = errorHtml({ status: 500, requestId: 'abc123', appName: '<Makuro>' });
+    const html = errorHtml({ status: 500, requestId: 'abc123', appName: '<st4s>' });
     expect(html).toContain('Terjadi kesalahan di server');
     expect(html).toContain('abc123');
-    expect(html).toContain('&lt;Makuro&gt;');
-    expect(html).not.toContain('<Makuro>');
+    expect(html).toContain('&lt;st4s&gt;');
+    expect(html).not.toContain('<st4s>');
     expect(html).toContain('noindex');
     const res = errorResponse({ status: 503, requestId: 'r1' });
     expect(res.status).toBe(503);

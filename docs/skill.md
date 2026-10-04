@@ -1,11 +1,11 @@
 ---
-name: s4s-speech
+name: st4s-speech
 description: Self-hosted speech API (Qwen3-ASR speech-to-text, Supertonic 3 text-to-speech) that speaks the OpenAI audio API at {{BASE_URL}}/api/v1. Use it to transcribe audio files or live microphone audio, or to synthesize speech, especially Indonesian (default language "id"). Triggers - transcribe, speech-to-text, STT, subtitles, text-to-speech, TTS, voice, Indonesian audio.
 ---
 
 OpenAI-compatible: use the official openai SDK with base_url = {{BASE_URL}}/api/v1 and your API key.
 
-# s4s speech API
+# st4s speech API
 
 ## How it differs from OpenAI
 
@@ -29,10 +29,10 @@ OpenAI-compatible: use the official openai SDK with base_url = {{BASE_URL}}/api/
 curl:
 
 ```bash
-export S4S_API_KEY=mk_live_...   # your key
-curl {{BASE_URL}}/api/v1/audio/transcriptions -H "Authorization: Bearer $S4S_API_KEY" \
+export ST4S_API_KEY=mk_live_...   # your key
+curl {{BASE_URL}}/api/v1/audio/transcriptions -H "Authorization: Bearer $ST4S_API_KEY" \
   -F file=@clip.wav -F model=whisper-1 -F language=id
-curl {{BASE_URL}}/api/v1/audio/speech -H "Authorization: Bearer $S4S_API_KEY" \
+curl {{BASE_URL}}/api/v1/audio/speech -H "Authorization: Bearer $ST4S_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"model":"tts-1","voice":"alloy","input":"Selamat pagi.","response_format":"wav"}' -o pagi.wav
 ```
@@ -42,12 +42,12 @@ Python (`pip install openai`):
 ```python
 import os
 from openai import OpenAI
-client = OpenAI(api_key=os.environ["S4S_API_KEY"], base_url="{{BASE_URL}}/api/v1")
+client = OpenAI(api_key=os.environ["ST4S_API_KEY"], base_url="{{BASE_URL}}/api/v1")
 with open("clip.wav", "rb") as f:
     print(client.audio.transcriptions.create(model="whisper-1", file=f, language="id").text)
 with client.audio.speech.with_streaming_response.create(
     model="tts-1", voice="alloy", input="Selamat pagi.", response_format="wav",
-    extra_body={"language": "id"},  # s4s extension
+    extra_body={"language": "id"},  # st4s extension
 ) as res:
     res.stream_to_file("pagi.wav")
 ```
@@ -57,7 +57,7 @@ JavaScript (`npm i openai`):
 ```js
 import fs from 'node:fs';
 import OpenAI from 'openai';
-const client = new OpenAI({ apiKey: process.env.S4S_API_KEY, baseURL: '{{BASE_URL}}/api/v1' });
+const client = new OpenAI({ apiKey: process.env.ST4S_API_KEY, baseURL: '{{BASE_URL}}/api/v1' });
 const tr = await client.audio.transcriptions.create({
   file: fs.createReadStream('clip.wav'), model: 'whisper-1', language: 'id',
 });
@@ -75,7 +75,7 @@ fs.writeFileSync('pagi.wav', Buffer.from(await speech.arrayBuffer()));
 | `qwen3-asr-1.7b` | STT | `whisper-1`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe` |
 | `supertonic-3` | TTS | `tts-1`, `tts-1-hd`, `gpt-4o-mini-tts` |
 
-- `GET /api/v1/models` → `{object:"list", data:[{id, object:"model", created, owned_by:"s4s"}]}` (aliases included). `GET /api/v1/models/:id` → one model or `404 model_not_found`.
+- `GET /api/v1/models` → `{object:"list", data:[{id, object:"model", created, owned_by:"st4s"}]}` (aliases included). `GET /api/v1/models/:id` → one model or `404 model_not_found`.
 - `GET /api/v1/audio/voices` → `{object:"list", data:[{id, object:"voice", voice}]}`; `voice` is the native voice an alias maps to.
 - Native voices `F1`–`F5`, `M1`–`M5` (case-insensitive). OpenAI names map: alloy→F1, coral→F2, marin→F2, fable→F3, nova→F4, shimmer→F5, sage→F5, ash→M1, ballad→M2, echo→M3, onyx→M4, cedar→M4, verse→M5.
 
@@ -116,8 +116,8 @@ JSON body, scope `tts:speak`. Audio starts streaming after the first sentence gr
 | `response_format` | `mp3` | `mp3` (audio/mpeg), `opus` (audio/ogg), `aac`, `flac`, `wav`, `pcm` (raw 16-bit mono). Non-wav/pcm need ffmpeg on the server, else `400 unsupported_format`. |
 | `speed` | `1` | 0.25–4. |
 | `stream_format` | `audio` | `sse` → events `{"type":"speech.audio.delta","audio":"<base64>"}` then `{"type":"speech.audio.done","usage":{"input_tokens","output_tokens":0,"total_tokens"}}`. Not allowed with `tts-1`/`tts-1-hd` (OpenAI rule): use `gpt-4o-mini-tts`. |
-| `language` | server default (`id`) | s4s extension: en, ko, ja, ar, bg, cs, da, de, el, es, et, fi, fr, hi, hr, hu, id, it, lt, lv, nl, pl, pt, ro, ru, sk, sl, sv, tr, uk, vi, na. |
-| `steps` | server default (8) | s4s extension: denoising steps, clamped 1–20. More = slower, smoother. |
+| `language` | server default (`id`) | st4s extension: en, ko, ja, ar, bg, cs, da, de, el, es, et, fi, fr, hi, hr, hu, id, it, lt, lv, nl, pl, pt, ro, ru, sk, sl, sv, tr, uk, vi, na. |
+| `steps` | server default (8) | st4s extension: denoising steps, clamped 1–20. More = slower, smoother. |
 
 With the SDKs, pass extensions as `extra_body` (Python) or extra object keys (JS; cast if TypeScript complains).
 

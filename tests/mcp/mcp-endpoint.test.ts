@@ -189,7 +189,7 @@ describeIf('MCP handshake & JSON framing', () => {
     expect(raw.trimStart().startsWith('{')).toBe(true);
     expect(raw).not.toContain('event: message');
     const parsed = JSON.parse(raw) as { result?: { serverInfo?: { name?: string } } };
-    expect(parsed.result?.serverInfo?.name).toBe('makuro-debug');
+    expect(parsed.result?.serverInfo?.name).toBe('st4s-debug');
   });
 });
 

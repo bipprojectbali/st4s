@@ -32,7 +32,7 @@ export function BrandHeader({
   env,
   version,
   extra,
-  appName = 'Makuro',
+  appName = 'st4s',
 }: Props) {
   const toggle = (
     <Tooltip label={collapsed ? 'Perlebar sidebar' : 'Ciutkan sidebar'} position="right" withArrow>

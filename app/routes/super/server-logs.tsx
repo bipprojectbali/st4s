@@ -32,7 +32,7 @@ import {
 import type { Route } from './+types/server-logs';
 
 export function meta() {
-  return [{ title: 'Server Logs — Makuro Dev' }];
+  return [{ title: 'Server Logs — st4s' }];
 }
 
 export async function loader({ request }: Route.LoaderArgs) {

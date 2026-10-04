@@ -15,10 +15,10 @@ import { BlockList, isIP } from 'node:net';
 import { logger } from '../logger';
 
 /** Set by the HTTP servers from the socket address; never trusted from the wire. */
-export const CLIENT_IP_HEADER = 'x-makuro-client-ip';
+export const CLIENT_IP_HEADER = 'x-st4s-client-ip';
 
 /** Client IP after the trust rules, set by stampClientIp; the only IP header Better Auth reads. */
-export const RESOLVED_IP_HEADER = 'x-makuro-resolved-ip';
+export const RESOLVED_IP_HEADER = 'x-st4s-resolved-ip';
 
 /** Canonical, human-readable form (IPv4-mapped → IPv4, IPv6 loopback → 127.0.0.1). */
 export function normalizeIp(raw: string | null | undefined): string | null {

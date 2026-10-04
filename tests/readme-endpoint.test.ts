@@ -21,7 +21,7 @@ describe('agent docs', () => {
   test('llms.txt is an index derived from the README headings', async () => {
     const readme = await readmeText();
     const idx = llmsIndex(readme, 'https://example.test/', '9.9.9');
-    expect(idx.startsWith('# Makuro')).toBe(true);
+    expect(idx.startsWith('# st4s')).toBe(true);
     expect(idx).toContain('https://example.test/README.md');
     expect(idx).toContain('- API keys');
     expect(idx).toContain('- Untuk AI agent');

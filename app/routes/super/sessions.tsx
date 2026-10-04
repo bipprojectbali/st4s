@@ -39,7 +39,7 @@ import {
 import type { Route } from './+types/sessions';
 
 export function meta() {
-  return [{ title: 'Sessions — Makuro Dev' }];
+  return [{ title: 'Sessions — st4s' }];
 }
 
 const LIMIT = 25;

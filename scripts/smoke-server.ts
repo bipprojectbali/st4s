@@ -2,9 +2,9 @@
  * Boot a production server (script or compiled binary) on a free port, run the
  * black-box checks, print a table, exit non-zero on any failure.
  *
- *   bun scripts/smoke-server.ts ./makuro
+ *   bun scripts/smoke-server.ts ./st4s
  *   bun scripts/smoke-server.ts bun run server/prod.ts
- *   SMOKE_PORT=3090 bun scripts/smoke-server.ts ./makuro    (fixed port)
+ *   SMOKE_PORT=3090 bun scripts/smoke-server.ts ./st4s    (fixed port)
  *
  * Deliberately ignores PORT/NODE_ENV from the auto-loaded .env: the dev server
  * usually owns PORT, and a smoke run must exercise production mode.

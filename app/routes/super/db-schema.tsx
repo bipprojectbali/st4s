@@ -15,7 +15,7 @@ import { useTimeFormat } from '~/lib/time-format';
 import type { Route } from './+types/db-schema';
 
 export function meta(_: Route.MetaArgs) {
-  return [{ title: 'DB Schema — Makuro Dev' }];
+  return [{ title: 'DB Schema — st4s' }];
 }
 
 // React Flow touches browser APIs, so the canvas is loaded on the client only.

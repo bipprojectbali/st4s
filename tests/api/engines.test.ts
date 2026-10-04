@@ -73,9 +73,9 @@ function fakeEngine(kind: 'stt' | 'tts', failWarmup: boolean | Error = false) {
 }
 
 const g = globalThis as typeof globalThis & {
-  __s4sEngines?: { stt: SttEngine | null; tts: TtsEngine | null };
+  __st4sEngines?: { stt: SttEngine | null; tts: TtsEngine | null };
 };
-const previous = { ...(g.__s4sEngines ?? { stt: null, tts: null }) };
+const previous = { ...(g.__st4sEngines ?? { stt: null, tts: null }) };
 const app = new Elysia().use(enginesApi);
 
 async function call(path: string, method = 'GET') {

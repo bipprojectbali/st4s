@@ -10,7 +10,7 @@ import type { AppContext } from '~/lib/app-context';
 import type { Route } from './+types/layout';
 
 export function meta(_: Route.MetaArgs) {
-  return [{ title: 'Admin — Makuro' }];
+  return [{ title: 'Admin — st4s' }];
 }
 
 const NAV: NavItem[] = [{ to: '/dashboard', label: 'Dashboard', icon: FiHome }];

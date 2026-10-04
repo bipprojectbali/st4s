@@ -3,7 +3,7 @@ import { useApp } from '~/lib/app-context';
 import { useSession } from '~/lib/auth-client';
 
 export function meta() {
-  return [{ title: 'Dashboard — Makuro' }];
+  return [{ title: 'Dashboard — st4s' }];
 }
 
 export default function Dashboard() {

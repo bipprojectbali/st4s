@@ -3,9 +3,9 @@ import type { SttEngine, TtsEngine } from './types';
 /** Process-wide engine registry; kept on globalThis so the SSR bundle copy shares it. */
 type Slots = { stt: SttEngine | null; tts: TtsEngine | null };
 
-const g = globalThis as typeof globalThis & { __s4sEngines?: Slots };
-g.__s4sEngines ??= { stt: null, tts: null };
-const slots: Slots = g.__s4sEngines;
+const g = globalThis as typeof globalThis & { __st4sEngines?: Slots };
+g.__st4sEngines ??= { stt: null, tts: null };
+const slots: Slots = g.__st4sEngines;
 
 export function setEngines(next: Partial<Slots>): void {
   Object.assign(slots, next);

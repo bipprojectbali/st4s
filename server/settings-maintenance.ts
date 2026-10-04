@@ -96,7 +96,7 @@ function html(message: string, appName: string): string {
  */
 export async function maintenanceGate(
   request: Request,
-  appName = 'Makuro',
+  appName = 'st4s',
 ): Promise<Response | null> {
   const s = await getMaintenance();
   const pathname = new URL(request.url).pathname;

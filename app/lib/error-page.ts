@@ -91,4 +91,4 @@ export function errorReference(now = Date.now()): string {
   return `ERR-${now.toString(36).toUpperCase().slice(-6)}`;
 }
 
-export const ERROR_TITLE_SUFFIX = ' — Makuro';
+export const ERROR_TITLE_SUFFIX = ' — st4s';

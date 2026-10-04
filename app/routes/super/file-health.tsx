@@ -16,7 +16,7 @@ import {
 } from '~/lib/file-health-api';
 
 export function meta() {
-  return [{ title: 'File Health — Makuro Dev' }];
+  return [{ title: 'File Health — st4s' }];
 }
 
 export default function FileHealthPage() {

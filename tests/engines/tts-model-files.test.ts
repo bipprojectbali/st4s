@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { readSampleRate, readVoices } from '../../server/engines/tts/model-files';
 
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), 's4s-tts-model-files-'));
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'st4s-tts-model-files-'));
 afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
 
 describe('tts model files', () => {

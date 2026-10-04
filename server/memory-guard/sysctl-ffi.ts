@@ -4,7 +4,7 @@ import { logger } from '../logger';
 
 const LIBC = '/usr/lib/libSystem.B.dylib';
 
-const g = globalThis as typeof globalThis & { __s4sSysctlInt?: (name: string) => number };
+const g = globalThis as typeof globalThis & { __st4sSysctlInt?: (name: string) => number };
 
 /** Build a reader for 32-bit integer sysctls; throws when libc cannot be opened. */
 export function createSysctlInt(): (name: string) => number {
@@ -33,9 +33,9 @@ export function createSysctlInt(): (name: string) => number {
 /** Register the FFI reader on globalThis for server/system-memory.ts (darwin only, idempotent, falls back to spawn on failure). */
 export function installSysctlFfi(platform: NodeJS.Platform = process.platform): boolean {
   if (platform !== 'darwin') return false;
-  if (g.__s4sSysctlInt) return true;
+  if (g.__st4sSysctlInt) return true;
   try {
-    g.__s4sSysctlInt = createSysctlInt();
+    g.__st4sSysctlInt = createSysctlInt();
     return true;
   } catch (err) {
     logger.warn({ err, lib: LIBC }, 'sysctlbyname via FFI unavailable; memory reads spawn sysctl');

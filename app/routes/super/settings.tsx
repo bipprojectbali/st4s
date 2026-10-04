@@ -21,7 +21,7 @@ import {
 import type { Route } from './+types/settings';
 
 export function meta() {
-  return [{ title: 'Settings — Makuro Dev' }];
+  return [{ title: 'Settings — st4s' }];
 }
 
 /** Server-render the current values so the page never flashes empty controls. */

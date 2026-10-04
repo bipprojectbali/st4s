@@ -15,14 +15,14 @@ Blocker-nya ada di `CLAUDE.md` (bagian SEO & Meta Tags); file ini berisi format 
 // Halaman publik (landing, login, dll)
 export function meta(_: Route.MetaArgs) {
   return [
-    { title: 'Judul Halaman — Makuro' },
+    { title: 'Judul Halaman — st4s' },
     { name: 'description', content: 'Deskripsi singkat halaman ini, 120–160 karakter.' },
   ];
 }
 
 // Halaman app/admin (tidak diindex search engine, tapi title tetap wajib)
 export function meta() {
-  return [{ title: 'Nama Halaman — Makuro' }];
+  return [{ title: 'Nama Halaman — st4s' }];
 }
 ```
 
@@ -46,9 +46,9 @@ Untuk halaman yang bisa dishare (home, landing page):
 ```ts
 export function meta(_: Route.MetaArgs) {
   return [
-    { title: 'Makuro — Fullstack Template' },
+    { title: 'st4s — Fullstack Template' },
     { name: 'description', content: '...' },
-    { property: 'og:title', content: 'Makuro — Fullstack Template' },
+    { property: 'og:title', content: 'st4s — Fullstack Template' },
     { property: 'og:description', content: '...' },
     { property: 'og:type', content: 'website' },
   ];

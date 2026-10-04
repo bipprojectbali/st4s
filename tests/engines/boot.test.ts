@@ -7,12 +7,12 @@ import {
 } from '../../server/engines/child-argv';
 import { getStt, getTts, setEngines } from '../../server/engines/registry';
 
-const g = globalThis as { __s4sBootedEngines?: unknown };
+const g = globalThis as { __st4sBootedEngines?: unknown };
 
 afterAll(() => {
   // Leave the shared registry empty so no later test file sees real engines.
   setEngines({ stt: null, tts: null });
-  delete g.__s4sBootedEngines;
+  delete g.__st4sBootedEngines;
 });
 
 describe('bootEngines', () => {
@@ -37,26 +37,26 @@ describe('bootEngines', () => {
 
 describe('engine child argv', () => {
   test('server argv is not a child', () => {
-    expect(engineChildKind(['bun', '/$bunfs/root/makuro'])).toBeNull();
-    expect(engineChildKind(['bun', '/$bunfs/root/makuro', '--port', '3000'])).toBeNull();
+    expect(engineChildKind(['bun', '/$bunfs/root/st4s'])).toBeNull();
+    expect(engineChildKind(['bun', '/$bunfs/root/st4s', '--port', '3000'])).toBeNull();
   });
 
   test('flag selects the engine child', () => {
-    expect(engineChildKind(['bun', '/$bunfs/root/makuro', ENGINE_CHILD_FLAG, 'stt', '{}'])).toBe(
+    expect(engineChildKind(['bun', '/$bunfs/root/st4s', ENGINE_CHILD_FLAG, 'stt', '{}'])).toBe(
       'stt',
     );
-    expect(engineChildKind(['bun', '/$bunfs/root/makuro', ENGINE_CHILD_FLAG, 'tts'])).toBe('tts');
+    expect(engineChildKind(['bun', '/$bunfs/root/st4s', ENGINE_CHILD_FLAG, 'tts'])).toBe('tts');
   });
 
   test('unknown child kind fails loudly', () => {
-    expect(() => engineChildKind(['bun', 'makuro', ENGINE_CHILD_FLAG, 'gpu'])).toThrow(
+    expect(() => engineChildKind(['bun', 'st4s', ENGINE_CHILD_FLAG, 'gpu'])).toThrow(
       'expects "stt" or "tts"',
     );
   });
 
   test('binary re-execs itself; source mode runs the .ts entry', () => {
-    expect(engineChildCommand('stt', '/src/child.ts', true, '/opt/makuro')).toEqual([
-      '/opt/makuro',
+    expect(engineChildCommand('stt', '/src/child.ts', true, '/opt/st4s')).toEqual([
+      '/opt/st4s',
       ENGINE_CHILD_FLAG,
       'stt',
     ]);

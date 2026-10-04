@@ -9,7 +9,7 @@ import { checkTtsAudio, TTS_SELFTEST_TEXT } from '../../server/engines/tts/selft
 import type { Spawner } from '../../server/engines/tts/spawner';
 
 const RATE = 1000;
-const modelDir = fs.mkdtempSync(path.join(os.tmpdir(), 's4s-tts-selftest-'));
+const modelDir = fs.mkdtempSync(path.join(os.tmpdir(), 'st4s-tts-selftest-'));
 fs.mkdirSync(path.join(modelDir, 'onnx'));
 fs.mkdirSync(path.join(modelDir, 'voice_styles'));
 fs.writeFileSync(

@@ -19,10 +19,10 @@ const model = (id: string) => ({
   id,
   object: 'model' as const,
   created: MODELS_CREATED,
-  owned_by: 's4s',
+  owned_by: 'st4s',
 });
 
-/** s4s extension: `{ object:'list', data:[{ id, object:'voice', voice }] }` where `voice` is the native style an id maps to. */
+/** st4s extension: `{ object:'list', data:[{ id, object:'voice', voice }] }` where `voice` is the native style an id maps to. */
 function voiceList() {
   const native = NATIVE_VOICES.map((id) => ({ id, object: 'voice' as const, voice: id }));
   const aliases = Object.entries(VOICE_ALIASES).map(([id, voice]) => ({

@@ -10,7 +10,7 @@ import {
 // Worklet → main messages: a Float32Array frame, or this marker answering one flush request.
 const FLUSHED = 'flushed';
 
-const PROCESSOR = 's4s-mic-tap';
+const PROCESSOR = 'st4s-mic-tap';
 
 // Runs on the audio thread: buffers the first input channel and transfers each full frame.
 const WORKLET_SRC = `

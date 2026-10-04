@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createSttEngine } from '../../server/engines/stt';
 
-const REAL = process.env.S4S_REAL_ENGINE === '1';
+const REAL = process.env.ST4S_REAL_ENGINE === '1';
 const WAV = process.env.STT_TEST_WAV ?? path.join(os.homedir(), 'tmp/stt/audio.wav');
 
 /** Minimal RIFF/WAVE PCM16 reader → 16 kHz mono Float32 (linear resample, channel mixdown). */

@@ -9,8 +9,8 @@ export type BrandingSettings = {
 };
 
 export const BRANDING_DEFAULTS: Branding = {
-  appName: 'Makuro',
-  appTagline: 'Fullstack Template',
+  appName: 'st4s',
+  appTagline: 'speech-to-text & text-to-speech server kompatibel OpenAI',
   supportUrl: null,
 };
 
