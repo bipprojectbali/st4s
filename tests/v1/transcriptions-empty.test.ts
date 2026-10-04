@@ -99,8 +99,6 @@ describe('empty transcript', () => {
     });
     const events: { type: string; text?: string }[] = [];
     for await (const e of stream) events.push(e);
-    expect(events).toEqual([
-      { type: 'transcript.text.done', text: '', usage: { type: 'duration', seconds: 2 } },
-    ] as unknown as typeof events);
+    expect(events).toEqual([{ type: 'transcript.text.done', text: '' }]);
   });
 });

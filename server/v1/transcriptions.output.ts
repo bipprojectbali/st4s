@@ -12,11 +12,20 @@ import { v1EngineUnloaded, v1Error, v1ErrorBody } from './errors';
 import { toSrt, toVtt } from './subtitles';
 import type { ResponseFormat } from './transcriptions.form';
 
-/** OpenAI bills audio per started second; `usage` mirrors that. */
+/**
+ * OpenAI bills audio per started second; `usage` mirrors that. The SDK allows this shape on json,
+ * verbose_json and realtime `completed`, but not on `transcript.text.done` (tokens only).
+ */
 export const usage = (seconds: number) => ({
   type: 'duration' as const,
   seconds: Math.ceil(seconds),
 });
+
+const languageNames = new Intl.DisplayNames(['en'], { type: 'language', fallback: 'none' });
+
+/** ISO 639 code → lowercase English name as whisper-1 reports it ("id" → "indonesian"); unknown codes pass through. */
+export const languageName = (code: string) =>
+  /^[a-z]{2,3}$/i.test(code) ? (languageNames.of(code)?.toLowerCase() ?? code) : code;
 
 const plain = (body: string, type = 'text/plain; charset=utf-8') =>
   new Response(body, { headers: { 'content-type': type, 'cache-control': 'no-store' } });
@@ -44,7 +53,7 @@ function verbose(r: TranscribeResult, duration: number, withWords: boolean) {
   );
   return {
     task: 'transcribe' as const,
-    language: r.language,
+    language: languageName(r.language),
     duration,
     text: r.text,
     segments,
@@ -96,7 +105,6 @@ type StreamArgs = {
   engine: SttEngine;
   req: Omit<TranscribeRequest, 'onDelta' | 'signal'>;
   ctrl: AbortController;
-  duration: number;
   requestId: string;
   onEnd: (status: number) => void;
 };
@@ -109,7 +117,6 @@ export async function streamTranscript({
   engine,
   req,
   ctrl,
-  duration,
   requestId,
   onEnd,
 }: StreamArgs): Promise<Response> {
@@ -159,7 +166,8 @@ export async function streamTranscript({
   run.then(
     (r) => {
       if (!sentDelta && r.text) push({ type: 'transcript.text.delta', delta: r.text });
-      push({ type: 'transcript.text.done', text: r.text, usage: usage(duration) });
+      // No `usage`: the SDK types it as token counts only, and Qwen3-ASR has none to report honestly.
+      push({ type: 'transcript.text.done', text: r.text });
       close();
       onEnd(200);
     },

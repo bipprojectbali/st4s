@@ -77,7 +77,7 @@ describe('openai SDK — audio.transcriptions.create', () => {
       timestamp_granularities: ['word', 'segment'],
     });
     expect(fakeStt.last?.wordTimestamps).toBe(true);
-    expect(res.language).toBe('id');
+    expect(res.language).toBe('indonesian');
     expect(res.duration).toBe(1);
     expect(res.segments?.[0]).toMatchObject({
       id: 0,

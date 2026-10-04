@@ -54,6 +54,7 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 - Klien yang memutus koneksi saat transkripsi berjalan kini menghentikan job di batas potongan berikutnya, sehingga request berikutnya di antrean tidak ikut menunggu.
 - Job transkripsi yang terhenti karena engine di-unload kini dijawab `503 engine_unavailable` + `Retry-After` (bukan 500), dan unload yang dipanggil bersamaan tidak lagi menggantung.
 - Event error di tengah stream transkripsi kini membawa `type: 'error'` seperti event SSE lainnya.
+- Respons transkripsi kini sesuai bentuk SDK OpenAI: `language` di `verbose_json` berupa nama bahasa seperti whisper-1 (`"indonesian"`, bukan `"id"`), dan event `transcript.text.done` tidak lagi membawa `usage` berbentuk durasi yang tidak dikenal SDK di event itu (`json`/`verbose_json` tetap membawa `usage` durasi).
 - Respons text-to-speech panjang dalam format `mp3`/`opus`/`aac`/`flac` tidak lagi terpotong di tengah saat antrean engine ramai. `TTS_FFMPEG_TIMEOUT_MS` kini batas idle (tanpa audio baru), bukan batas total durasi stream.
 - `/api/v1/audio/speech` menjawab `503 engine_unavailable` (bukan 500) bila direktori model TTS tidak ditemukan.
 - Beberapa project turunan template kini bisa menjalankan `bun run dev` bersamaan di port berbeda. HMR memakai port aplikasi itu sendiri, bukan port 24678 bersama, sehingga error `WebSocket server error: Port ... is already in use` hilang dan browser tidak lagi menerima hot reload dari project lain.

@@ -71,7 +71,6 @@ async function transcribe(
       engine,
       req,
       ctrl,
-      duration: decoded.durationSec,
       requestId,
       onEnd: (status) => {
         request.signal.removeEventListener('abort', abort);

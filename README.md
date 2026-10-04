@@ -346,8 +346,8 @@ const models = await client.models.list();
 
 Multipart dengan `file` dan `model`. Opsi:
 
-- `response_format`: `json` (default), `text`, `srt`, `vtt`, `verbose_json` (+ `timestamp_granularities[]` = `word`/`segment`).
-- `stream=true` (hanya untuk `json`/`text`): SSE `transcript.text.delta` lalu `transcript.text.done` dengan `usage: { type: 'duration', seconds }`. Qwen3-ASR tidak punya callback per token, jadi delta datang **per potongan VAD**, bukan per kata — audio pendek bisa hanya satu delta.
+- `response_format`: `json` (default), `text`, `srt`, `vtt`, `verbose_json` (+ `timestamp_granularities[]` = `word`/`segment`). `json` dan `verbose_json` membawa `usage: { type: 'duration', seconds }`; `language` di `verbose_json` berupa nama bahasa seperti whisper-1 (`"indonesian"`, `"english"`), bukan kode.
+- `stream=true` (hanya untuk `json`/`text`): SSE `transcript.text.delta` lalu `transcript.text.done` **tanpa** `usage` — SDK OpenAI hanya mengenal usage token di event itu dan s4s tidak menghitung token. Qwen3-ASR tidak punya callback per token, jadi delta datang **per potongan VAD**, bukan per kata — audio pendek bisa hanya satu delta.
 - `language`: kode ISO-639-1; kosong → `STT_DEFAULT_LANGUAGE` (default `id`). **Beda dari OpenAI:** OpenAI mendeteksi bahasa otomatis bila `language` kosong, s4s menganggapnya bahasa Indonesia. Untuk audio bahasa lain kirim `language`, atau set `STT_DEFAULT_LANGUAGE=auto` (butuh `STT_LID_MODEL`).
 - `prompt` dan ekstensi s4s `keywords` (dipisah koma) dikirim sebagai hotword ke decoder; gabungan maks. 50 istilah dan 1000 karakter, lebih dari itu → `400` dengan `param: 'keywords'`.
 - Audio: WAV didecode langsung (PCM 8/16/24/32-bit atau float32); `flac`, `mp3`, `mp4`, `mpeg`, `mpga`, `m4a`, `ogg`, `webm` lewat ffmpeg.
