@@ -14,7 +14,7 @@ const COPY: Record<EngineAction, { title: string; body: string; confirm: string;
   },
   unload: {
     title: 'Keluarkan model dari memori?',
-    body: 'Model akan dikeluarkan dari memori; request berikutnya memuat ulang (STT ±14 dtk).',
+    body: 'Model akan dikeluarkan dari memori; request berikutnya menunggu model dimuat ulang.',
     confirm: 'Unload engine',
     done: 'dikeluarkan dari memori',
   },

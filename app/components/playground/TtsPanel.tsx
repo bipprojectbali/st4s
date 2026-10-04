@@ -30,6 +30,9 @@ const SAMPLE = 'Halo! Ini contoh suara dari Supertonic yang diputar langsung saa
 
 type Stats = { ttfaMs: number | null; totalMs: number | null; audioSec: number };
 
+const fmtSpeed = (v: number) =>
+  `${v.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}×`;
+
 /** Text → streamed PCM played progressively via WebAudio, plus a WAV download. */
 export function TtsPanel(props: {
   voices: string[];
@@ -168,7 +171,7 @@ export function TtsPanel(props: {
           />
           <div style={{ minWidth: 160 }}>
             <Text size="sm" fw={500}>
-              Kecepatan {speed.toFixed(2)}×
+              Kecepatan {fmtSpeed(speed)}
             </Text>
             <Slider
               min={0.25}
@@ -176,7 +179,7 @@ export function TtsPanel(props: {
               step={0.05}
               value={speed}
               onChange={setSpeed}
-              label={(v) => `${v.toFixed(2)}×`}
+              label={fmtSpeed}
               mt={6}
             />
           </div>
@@ -232,7 +235,7 @@ export function TtsPanel(props: {
             <Badge variant="light" color="teal">
               Audio pertama {formatMs(stats.ttfaMs)}
             </Badge>
-            <Badge variant="light">Audio {stats.audioSec.toFixed(1)} dtk</Badge>
+            <Badge variant="light">Audio {formatMs(stats.audioSec * 1000)}</Badge>
             <Badge variant="light" color="grape">
               Stream selesai {formatMs(stats.totalMs)}
             </Badge>

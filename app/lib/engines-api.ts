@@ -38,12 +38,13 @@ export const STATE_META: Record<EngineState, { label: string; color: string }> =
   error: { label: 'Error', color: 'red' },
 };
 
-/** "1,2 GB" / "340 MB"; dash for unknown. */
+/** "1,2 GB" / "340 MB" / "12,5 KB" / "11 B"; dash for unknown. */
 export function formatBytes(n: number | null | undefined): string {
   if (n == null) return '—';
   const nf = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 1 });
   if (n >= 1024 ** 3) return `${nf.format(n / 1024 ** 3)} GB`;
-  return `${nf.format(n / 1024 ** 2)} MB`;
+  if (n >= 1024 ** 2) return `${nf.format(n / 1024 ** 2)} MB`;
+  return n >= 1024 ? `${nf.format(n / 1024)} KB` : `${n} B`;
 }
 
 /** "850 ms" / "2,4 dtk"; dash for unknown. */

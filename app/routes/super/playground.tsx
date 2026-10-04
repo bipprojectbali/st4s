@@ -37,8 +37,8 @@ export default function PlaygroundPage({ loaderData: d }: Route.ComponentProps) 
         <div>
           <Title order={3}>Playground</Title>
           <Text size="sm" c="dimmed">
-            Coba endpoint /api/v1/audio dengan sesi browser ini. Request pertama memuat model (STT
-            ±14 dtk) bila engine belum di-warmup.
+            Coba endpoint /api/v1/audio dengan sesi browser ini. Request pertama menunggu model
+            dimuat bila engine belum di-warmup.
           </Text>
         </div>
         <Button

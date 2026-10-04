@@ -15,6 +15,18 @@ export type SpeechRequest = {
   language: string;
 };
 
+const NETWORK_ERROR = 'Koneksi ke server terputus. Pastikan server berjalan lalu coba lagi.';
+
+/** Browser network failures surface as TypeError ("Failed to fetch") — rethrow with a readable message. */
+async function net<T>(p: Promise<T>): Promise<T> {
+  try {
+    return await p;
+  } catch (e) {
+    if (e instanceof TypeError) throw new Error(NETWORK_ERROR, { cause: e });
+    throw e;
+  }
+}
+
 async function ensureOk(res: Response, fallback: string): Promise<Response> {
   if (!res.ok) throw new Error(await apiErrorMessage(res, fallback));
   return res;
@@ -33,20 +45,27 @@ export async function streamTranscription(
   if (req.language) form.append('language', req.language);
   if (req.keywords.trim()) form.append('keywords', req.keywords.trim());
   const res = await ensureOk(
-    await fetch(`${V1}/transcriptions`, { method: 'POST', body: form, signal }),
+    await net(fetch(`${V1}/transcriptions`, { method: 'POST', body: form, signal })),
     'Transkripsi gagal',
   );
   const done: { text: string | null; seconds: number | null } = { text: null, seconds: null };
-  await readSse(res, (e) => {
-    const msg = sseErrorMessage(e);
-    if (msg) throw new Error(msg);
-    const ev = e as { type?: string; delta?: string; text?: string; usage?: { seconds?: number } };
-    if (ev.type === 'transcript.text.delta' && ev.delta) onDelta(ev.delta);
-    if (ev.type === 'transcript.text.done') {
-      done.text = ev.text ?? '';
-      done.seconds = ev.usage?.seconds ?? null;
-    }
-  });
+  await net(
+    readSse(res, (e) => {
+      const msg = sseErrorMessage(e);
+      if (msg) throw new Error(msg);
+      const ev = e as {
+        type?: string;
+        delta?: string;
+        text?: string;
+        usage?: { seconds?: number };
+      };
+      if (ev.type === 'transcript.text.delta' && ev.delta) onDelta(ev.delta);
+      if (ev.type === 'transcript.text.done') {
+        done.text = ev.text ?? '';
+        done.seconds = ev.usage?.seconds ?? null;
+      }
+    }),
+  );
   if (done.text === null)
     throw new Error('Stream transkripsi berakhir tanpa hasil akhir. Coba lagi.');
   return { text: done.text, seconds: done.seconds };
@@ -70,34 +89,40 @@ export async function streamSpeech(
   signal: AbortSignal,
 ): Promise<void> {
   const res = await ensureOk(
-    await fetch(`${V1}/speech`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: speechBody(req, { response_format: 'pcm', stream_format: 'sse' }),
-      signal,
-    }),
+    await net(
+      fetch(`${V1}/speech`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: speechBody(req, { response_format: 'pcm', stream_format: 'sse' }),
+        signal,
+      }),
+    ),
     'Sintesis suara gagal',
   );
-  await readSse(res, (e) => {
-    const msg = sseErrorMessage(e);
-    if (msg) throw new Error(msg);
-    const ev = e as { type?: string; audio?: string };
-    if (ev.type === 'speech.audio.delta' && ev.audio) onChunk(base64ToBytes(ev.audio));
-  });
+  await net(
+    readSse(res, (e) => {
+      const msg = sseErrorMessage(e);
+      if (msg) throw new Error(msg);
+      const ev = e as { type?: string; audio?: string };
+      if (ev.type === 'speech.audio.delta' && ev.audio) onChunk(base64ToBytes(ev.audio));
+    }),
+  );
 }
 
 /** Non-streamed WAV of the same request, for download. */
 export async function fetchSpeechWav(req: SpeechRequest, signal: AbortSignal): Promise<Blob> {
   const res = await ensureOk(
-    await fetch(`${V1}/speech`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: speechBody(req, { response_format: 'wav' }),
-      signal,
-    }),
+    await net(
+      fetch(`${V1}/speech`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: speechBody(req, { response_format: 'wav' }),
+        signal,
+      }),
+    ),
     'Gagal membuat WAV',
   );
-  return res.blob();
+  return net(res.blob());
 }
 
 /** Trigger a browser download of `blob`. */

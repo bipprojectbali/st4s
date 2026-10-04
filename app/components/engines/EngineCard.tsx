@@ -127,7 +127,17 @@ export function EngineCard({
           <Field label="Request / error" value={`${s.stats.requests} / ${s.stats.errors}`} />
           <Field label="p50" value={formatMs(s.stats.p50Ms)} />
           <Field label="p95" value={formatMs(s.stats.p95Ms)} />
-          <Field label="RTF p50" value={s.stats.rtfP50 == null ? '—' : s.stats.rtfP50.toFixed(2)} />
+          <Field
+            label="RTF p50"
+            value={
+              s.stats.rtfP50 == null
+                ? '—'
+                : s.stats.rtfP50.toLocaleString('id-ID', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })
+            }
+          />
         </SimpleGrid>
       </Stack>
     </Paper>

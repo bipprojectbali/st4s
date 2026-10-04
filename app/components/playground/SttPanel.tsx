@@ -49,6 +49,7 @@ export function SttPanel({
   const [result, setResult] = useState<Result | null>(null);
   const [running, setRunning] = useState(false);
   const abort = useRef<AbortController | null>(null);
+  const resetFile = useRef<() => void>(null);
   const fail = (title: string, e: unknown) =>
     notifications.show({ color: 'red', title, message: (e as Error).message });
 
@@ -106,7 +107,12 @@ export function SttPanel({
             {recorder.recording ? 'Berhenti merekam' : 'Rekam'}
           </Button>
           <FileButton
-            onChange={(f) => f && setAudio({ blob: f, name: f.name })}
+            onChange={(f) => {
+              if (f) setAudio({ blob: f, name: f.name });
+              // The input keeps its value; clear it so picking the same file again fires onChange.
+              resetFile.current?.();
+            }}
+            resetRef={resetFile}
             accept="audio/*,video/*"
           >
             {(props) => (
@@ -190,7 +196,7 @@ export function SttPanel({
         {result && (
           <Group gap="xs" wrap="wrap">
             <Badge variant="light">
-              Audio {result.seconds == null ? '—' : `${result.seconds} dtk`}
+              Audio {formatMs(result.seconds == null ? null : result.seconds * 1000)}
             </Badge>
             <Badge variant="light" color="teal">
               Teks pertama {formatMs(result.firstDeltaMs)}
