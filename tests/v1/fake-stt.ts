@@ -2,6 +2,7 @@
 import { spyOn } from 'bun:test';
 import { api } from '../../server/api';
 import { auth } from '../../server/auth';
+import { SttUnloadedError } from '../../server/engines/stt/errors';
 import { EngineBusyError, type SttEngine, type TranscribeRequest, type TranscribeResult } from '../../server/engines/types';
 import * as rolesMod from '../../server/roles';
 
@@ -25,18 +26,29 @@ export const TRANSCRIPT: TranscribeResult = {
 };
 export const DELTAS = ['Halo', ' dunia.', ' Apa kabar?'];
 
-type Mode = 'ok' | 'busy' | 'boom' | 'hang-after-delta';
+// Read through a function so status() keeps the EngineStatus type (fakeStt's own `this` is Record<string, unknown>).
+const fakeQueued = (): number => fakeStt.queued;
+
+type Mode = 'ok' | 'busy' | 'boom' | 'unloaded' | 'hang-after-delta' | 'boom-after-delta';
 
 /** Fake engine: `mode` picks the behaviour, `last` keeps the last request, `aborted` flips when the signal fires. */
 export const fakeStt = {
   mode: 'ok' as Mode,
   last: null as TranscribeRequest | null,
   aborted: false,
+  /** Reported as status().queued, to drive the route's queue-full check. */
+  queued: 0,
   async transcribe(req: TranscribeRequest): Promise<TranscribeResult> {
     this.last = req;
     req.signal?.addEventListener('abort', () => (this.aborted = true), { once: true });
     if (this.mode === 'busy') throw new EngineBusyError('stt', 7);
     if (this.mode === 'boom') throw new Error('child process exploded at /secret/path');
+    if (this.mode === 'unloaded') throw new SttUnloadedError();
+    if (this.mode === 'boom-after-delta') {
+      req.onDelta?.(DELTAS[0]);
+      await Bun.sleep(1);
+      throw new Error('child crashed mid-stream');
+    }
     if (this.mode === 'hang-after-delta') {
       req.onDelta?.(DELTAS[0]);
       return new Promise((_, reject) => req.signal?.addEventListener('abort', () => reject(new Error('aborted'))));
@@ -47,21 +59,23 @@ export const fakeStt = {
     }
     return TRANSCRIPT;
   },
-  status: () => ({
+  status() {
+    return {
     kind: 'stt' as const,
     model: 'fake',
     state: 'ready' as const,
-    queued: 0,
+    queued: fakeQueued(),
     loadedAt: null,
     lastError: null,
     rssBytes: null,
     stats: { requests: 0, errors: 0, p50Ms: null, p95Ms: null, rtfP50: null },
-  }),
+    };
+  },
   warmup: async () => {},
   unload: async () => {},
 } satisfies SttEngine & Record<string, unknown>;
 
-export const resetFake = () => Object.assign(fakeStt, { mode: 'ok', last: null, aborted: false });
+export const resetFake = () => Object.assign(fakeStt, { mode: 'ok', last: null, aborted: false, queued: 0 });
 
 /** Bearer token the stubbed session lookup treats as a signed-in user (not an mk_live key). */
 export const SESSION_TOKEN = 'test-session-token';

@@ -2,6 +2,7 @@ import path from 'node:path';
 import { logger } from '../../logger';
 import { EngineBusyError, type EngineState, type SttEngine, type TranscribeRequest, type TranscribeResult } from '../types';
 import { loadSttConfig, type SttConfig } from './config';
+import { SttUnloadedError } from './errors';
 import { spawnBunChild, type SttChild, type SttSpawner } from './host';
 import type { FromChild } from './protocol';
 import { RollingStats } from './stats';
@@ -36,6 +37,7 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine {
   let ready: Promise<void> | null = null;
   let settleReady: { ok(): void; fail(e: Error): void } | null = null;
   let exited: (() => void) | null = null;
+  let unloading: Promise<void> | null = null;
   let state: EngineState = 'unloaded';
   let loadedAt: string | null = null;
   let lastError: string | null = null;
@@ -81,7 +83,9 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine {
     current = null;
     state = 'ready';
     const ms = performance.now() - job.startedAt;
-    if (m.t === 'result') {
+    if (m.t === 'cancelled') {
+      log.info({ id: job.id, ms: Math.round(ms) }, 'stt cancelled between spans');
+    } else if (m.t === 'result') {
       stats.ok(ms, m.result.duration);
       log.info({ ms: Math.round(ms), audioSec: m.result.duration, segments: m.result.segments.length, dropped: job.dropped }, 'stt done');
       if (!job.dropped) job.resolve(m.result);
@@ -106,7 +110,7 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine {
     if (expectedExit) {
       state = expectedExit;
       expectedExit = null;
-      err = new Error('STT engine unloaded');
+      err = new SttUnloadedError();
     } else {
       err = fail(`STT child process exited unexpectedly (code ${code}, signal ${signal})`);
       state = 'error';
@@ -184,13 +188,16 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine {
     }
     return new Promise<TranscribeResult>((resolve, reject) => {
       const job: Job = { id: nextId++, req, resolve, reject, dropped: false, startedAt: 0 };
-      // ponytail: a running decode cannot be interrupted over FFI; it finishes and its result is discarded.
       req.signal?.addEventListener(
         'abort',
         () => {
           const i = queue.indexOf(job);
           if (i >= 0) queue.splice(i, 1);
-          else job.dropped = true;
+          else {
+            job.dropped = true;
+            // The span in flight cannot be interrupted over FFI; the child stops at the next span boundary.
+            if (current === job && job.startedAt > 0) child?.send({ t: 'cancel', id: job.id });
+          }
           reject(abortError(req.signal!));
         },
         { once: true },
@@ -200,14 +207,19 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine {
     });
   }
 
-  async function unload(): Promise<void> {
+  /** Concurrent callers share one in-flight unload. */
+  function unload(): Promise<void> {
     if (idleTimer) clearTimeout(idleTimer);
     idleTimer = null;
-    if (!child) return;
-    const done = new Promise<void>((r) => (exited = r));
-    expectedExit = 'unloaded';
-    child.kill();
-    await done;
+    if (unloading) return unloading;
+    if (!child) return Promise.resolve();
+    const c = child;
+    unloading = new Promise<void>((r) => {
+      exited = r;
+      expectedExit = 'unloaded';
+      c.kill();
+    }).finally(() => (unloading = null));
+    return unloading;
   }
 
   async function warmup(): Promise<void> {

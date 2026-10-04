@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { createSttEngine } from '../../server/engines/stt';
 import type { SttChildEvents, SttSpawner } from '../../server/engines/stt/host';
-import type { ToChild } from '../../server/engines/stt/protocol';
+import { SttUnloadedError } from '../../server/engines/stt/errors';
+import type { ToChild, TranscribeMsg } from '../../server/engines/stt/protocol';
 import { EngineBusyError, type TranscribeResult } from '../../server/engines/types';
 
 type FakeChild = { on: SttChildEvents; sent: ToChild[]; killed: boolean };
@@ -25,6 +26,7 @@ function fakeSpawner(opts: { autoReady?: boolean } = {}) {
 }
 
 const tick = () => Bun.sleep(1);
+const jobs = (c: FakeChild) => c.sent.filter((m): m is TranscribeMsg => m.t === 'transcribe');
 const audio = (sec = 1) => new Float32Array(16_000 * sec);
 const result = (text: string): TranscribeResult => ({ text, language: 'id', duration: 1, segments: [] });
 
@@ -50,7 +52,7 @@ describe('stt engine (fake child)', () => {
     expect(eng.status()).toMatchObject({ state: 'busy', queued: 2, model: 'qwen3-asr' });
 
     for (let i = 0; i < 3; i++) {
-      const m = c.sent[i]!;
+      const m = jobs(c)[i]!;
       expect(m.language).toBe('id');
       reply(c, m.id, `r${i}`);
       await tick();
@@ -117,10 +119,11 @@ describe('stt engine (fake child)', () => {
     const c = f.children[0]!;
     c.on.message({ t: 'delta', id: 1, text: 'ignored' });
     expect(deltas).toEqual([]);
+    expect(c.sent.at(-1)).toEqual({ t: 'cancel', id: 1 });
     reply(c, 1, 'late');
     await tick();
     // job 2 never reached the child
-    expect(c.sent.map((m) => m.id)).toEqual([1, 3]);
+    expect(jobs(c).map((m) => m.id)).toEqual([1, 3]);
     reply(c, 3, 'third');
     expect((await p3).text).toBe('third');
   });
@@ -216,7 +219,43 @@ describe('stt engine (fake child)', () => {
     const p = eng.transcribe({ audio: audio() });
     await tick();
     await eng.unload();
-    await expect(p).rejects.toThrow('STT engine unloaded');
+    const err = await p.catch((e) => e);
+    expect(err).toBeInstanceOf(SttUnloadedError);
+    expect(err.message).toBe('STT engine unloaded');
     expect(eng.status().state).toBe('unloaded');
+  });
+
+  test('concurrent unload calls all resolve and kill the child once', async () => {
+    const f = fakeSpawner();
+    const eng = make(f.spawn);
+    await eng.warmup();
+    let kills = 0;
+    const c = f.children[0]!;
+    const origOn = c.on.exit;
+    c.on.exit = (...a) => (kills++, origOn(...a));
+    const done = await Promise.all([eng.unload(), eng.unload(), eng.unload()]);
+    expect(done).toHaveLength(3);
+    expect(kills).toBe(1);
+    expect(eng.status().state).toBe('unloaded');
+    await eng.unload();
+  });
+
+  test('a cancelled reply frees the queue for the next job without counting an error', async () => {
+    const f = fakeSpawner();
+    const eng = make(f.spawn);
+    const ac = new AbortController();
+    const p1 = eng.transcribe({ audio: audio(), signal: ac.signal });
+    const p2 = eng.transcribe({ audio: audio() });
+    await tick();
+    const c = f.children[0]!;
+    ac.abort();
+    await expect(p1).rejects.toThrow();
+    expect(c.sent.map((m) => m.t)).toEqual(['transcribe', 'cancel']);
+    c.on.message({ t: 'cancelled', id: 1, rss: 1 });
+    await tick();
+    expect(jobs(c).map((m) => m.id)).toEqual([1, 2]);
+    reply(c, 2, 'next');
+    expect((await p2).text).toBe('next');
+    expect(eng.status().stats.errors).toBe(0);
   });
 });

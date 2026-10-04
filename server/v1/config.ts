@@ -22,4 +22,12 @@ export const v1Config = {
   get ffmpegTimeoutMs() {
     return num('V1_FFMPEG_TIMEOUT_MS', 120_000);
   },
+  /** V1_DECODE_CONCURRENCY (default 2): uploads decoded at once; each holds its upload + ffmpeg + PCM buffers. */
+  get decodeConcurrency() {
+    return Math.max(1, Math.floor(num('V1_DECODE_CONCURRENCY', 2)));
+  },
+  /** V1_DECODE_WAIT_MS (default 5000): longest wait for a decode slot before the API answers 429. */
+  get decodeWaitMs() {
+    return num('V1_DECODE_WAIT_MS', 5_000);
+  },
 };

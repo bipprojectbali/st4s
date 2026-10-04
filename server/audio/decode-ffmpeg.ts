@@ -11,7 +11,7 @@ export async function ffmpegTo16kMono(bin: string, bytes: Uint8Array<ArrayBuffer
   // ponytail: pipe input, so MP4/M4A with the moov atom at the end may fail; temp file if that shows up.
   const proc = Bun.spawn(
     [bin, '-hide_banner', '-loglevel', 'error', '-i', 'pipe:0', '-f', 'f32le', '-ar', '16000', '-ac', '1', 'pipe:1'],
-    { stdin: new Blob([bytes]), stdout: 'pipe', stderr: 'pipe', timeout: v1Config.ffmpegTimeoutMs },
+    { stdin: bytes, stdout: 'pipe', stderr: 'pipe', timeout: v1Config.ffmpegTimeoutMs },
   );
   const [out, err, code] = await Promise.all([
     new Response(proc.stdout).arrayBuffer(),

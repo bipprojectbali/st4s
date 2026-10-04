@@ -36,6 +36,10 @@ export const splitTerms = (...values: (string | undefined)[]): string[] => [
   ...new Set(values.flatMap((v) => (v ?? '').split(',').map((t) => t.trim()).filter(Boolean))),
 ];
 
+/** Hotword caps: libcrispasr biases decoding with every term, so huge prompts only add latency. */
+export const MAX_HOTWORDS = 50;
+export const MAX_HOTWORD_CHARS = 1000;
+
 function parseBool(v: string | undefined): boolean | null {
   if (v === undefined || v === 'false' || v === '0') return false;
   if (v === 'true' || v === '1') return true;
@@ -84,11 +88,18 @@ export async function readTranscriptionForm(request: Request): Promise<Transcrip
   if (unknown !== undefined)
     return bad(`timestamp_granularities harus word atau segment, bukan '${unknown}'.`, 'timestamp_granularities');
 
+  const hotwords = splitTerms(text(form, 'prompt'), text(form, 'keywords'));
+  if (hotwords.length > MAX_HOTWORDS || hotwords.join('').length > MAX_HOTWORD_CHARS)
+    return bad(
+      `prompt + keywords maksimal ${MAX_HOTWORDS} istilah dan ${MAX_HOTWORD_CHARS} karakter. Kurangi daftar istilahnya.`,
+      'keywords',
+    );
+
   return {
     file,
     model,
     language,
-    hotwords: splitTerms(text(form, 'prompt'), text(form, 'keywords')),
+    hotwords,
     wordTimestamps: granularities.includes('word'),
     responseFormat,
     stream,

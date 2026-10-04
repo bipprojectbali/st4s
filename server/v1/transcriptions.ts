@@ -1,7 +1,7 @@
 /** POST /api/v1/audio/transcriptions (OpenAI-compatible STT) and the unsupported /audio/translations. */
 import { Elysia } from 'elysia';
 import { newRequestId } from '../api-error';
-import { AudioDecodeError, decodeTo16kMono } from '../audio/decode';
+import { AudioDecodeError } from '../audio/decode';
 import { getStt } from '../engines/registry';
 import type { SttEngine } from '../engines/types';
 import { logger } from '../logger';
@@ -9,32 +9,12 @@ import { requireV1Caller } from './auth';
 import { v1Config } from './config';
 import { v1Error } from './errors';
 import { readTranscriptionForm } from './transcriptions.form';
+import { decodeUpload, queueFullError } from './transcriptions.limits';
 import { engineErrorResponse, formatResult, streamTranscript } from './transcriptions.output';
 
 type LogMeta = { model?: string; bytes?: number; durationSec?: number; stream: boolean };
 
 async function transcribe(request: Request, requestId: string, meta: LogMeta, onEnd: (s: number) => void): Promise<Response> {
-  const input = await readTranscriptionForm(request);
-  if (input instanceof Response) return input;
-  Object.assign(meta, { model: input.model, bytes: input.file.size, stream: input.stream });
-
-  let decoded: { audio: Float32Array; durationSec: number };
-  try {
-    decoded = await decodeTo16kMono(new Uint8Array(await input.file.arrayBuffer()), {
-      mime: input.file.type,
-      filename: input.file.name,
-    });
-  } catch (err) {
-    if (err instanceof AudioDecodeError) return v1Error(400, err.message, { code: err.code, param: 'file' });
-    throw err;
-  }
-  meta.durationSec = Math.round(decoded.durationSec * 100) / 100;
-  if (decoded.durationSec > v1Config.maxAudioSec)
-    return v1Error(400, `Durasi audio ${Math.round(decoded.durationSec)} dtk melebihi batas ${v1Config.maxAudioSec} dtk.`, {
-      code: 'audio_too_long',
-      param: 'file',
-    });
-
   let engine: SttEngine;
   try {
     engine = getStt();
@@ -42,6 +22,27 @@ async function transcribe(request: Request, requestId: string, meta: LogMeta, on
     logger.error({ err, requestId }, 'stt engine not registered');
     return v1Error(503, 'Mesin STT belum siap. Coba lagi sebentar lagi.', { code: 'engine_unavailable' });
   }
+  // Refuse before the multipart body (up to V1_MAX_UPLOAD_MB) is buffered and decoded.
+  const full = queueFullError(engine);
+  if (full) return engineErrorResponse(full, requestId);
+
+  const input = await readTranscriptionForm(request);
+  if (input instanceof Response) return input;
+  Object.assign(meta, { model: input.model, bytes: input.file.size, stream: input.stream });
+
+  let decoded: { audio: Float32Array; durationSec: number };
+  try {
+    decoded = await decodeUpload(input.file);
+  } catch (err) {
+    if (err instanceof AudioDecodeError) return v1Error(400, err.message, { code: err.code, param: 'file' });
+    return engineErrorResponse(err, requestId);
+  }
+  meta.durationSec = Math.round(decoded.durationSec * 100) / 100;
+  if (decoded.durationSec > v1Config.maxAudioSec)
+    return v1Error(400, `Durasi audio ${Math.round(decoded.durationSec)} dtk melebihi batas ${v1Config.maxAudioSec} dtk.`, {
+      code: 'audio_too_long',
+      param: 'file',
+    });
 
   const ctrl = new AbortController();
   const abort = () => ctrl.abort();

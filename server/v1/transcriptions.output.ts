@@ -1,5 +1,6 @@
 /** Transcription results in OpenAI response formats: json/text/srt/vtt/verbose_json and the SSE stream. */
 import { EngineBusyError, type SttEngine, type TranscribeRequest, type TranscribeResult } from '../engines/types';
+import { SttUnloadedError } from '../engines/stt/errors';
 import { logger } from '../logger';
 import { v1Error, v1ErrorBody } from './errors';
 import { toSrt, toVtt } from './subtitles';
@@ -55,12 +56,20 @@ export function formatResult(r: TranscribeResult, format: ResponseFormat, durati
   }
 }
 
-/** Busy -> 429 + Retry-After; anything else -> 500 without internals. */
+/** Seconds a client should wait after an unload: the next request reloads the model (a few seconds). */
+const UNLOADED_RETRY_SEC = 5;
+
+/** Busy -> 429 + Retry-After; unloaded mid-job -> 503 + Retry-After; anything else -> 500 without internals. */
 export function engineErrorResponse(err: unknown, requestId: string): Response {
   if (err instanceof EngineBusyError)
     return v1Error(429, 'Mesin STT sedang penuh. Coba lagi beberapa detik lagi.', {
       code: 'engine_busy',
       headers: { 'retry-after': String(err.retryAfterSec) },
+    });
+  if (err instanceof SttUnloadedError)
+    return v1Error(503, 'Mesin STT sedang dimuat ulang. Coba lagi beberapa detik lagi.', {
+      code: 'engine_unavailable',
+      headers: { 'retry-after': String(UNLOADED_RETRY_SEC) },
     });
   logger.error({ err, requestId }, 'stt transcription failed');
   return v1Error(500, 'Transkripsi gagal. Coba lagi; sertakan header x-request-id bila melapor.', {
@@ -130,7 +139,7 @@ export async function streamTranscript({ engine, req, ctrl, duration, requestId,
     },
     (err: unknown) => {
       if (!ctrl.signal.aborted) logger.error({ err, requestId }, 'stt stream failed mid-way');
-      push(v1ErrorBody(500, 'Transkripsi terhenti di tengah stream. Coba lagi.', 'server_error'));
+      push({ type: 'error', ...v1ErrorBody(500, 'Transkripsi terhenti di tengah stream. Coba lagi.', 'server_error') });
       close();
       onEnd(ctrl.signal.aborted ? 499 : 500);
     },
