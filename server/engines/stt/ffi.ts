@@ -52,17 +52,19 @@ export function openCrispasr(libPath: string) {
     pcm: Float32Array,
     maxChunkSec: number,
     threads: number,
+    opts: { threshold?: number; minSilenceMs?: number; padMs?: number } = {},
   ): [number, number][] | null {
     const out = new BigUint64Array(1);
+    // Values <= 0 select libcrispasr defaults (threshold 0.5, min silence 100 ms); Silero ctx is cached per model.
     const n = L.crispasr_vad_slices(
       cstr(vadModel),
       ptr(pcm),
       pcm.length,
       SR,
+      opts.threshold ?? 0,
       0,
-      0,
-      0,
-      30,
+      opts.minSilenceMs ?? 0,
+      opts.padMs ?? 30,
       maxChunkSec,
       threads,
       ptr(out),

@@ -2,7 +2,7 @@
 import type { Pointer } from 'bun:ffi';
 import type { SttConfig } from './config';
 import { openCrispasr } from './ffi';
-import type { FromChild, ToChild, TranscribeMsg } from './protocol';
+import type { FromChild, ToChild, TranscribeMsg, VadMsg } from './protocol';
 import { planSpans, runSpans, SpanCancelledError, SR } from './spans';
 
 type Opener = { openSession(modelPath: string, threads: number, useGpu: boolean): Pointer | null };
@@ -93,10 +93,31 @@ export function runSttChild(cfgJson: string | undefined): void {
     return { text, language: lang ?? 'unknown', duration, segments };
   }
 
+  function vad(m: VadMsg): FromChild {
+    if (!cfg.vadModelPath)
+      return { t: 'vad_error', id: m.id, message: 'VAD disabled (STT_VAD_MODEL empty)' };
+    const audio =
+      m.audio instanceof Float32Array ? m.audio : new Float32Array(m.audio as ArrayLike<number>);
+    const opts = { threshold: m.threshold, minSilenceMs: m.minSilenceMs, padMs: 0 };
+    const spans = eng.lib.vadSlices(cfg.vadModelPath, audio, 0, cfg.threads, opts);
+    return spans
+      ? { t: 'vad_result', id: m.id, spans }
+      : { t: 'vad_error', id: m.id, message: 'crispasr_vad_slices failed' };
+  }
+
   let chain = Promise.resolve();
   process.on('message', (m: ToChild) => {
     if (m.t === 'cancel') {
       cancelled.add(m.id);
+      return;
+    }
+    // ponytail: VAD runs outside the job chain, so it answers between spans; a span in flight (<= STT_MAX_CHUNK_SEC decode) delays it.
+    if (m.t === 'vad') {
+      try {
+        send(vad(m));
+      } catch (e) {
+        send({ t: 'vad_error', id: m.id, message: (e as Error).message });
+      }
       return;
     }
     chain = chain.then(async () => {
