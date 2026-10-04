@@ -1,4 +1,4 @@
-// Real-engine e2e through /api/v1 + the openai SDK. Run only under the model lock (see CLAUDE.md "Konvensi Engine Suara"):
+// Real-engine e2e through /api/v1 + the openai SDK. Run only under the model lock (see .claude/rules/engines.md "Konvensi Engine Suara"):
 // S4S_REAL_ENGINE=1 NODE_ENV=test timeout 600 bun test tests/e2e/v1-real.test.ts
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import os from 'node:os';

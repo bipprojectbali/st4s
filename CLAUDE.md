@@ -60,51 +60,7 @@ Button yang tidak bisa dipakai (misal: "Purge" saat tidak ada data) → `disable
 
 Setiap route yang dirender (bukan redirect-only) **wajib** punya `export function meta()`. Ini berlaku untuk route halaman maupun layout route. Tanpa ini, browser tab kosong dan search engine tidak mendapat sinyal apapun.
 
-### Format Wajib
-
-```ts
-// Halaman publik (landing, login, dll)
-export function meta(_: Route.MetaArgs) {
-  return [
-    { title: 'Judul Halaman — Makuro' },
-    { name: 'description', content: 'Deskripsi singkat halaman ini, 120–160 karakter.' },
-  ];
-}
-
-// Halaman app/admin (tidak diindex search engine, tapi title tetap wajib)
-export function meta() {
-  return [{ title: 'Nama Halaman — Makuro' }];
-}
-```
-
-### Konvensi Title
-
-- Format: `"Nama Halaman — Brand"` — nama halaman di depan, brand di belakang.
-- Halaman publik: sertakan `description` (120–160 karakter, deskriptif, tidak duplikat).
-- Halaman admin/app: cukup `title`, tidak perlu `description` (tidak diindex).
-- Root (`root.tsx`) wajib punya `meta()` sebagai **fallback global** — halaman yang tidak define meta sendiri akan fallback ke sini.
-
-### Favicon
-
-- Favicon didefinisikan secara hardcoded di `root.tsx` `<head>` sebagai `<link rel="icon" href="/favicon.svg" type="image/svg+xml" />`.
-- File favicon ada di `public/favicon.svg` — jangan ganti tanpa alasan, ini brand identity.
-- Jangan duplikasi favicon lewat `meta()` — sudah cukup di hardcoded.
-
-### Halaman Publik — OG Tags (Open Graph)
-
-Untuk halaman yang bisa dishare (home, landing page):
-
-```ts
-export function meta(_: Route.MetaArgs) {
-  return [
-    { title: 'Makuro — Fullstack Template' },
-    { name: 'description', content: '...' },
-    { property: 'og:title', content: 'Makuro — Fullstack Template' },
-    { property: 'og:description', content: '...' },
-    { property: 'og:type', content: 'website' },
-  ];
-}
-```
+Format, konvensi title, favicon, dan OG tags: `.claude/rules/seo-meta.md`.
 
 **Blocker:** route yang dirender tanpa `export function meta()` → STOP sebelum commit. Redirect-only routes (tidak punya `default export` komponen) dikecualikan.
 
@@ -112,128 +68,7 @@ export function meta(_: Route.MetaArgs) {
 
 App ini harus bisa diakses dengan baik di mobile. Admin console tetap primary desktop, namun **tidak boleh rusak di mobile**. Agent wajib menerapkan semua aturan di bawah ini secara proaktif — bukan menunggu diminta. Standar ini berlaku untuk setiap halaman baru maupun yang dimodifikasi.
 
-### 1. Navigasi — AppShell dengan Mobile Header Wajib
-
-Jangan pernah menempatkan `<Burger>` sebagai elemen `pos="fixed"` floating tanpa `AppShell.Header`. Pola yang wajib dipakai:
-
-```tsx
-<AppShell
-  header={{ height: { base: 52, sm: 0 } }}  // header hanya muncul di mobile
-  navbar={{ width: 240, breakpoint: 'sm', collapsed: { mobile: !mobileOpened } }}
->
-  <AppShell.Header withBorder={false} hiddenFrom="sm">
-    <Group h="100%" px="md" gap="sm">
-      <Burger opened={mobileOpened} onClick={toggleMobile} size="sm" aria-label="Toggle navigation" />
-      <Text fw={700}>Nama App</Text>
-    </Group>
-  </AppShell.Header>
-  <AppShell.Navbar>...</AppShell.Navbar>
-  <AppShell.Main>...</AppShell.Main>
-</AppShell>
-```
-
-**Blocker:** Burger floating fixed tanpa AppShell.Header → STOP.
-
-### 2. Tabel — Kolom Wajib Responsif
-
-Semua tabel harus scrollable horizontal DAN menyembunyikan kolom tidak esensial di mobile:
-
-```tsx
-// Wrapper scroll — wajib ada
-<Box style={{ overflowX: 'auto' }}>
-  <Table>
-    <Table.Thead>
-      <Table.Tr>
-        <Table.Th>Kolom Penting</Table.Th>
-        <Table.Th visibleFrom="sm">Kolom Sekunder</Table.Th>  {/* hidden di mobile */}
-      </Table.Tr>
-    </Table.Thead>
-    <Table.Tbody>
-      <Table.Tr>
-        <Table.Td>...</Table.Td>
-        <Table.Td visibleFrom="sm">...</Table.Td>  {/* hidden di mobile */}
-      </Table.Tr>
-    </Table.Tbody>
-  </Table>
-</Box>
-```
-
-Alternatif: `<Table.ScrollContainer minWidth={640}>` bila semua kolom harus tampil.
-
-**Untuk tabel dengan 4+ kolom data kaya — wajib gunakan card/list view di mobile:**
-
-```tsx
-{/* Desktop: tabel biasa */}
-<Box style={{ overflowX: 'auto' }} visibleFrom="sm">
-  <Table>...</Table>
-</Box>
-
-{/* Mobile: card list — semua data terlihat tanpa scroll horizontal */}
-<Stack gap="xs" hiddenFrom="sm">
-  {rows.map((r) => (
-    <Paper key={r.id} withBorder p="sm" radius="md">
-      <Group justify="space-between" align="flex-start" wrap="nowrap" gap="xs">
-        <Stack gap={4} style={{ minWidth: 0, flex: 1 }}>
-          {/* Data primer: path/nama/judul — truncate dengan minWidth: 0 */}
-          <Text truncate style={{ minWidth: 0 }}>{r.path}</Text>
-          {/* Data sekunder: timestamp, IP, ID — dimmed, kecil */}
-          <Text size="xs" c="dimmed">{fmt(r.createdAt)}</Text>
-        </Stack>
-        {/* Aksi: delete, edit — flexShrink: 0 agar tidak ikut dipersempit */}
-        <ActionIcon style={{ flexShrink: 0 }}>...</ActionIcon>
-      </Group>
-    </Paper>
-  ))}
-</Stack>
-```
-
-Pola ini berlaku untuk semua halaman log, tabel user, dan tabel data apapun dengan ≥4 kolom.
-
-**Prioritas kolom yang wajib tampil di mobile:** kolom identitas utama (nama/path) + status + aksi.
-**Kolom yang boleh disembunyikan di mobile dengan `visibleFrom="sm"`:** IP, User Agent, User ID, timestamp sekunder, kolom detail.
-
-**Blocker:** Tabel ≥4 kolom tanpa card view mobile DAN tanpa `overflowX: 'auto'` → STOP.
-
-### 3. Page Header — Tombol Action Wajib Wrap
-
-Header halaman yang berisi judul + tombol-tombol wajib menggunakan `wrap="wrap"`:
-
-```tsx
-// ✅ Benar — buttons wrap ke bawah bila tidak muat
-<Group justify="space-between" align="flex-start" wrap="wrap">
-  <Title order={3}>Judul Halaman</Title>
-  <Group gap="xs" wrap="wrap" justify="flex-end">
-    <Button>Clear All</Button>
-    <Button>Purge 30d+</Button>
-    <Button>Refresh</Button>
-  </Group>
-</Group>
-
-// ❌ Salah — buttons overflow layar di mobile
-<Group justify="space-between" wrap="nowrap">
-```
-
-**Blocker:** Header dengan `wrap="nowrap"` yang berisi tombol-tombol → STOP.
-
-### 4. Layout & Spacing
-
-- Gunakan Mantine `Grid`, `SimpleGrid`, `Stack` dengan breakpoints — **bukan** fixed-width pixel.
-- `width: 800px`, `minWidth: 600px` pada container utama → gunakan `maw` + `w="100%"` sebagai gantinya.
-- Padding halaman: minimal `p="sm"` di mobile — gunakan `p={{ base: 'sm', md: 'md' }}` bila perlu.
-- Kolom grid yang tidak muat di mobile → `cols={{ base: 1, sm: 2, md: 3 }}`.
-
-### 5. Touch Targets
-
-- Tombol aksi utama: minimum `size="sm"` (44px touch area).
-- `ActionIcon` kecil di dalam tabel: boleh `size="xs"` karena tabel sudah scrollable.
-- Jarak antar touch target: minimal `gap="xs"`.
-- Hindari link/button berdekatan tanpa jarak yang cukup.
-
-### 6. Form & Input
-
-- Set `inputMode` yang sesuai: `inputMode="email"`, `inputMode="numeric"`, `inputMode="url"`.
-- Jangan set `font-size` di bawah 16px pada input — browser mobile akan auto-zoom.
-- Mantine input component sudah handle ini secara default, jangan override ke ukuran lebih kecil.
+Pola wajib per elemen (AppShell header, tabel + card view, page header, layout, touch target, input): `.claude/rules/mobile-ui.md`.
 
 **Cara agent menerapkan:** Bayangkan layar 375px lebar (iPhone SE). Apakah semua elemen visible dan bisa di-tap? Apakah ada overflow horizontal tanpa scroll? Apakah burger tidak menimpa konten? Jika ada masalah → perbaiki sebelum commit.
 
@@ -242,23 +77,6 @@ Header halaman yang berisi judul + tombol-tombol wajib menggunakan `wrap="wrap"`
 - ❌ Tabel tanpa scroll wrapper
 - ❌ Page header `wrap="nowrap"` dengan banyak tombol
 - ❌ Container fixed-width melampaui 375px tanpa overflow handling
-
-## Binary Build — Catatan Penting untuk Agent
-
-Saat bekerja dengan `bun build --compile --asset`:
-
-- `Bun.isStandaloneExecutable` — API resmi untuk deteksi binary mode (boolean). **Jangan** gunakan regex pada `Bun.main`.
-- `--asset ./build/client` meng-embed files sebagai `client/` di VFS (**strip satu level direktori induk** — `build/` dihapus).
-- `import.meta.dir` dalam compiled binary = `/$bunfs/root` (bukan path disk tempat binary berada).
-- `Bun.file(path).exists()` bekerja normal untuk embedded VFS files.
-- Path CLIENT_DIR yang benar:
-  ```ts
-  const CLIENT_DIR = Bun.isStandaloneExecutable
-    ? path.join(import.meta.dir, 'client') + '/'          // binary: /$bunfs/root/client/
-    : path.join(import.meta.dir, '../build/client') + '/'; // script: ../build/client/
-  ```
-- SSR bundle di-embed via **static import** (`import * as ssrBuild from '../build/server/index.js'`) — Bun mengikuti static import dan mem-bundle seluruh deps ke binary.
-- `Bun.embeddedFiles` berguna untuk debug: menampilkan path dan ukuran semua file yang di-embed.
 
 ## Stack
 
@@ -293,6 +111,7 @@ Saat bekerja dengan `bun build --compile --asset`:
 - **Request non-halaman sebelum SSR:** probe browser (`/favicon.ico`, `/.well-known/`, `apple-touch-icon`) ditangani `server/http-probes.ts`; dokumentasi agent (`/README.md`, `/llms*.txt`) oleh `server/readme.ts`. Keduanya harus tetap masuk daftar pengecualian `visitor.ts` dan `settings-maintenance.ts`. Tambahkan di sana bila ada path statis baru, jangan biarkan jatuh ke React Router (menghasilkan stack trace 404).
 - **Dev server `--hot`** tidak selalu memuat ulang plugin Elysia baru — minta user restart `bun run dev` setelah menambah plugin/hook.
 - **Versi** hanya dari `package.json` (`server/app-info.ts`); jangan hardcode di tempat lain.
+- **Error OpenAI hanya di `/api/v1`:** `server/api-error.ts` dan plugin (rate limit, maintenance, API key) bercabang lewat `isV1Path()` dan memakai `v1ErrorBody()`/`v1Error()` dari `server/v1/errors.ts`. Route `/api/*` lain tetap `{ error, code, status, requestId }` — jangan campur keduanya.
 
 ## CHANGELOG.md — Ditulis Agent
 
@@ -300,14 +119,6 @@ Saat bekerja dengan `bun build --compile --asset`:
 - Saat deploy: ganti `## [Unreleased]` menjadi `## [x.y.z] - YYYY-MM-DD` sesuai versi `package.json`. Badge `/dev/changelog` kuning = versi berjalan belum punya entry.
 - Halaman `/dev/changelog` mem-parse file ini (`server/changelog.ts`); baris yang tidak dikenali tetap tampil di section "Lainnya", jadi jaga formatnya.
 - Vite tidak bisa mengimpor `.md`: dev membaca file dari disk, `server/prod.ts` meng-embed dan mendaftarkannya ke `globalThis`. Perubahan CHANGELOG baru terlihat di prod setelah rebuild.
-
-## Konvensi Halaman `/dev` & Error
-
-- **Menambah halaman `/dev` baru = lima tempat:** `app/routes.ts`, `NAV` di `app/routes/super/layout.tsx`, `QuickLinks` overview, `CONSOLE_PAGES` di `app/components/landing/landing.content.ts` + `CONSOLE_PAGE_COUNT` di `server/landing-stats.ts` (test menjaga ketiganya sinkron), dan badge di `server/sidebar-badges.ts` (nada `alert` untuk hal yang butuh tindakan, `info` untuk skala; satu query agregat murah, gagal lunak).
-- **Pola halaman konsol:** loader SSR + `toJson` + react-query `initialData`; komponen bersama di `app/components/logs/*` (StatTile, BreakdownPanel, LogCells, DetailParts, TruncatedText); tabel desktop + kartu mobile; drawer detail; aksi lewat hook `use*Actions` dengan `modals.openConfirmModal` dan `notifications`; aksi berhak istimewa dipanggil `audit()` di server dan labelnya ditambahkan ke `ACTION_META` di `app/lib/audit-api.ts`.
-- **Tooltip di dalam `Menu.Target` mematikan klik** — jangan bungkus target menu dengan Tooltip.
-- **Error boundary:** setiap layout area (`super/admin/user`) merender `AppFrame` lewat helper `Frame` yang dipakai ulang oleh `ErrorBoundary` bersama `AreaErrorBoundary`, sehingga halaman yang gagal tetap punya sidebar. Halaman baru tidak perlu boundary sendiri; jangan hapus `ErrorBoundary` di layout. Kode status/pesan error halaman berasal dari katalog `app/lib/error-page.ts`.
-- **README.md dilayani publik** di `/README.md` dan `/llms*.txt` (satu sumber, juga ter-embed ke binary). Jangan tulis rahasia, hostname internal, atau kredensial contoh yang valid di README; test `tests/readme-endpoint.test.ts` memindainya. Fitur baru yang mengubah kontrak publik wajib menambah/menyunting bagian README yang relevan di commit yang sama.
 
 ## Build & Deploy — Verifikasi Wajib
 
@@ -317,18 +128,12 @@ Saat bekerja dengan `bun build --compile --asset`:
 - **pino-roll v4** memakai satu objek opsi (`{ file, frequency: 'daily', size, limit, mkdir }`); `frequency: '1d'` atau bentuk `build(path, opts)` membuat `bun run start` gagal boot.
 - Binary men-default `NODE_ENV=production` tetapi menghormati `.env` di direktori kerja (Bun auto-load) dan memperingatkan bila bukan production. Menambah pemeriksaan smoke = tambah entri di `SMOKE_CHECKS` (nama unik, path absolut) — `tests/smoke-server.test.ts` menjaganya.
 
-## Konvensi Engine Suara (s4s)
+## Aturan Domain — `.claude/rules/`
 
-- **Kontrak** `SttEngine`/`TtsEngine` + `EngineBusyError` ada di `server/engines/types.ts`. Route hanya memanggil `getStt()`/`getTts()` dari `server/engines/registry.ts` (slot di `globalThis.__s4sEngines`, agar salinan bundle SSR memakai instance yang sama); slot kosong → `503 engine_unavailable`.
-- **Lazy & boot:** engine tidak memuat apa pun sampai request pertama/warmup. `server/dev.ts` dan `server/prod.ts` memanggil `bootEngines()` + `exitOnShutdownSignals()` (SIGINT/SIGTERM → unload, batas 5 dtk). Test **tidak pernah** mem-boot engine asli — pasang fake lewat `setEngines({ stt, tts })` (pola `tests/v1/fake-stt.ts`) dan kosongkan lagi di `afterAll`.
-- **Satu child process per engine:** FFI `libcrispasr` sinkron dan ONNX berat, jadi keduanya dijalankan di child agar event loop server tidak beku. Tiap engine memproses satu job sekaligus dengan antrean serial; antrean penuh → `EngineBusyError` → `429 engine_busy` + `Retry-After` (bukan 503).
-- **Streaming STT:** Qwen3-ASR tidak punya callback per token, jadi `transcript.text.delta` = satu delta per potongan VAD. `STT_MAX_CHUNK_SEC` 30 vs 8 terukur RTF 0,45 vs 0,31, tetapi kualitas transkrip turun di 8 — default tetap 30; jangan turunkan demi delta lebih sering tanpa mengukur ulang kualitas.
-- **Memori (target mesin 8 GB):** child STT (decode CPU) ~1,6 GB footprint setelah model dimuat, puncak ~2,1 GB dengan lib default v0.8.41 (lib lebih lama memuat GGUF kedua kali untuk audio encoder → ~3,45 GB, dan dengan `STT_GPU=1` salinan itu ter-wire ke Metal di luar RSS — biarkan `STT_GPU` mati di host 8 GB). TTS ~460 MB.
-- **Probe model asli** (skrip probe, `S4S_REAL_ENGINE=1 bun test tests/e2e/v1-real.test.ts`): ambil lock global `until mkdir /tmp/s4s-model.lock 2>/dev/null; do sleep 5; done`, pastikan `memory_pressure | tail -1` ≥ 25% free, jalankan di proses sendiri dengan `timeout`, pasang watchdog RAM yang hanya membunuh PID probe itu sendiri (PID ditulis eksplisit; jangan pernah kill proses yang tidak kamu mulai), akhiri skrip dengan `process.exit(0)`, dan selalu `rmdir` lock lewat `trap`. Jangan jalankan model asli bersamaan dengan build.
-- **libcrispasr:** dibangun `bash scripts/crispasr/build.sh` ke `.crispasr/` (gitignored; rilis ter-pin + satu patch, detail di README). Default `CRISPASR_LIB` = `<cwd>/.crispasr/build/src/libcrispasr.dylib`; lib hilang/gagal dimuat → engine gagal keras dengan path + perintah build, jangan tambah fallback ke path lain. Jangan salin dylib-nya sendirian — ia menautkan `@rpath/libggml*.dylib` di direktori build. `.crispasr` ada di `IGNORED_DIRS` file-health; walker repo baru wajib mengabaikannya juga.
-- **Engine gagal keras, bukan diam:** saat load tiap engine menjalankan self-test di child (STT: klip `selftest.wav`, VAD, hening → `""`; TTS: panjang + RMS); gagal → state `error`, child dihentikan, route menjawab `503 engine_unavailable` (`EngineNotReadyError`; detail hanya di log & `/dev/engines`). `ENGINE_SELFTEST=0` mematikan; spawner yang diinjeksi test otomatis tanpa self-test. VAD yang gagal pada audio → `VadFailedError` di sumber (`spans.ts`) → `500 vad_failed`; melintasi IPC child sebagai field `code`, **jangan** dicocokkan lewat string pesan. Child STT selalu dijalankan dengan `CRISPASR_VAD_FAILOVER=0` (`sttChildEnv` di `host.ts`) — jangan dihapus: failover membuat Qwen3-ASR mengarang teks untuk klip panjang hening.
-- **Bentuk `/api/v1` = tipe SDK `openai`:** cek `node_modules/openai/resources/audio/*.d.ts` sebelum mengubah field. Contoh yang sudah dikunci test: `language` di `verbose_json` = nama Inggris huruf kecil (`"indonesian"`), `transcript.text.done` tanpa `usage` (SDK mengetiknya sebagai token), `usage` durasi hanya di `json`/`verbose_json`.
-- **Binary:** child dijalankan dengan me-re-exec binary itu sendiri sebagai `--s4s-engine-child stt|tts` (`server/engines/child-argv.ts`); dari source memakai `bun <entry>`. `bun build --compile` tidak meng-embed `libonnxruntime.1.dylib`/`.so.1`, jadi TTS di binary butuh library itu di samping binary + `DYLD_LIBRARY_PATH` (`LD_LIBRARY_PATH` di Linux, belum dites). STT tidak butuh apa-apa tambahan.
-- **Error OpenAI hanya di `/api/v1`:** `server/api-error.ts` dan plugin (rate limit, maintenance, API key) bercabang lewat `isV1Path()` dan memakai `v1ErrorBody()`/`v1Error()` dari `server/v1/errors.ts`. Route `/api/*` lain tetap `{ error, code, status, requestId }` — jangan campur keduanya.
-- **Route v1 baru** wajib dipetakan scope-nya di `server/api-keys/scopes.ts` (`stt:transcribe`, `tts:speak`, atau publik di `isPublicRead`) + assertion di `tests/api-keys/scopes.test.ts`.
-- **Privasi:** log engine dan v1 hanya berisi metrik (durasi, ukuran, RTF, model, status) — **tidak pernah** transkrip, teks input, atau byte audio, termasuk di pesan error dan audit.
+Detail per area ada di `.claude/rules/*.md`. Claude Code memuatnya otomatis saat Read/Edit/Write file yang cocok dengan `paths:`-nya. Bila mengerjakan area tersebut tanpa membuka file yang cocok (mis. hanya menjalankan perintah), **baca file aturannya dulu**:
+
+- `engines.md` — engine STT/TTS, `/api/v1`, libcrispasr, memori 8 GB, **probe model asli (lock + watchdog RAM)**, privasi log. Wajib dibaca sebelum menjalankan model asli. Glob: `server/{engines,v1,audio,text,memory-guard}/**`, `scripts/crispasr/**`, `tests/{engines,v1,e2e,audio}/**`, `server/{dev,prod}.ts`, komponen/halaman engines & playground.
+- `binary-build.md` — `bun build --compile --asset`, VFS, `CLIENT_DIR`. Glob: `server/prod.ts`, `server/binary-entry.ts`, `scripts/**`, `package.json`, `Dockerfile`.
+- `dev-console.md` — menambah halaman `/dev` (lima tempat), pola halaman konsol, error boundary, README yang dilayani publik. Glob: `app/routes.ts`, `app/routes/**`, `app/components/**`, `app/lib/**`, `server/{sidebar-badges,sidebar,landing-stats,readme}.ts`, `README.md`.
+- `seo-meta.md` — detail `meta()`. Glob: `app/root.tsx`, `app/routes.ts`, `app/routes/**/*.tsx`.
+- `mobile-ui.md` — detail pola mobile. Glob: `app/**/*.tsx`.
