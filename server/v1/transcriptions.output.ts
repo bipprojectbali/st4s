@@ -1,6 +1,6 @@
 /** Transcription results in OpenAI response formats: json/text/srt/vtt/verbose_json and the SSE stream. */
 
-import { EngineNotReadyError, EngineUnloadedError } from '../engines/errors';
+import { EngineNotReadyError, EngineUnloadedError, VadFailedError } from '../engines/errors';
 import {
   EngineBusyError,
   type SttEngine,
@@ -93,6 +93,10 @@ export function engineErrorResponse(err: unknown, requestId: string): Response {
   if (err instanceof EngineUnloadedError) return v1EngineUnloaded(err);
   if (err instanceof EngineNotReadyError)
     return v1Error(503, err.message, { code: 'engine_unavailable' });
+  if (err instanceof VadFailedError) {
+    logger.error({ requestId, code: err.code, detail: err.detail }, 'stt transcription failed');
+    return v1Error(500, err.message, { code: err.code });
+  }
   logger.error({ err, requestId }, 'stt transcription failed');
   return v1Error(500, 'Transkripsi gagal. Coba lagi; sertakan header x-request-id bila melapor.', {
     code: 'server_error',
@@ -173,7 +177,13 @@ export async function streamTranscript({
     },
     (err: unknown) => {
       const unloaded = err instanceof EngineUnloadedError;
-      if (!ctrl.signal.aborted && !unloaded)
+      const vad = err instanceof VadFailedError ? err : null;
+      if (!ctrl.signal.aborted && vad)
+        logger.error(
+          { requestId, code: vad.code, detail: vad.detail },
+          'stt stream failed mid-way',
+        );
+      else if (!ctrl.signal.aborted && !unloaded)
         logger.error({ err, requestId }, 'stt stream failed mid-way');
       push({
         type: 'error',
@@ -183,7 +193,13 @@ export async function streamTranscript({
               'Mesin STT dihentikan di tengah stream karena RAM menipis atau idle. Coba lagi.',
               'engine_unloaded',
             )
-          : v1ErrorBody(500, 'Transkripsi terhenti di tengah stream. Coba lagi.', 'server_error')),
+          : vad
+            ? v1ErrorBody(500, vad.message, vad.code)
+            : v1ErrorBody(
+                500,
+                'Transkripsi terhenti di tengah stream. Coba lagi.',
+                'server_error',
+              )),
       });
       close();
       onEnd(ctrl.signal.aborted ? 499 : unloaded ? 503 : 500);

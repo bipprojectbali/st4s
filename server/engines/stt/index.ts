@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { logger } from '../../logger';
-import { EngineNotReadyError, EngineUnloadedError } from '../errors';
+import { EngineNotReadyError, EngineUnloadedError, VadFailedError } from '../errors';
 import type { EngineState, SttEngine, TranscribeRequest, TranscribeResult } from '../types';
 import { loadSttConfig, type SttConfig } from './config';
 import { type SttChild, type SttSpawner, spawnBunChild } from './host';
@@ -110,7 +110,8 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine & Partia
     } else {
       stats.fail();
       lastError = `STT transcription failed: ${m.message}`;
-      if (!job.dropped) job.reject(new Error(lastError));
+      if (!job.dropped)
+        job.reject(m.code === 'vad_failed' ? new VadFailedError(lastError) : new Error(lastError));
     }
     pump();
   }

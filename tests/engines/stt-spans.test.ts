@@ -2,6 +2,7 @@
 
 import type { Pointer } from 'bun:ffi';
 import { describe, expect, test } from 'bun:test';
+import { VadFailedError } from '../../server/engines/errors';
 import {
   type DecodeLib,
   planSpans,
@@ -158,9 +159,10 @@ describe('transcribePcm (fake libcrispasr)', () => {
   test('VAD failed (null) → job fails with the model basename, ASR never runs on unsliced audio', async () => {
     const { lib, calls } = fakeLib(null);
     const { result, fallbacks } = run(lib, '/models/silero.bin');
-    await expect(result).rejects.toThrow(
-      'STT VAD failed on silero.bin (3.0s audio); check STT_VAD_MODEL',
-    );
+    const err = await result.catch((e) => e);
+    expect(err).toBeInstanceOf(VadFailedError);
+    expect(err.detail).toBe('STT VAD failed on silero.bin (3.0s audio); check STT_VAD_MODEL');
+    expect(err.message).not.toContain('silero');
     expect(calls).toEqual({ vad: 1, lid: 0, hotwords: 0, transcribe: [] });
     expect(fallbacks).toEqual([]);
   });

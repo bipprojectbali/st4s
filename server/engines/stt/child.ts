@@ -1,5 +1,6 @@
 /** STT child process: owns libcrispasr (sync FFI, may crash) so the server event loop never blocks on decode. */
 import type { Pointer } from 'bun:ffi';
+import { VadFailedError } from '../errors';
 import type { SttConfig } from './config';
 import { openCrispasr } from './ffi';
 import type { FromChild, ToChild, TranscribeMsg, VadMsg } from './protocol';
@@ -109,6 +110,8 @@ export function runSttChild(cfgJson: string | undefined): void {
         send({ t: 'result', id: m.id, result: await transcribe(m), rss: rss() });
       } catch (e) {
         if (e instanceof SpanCancelledError) send({ t: 'cancelled', id: m.id, rss: rss() });
+        else if (e instanceof VadFailedError)
+          send({ t: 'error', id: m.id, message: e.detail, code: e.code, rss: rss() });
         else send({ t: 'error', id: m.id, message: (e as Error).message, rss: rss() });
       } finally {
         // Ids only grow, so this also drops a cancel that raced past its job's result.

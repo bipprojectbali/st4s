@@ -1,6 +1,6 @@
 /** Transcribes one committed realtime turn through the normal STT path (guard, queue, engine) and reports it. */
 import { recordUsage } from '../api-keys/usage';
-import { isEngineNotReadyError, isEngineUnloadedError } from '../engines/errors';
+import { isEngineNotReadyError, isEngineUnloadedError, isVadFailedError } from '../engines/errors';
 import { EngineBusyError, type SttEngine } from '../engines/types';
 import type { logger } from '../logger';
 import { admissionMessage, admitSpeechWork } from '../memory-guard/plugin';
@@ -114,6 +114,13 @@ export function createTurnRunner(d: TurnDeps) {
       }
       // Same code and generic text as HTTP /api/v1; the detail stays in the engine log and /dev/engines.
       if (isEngineNotReadyError(err)) return failed('engine_unavailable', err.message, 503);
+      if (isVadFailedError(err)) {
+        d.log.error(
+          { itemId, code: err.code, detail: err.detail },
+          'realtime transcription failed',
+        );
+        return failed(err.code, err.message, 500);
+      }
       d.log.error({ err, itemId }, 'realtime transcription failed');
       failed('server_error', 'Transkripsi gagal. Coba lagi.', 500);
     } finally {

@@ -1,6 +1,7 @@
 /** The STT child's decode path (VAD → spans → decode loop), kept free of FFI so tests can drive it with a fake lib. */
 import type { Pointer } from 'bun:ffi';
 import { basename } from 'node:path';
+import { VadFailedError } from '../errors';
 import type { TranscribeResult, TranscriptSegment } from '../types';
 import type { SttConfig } from './config';
 import type { openCrispasr } from './ffi';
@@ -92,7 +93,7 @@ export async function transcribePcm(a: TranscribeArgs): Promise<TranscribeResult
     : null;
   // A configured VAD that cannot run fails the job: fixed slices would make Qwen3-ASR invent text for silence.
   if (!vad && cfg.vadModelPath)
-    throw new Error(
+    throw new VadFailedError(
       `STT VAD failed on ${basename(cfg.vadModelPath)} (${duration.toFixed(1)}s audio); check STT_VAD_MODEL`,
     );
   if (!vad)
