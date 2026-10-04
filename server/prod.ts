@@ -34,6 +34,7 @@ import { agentDocResponse, isAgentDoc } from './readme';
 import { isSeoFile, seoResponse } from './seo';
 import { getBranding } from './settings-branding';
 import { maintenanceGate } from './settings-maintenance';
+import { realtimeWebsocket, serveApi } from './v1/realtime-server';
 
 registerBundledChangelog(bundledChangelog);
 
@@ -53,6 +54,7 @@ exitOnShutdownSignals();
 const server = Bun.serve({
   port: env.PORT,
   ...serveLimits(),
+  websocket: realtimeWebsocket,
   async fetch(request, bunServer) {
     const url = new URL(request.url);
     // Long transcriptions, queued speech/SSE and warmups send nothing for minutes.
@@ -62,7 +64,7 @@ const server = Bun.serve({
 
     // API + auth.
     if (url.pathname.startsWith('/api')) {
-      return api.handle(request);
+      return serveApi(request, bunServer, (r) => api.handle(r));
     }
 
     // Browser/devtools probes — never SSR, never counted as a visit.

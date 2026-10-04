@@ -137,6 +137,19 @@ export const SMOKE_CHECKS: SmokeCheck[] = [
     status: 200,
     header: { name: 'x-ratelimit-limit' },
   },
+  {
+    name: 'realtime WS tanpa auth',
+    path: '/api/v1/realtime',
+    headers: {
+      upgrade: 'websocket',
+      connection: 'Upgrade',
+      'sec-websocket-version': '13',
+      'sec-websocket-key': 'dGhlIHNhbXBsZSBub25jZQ==',
+    },
+    status: 401,
+    contentType: 'application/json',
+    bodyIncludes: 'authentication_error',
+  },
 ];
 
 export type SmokeResult = { name: string; ok: boolean; detail: string };

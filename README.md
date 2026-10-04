@@ -395,6 +395,40 @@ const res = await client.audio.speech.create({
 fs.writeFileSync('pagi.mp3', Buffer.from(await res.arrayBuffer()));
 ```
 
+### Realtime `wss://<host>/api/v1/realtime` (transkripsi)
+
+WebSocket kompatibel OpenAI Realtime, **hanya sesi transkripsi** (`type: 'transcription'`). Sesi percakapan/respons tidak didukung. Auth sama dengan HTTP v1 (API key ber-scope `stt:transcribe` lewat `Authorization: Bearer`, atau cookie sesi login dari origin yang sama) dan dicek **sebelum** upgrade: tanpa kredensial `401`, Origin asing tanpa API key `403 origin_not_allowed`, RAM menipis `503 memory_pressure` + `Retry-After`, engine belum terdaftar `503 engine_unavailable`, sesi melebihi `RT_MAX_SESSIONS` `429 too_many_sessions`, request tanpa `Upgrade: websocket` `426 upgrade_required`. Query `?intent=transcription` opsional; intent lain dijawab `error` lalu ditutup 1008. Subprotocol `realtime` hanya dibalas bila klien menawarkannya.
+
+SDK `openai` (≥ 7) bisa dipakai apa adanya. Di Node, `OpenAIRealtimeWS` butuh paket `ws` (`npm i ws`):
+
+```js
+import { OpenAIRealtimeWS } from 'openai/realtime/ws';
+const rt = new OpenAIRealtimeWS({ intent: 'transcription' }, client); // client = new OpenAI({ baseURL: '<host>/api/v1' })
+rt.on('conversation.item.input_audio_transcription.completed', (e) => console.log(e.transcript));
+rt.socket.on('open', () => {
+  rt.send({ type: 'session.update', session: { type: 'transcription', audio: { input: {
+    format: { type: 'audio/pcm', rate: 24000 },
+    transcription: { model: 'whisper-1', language: 'id' },
+    turn_detection: { type: 'server_vad' },
+  } } } });
+  rt.send({ type: 'input_audio_buffer.append', audio: pcm16Base64 }); // potongan ±100 ms
+});
+```
+
+**Event klien:** `session.update`, `input_audio_buffer.append`, `input_audio_buffer.commit`, `input_audio_buffer.clear`. Audio wajib `audio/pcm` 24 kHz PCM16 mono base64 (server mengubahnya ke 16 kHz). `transcription.model` lewat tabel alias di atas, `language` ISO-639-1 (kosong → `STT_DEFAULT_LANGUAGE`), `prompt` jadi hotword. Event `transcription_session.update` (beta lama) tidak didukung.
+
+**Event server** (semua punya `event_id`, `item_id` tetap sama dari `speech_started` sampai `completed`): `session.created`, `session.updated`, `input_audio_buffer.speech_started`, `input_audio_buffer.speech_stopped`, `input_audio_buffer.committed` (`previous_item_id` merangkai giliran), `input_audio_buffer.cleared`, `conversation.item.added`, `conversation.item.input_audio_transcription.delta`, `conversation.item.input_audio_transcription.completed` (`usage: { type: 'duration', seconds }`), `conversation.item.input_audio_transcription.failed`, `error`. Qwen3-ASR tidak punya callback per token, jadi tiap giliran mendapat **satu** delta berisi teks penuh lalu `completed`.
+
+**Deteksi giliran.** `turn_detection: null` = commit manual. `{ type: 'server_vad' }` memakai Silero VAD asli di child STT (default `threshold` 0.5, `prefix_padding_ms` 300, `silence_duration_ms` 500); tidak ada VAD berbasis energi di proses utama. Default sesi = `server_vad` bila `STT_VAD_MODEL` ada di disk, selain itu `null`; minta `server_vad` tanpa model → `error vad_unavailable`. VAD yang gagal di tengah sesi → `error vad_failed` dan sesi beralih ke manual. Satu giliran dibatasi `RT_MAX_TURN_SEC`: dengan VAD giliran di-commit otomatis, tanpa VAD → `error turn_too_long` dan buffer dikosongkan.
+
+**Kode error** (`error.code`; sesi tetap terbuka kecuali disebut lain):
+- `session.update`: `unsupported_session_type`, `unsupported_audio_format`, `model_not_found`, `invalid_value`, `unsupported_turn_detection`, `vad_unavailable`.
+- frame/event: `invalid_json`, `invalid_event`, `unsupported_event`, `invalid_audio` (base64 rusak / jumlah byte ganjil), `input_audio_buffer_commit_empty` (< 100 ms), `turn_too_long`.
+- per giliran (di `…transcription.failed`): `engine_busy` (antrean penuh), `engine_unloaded`, `memory_pressure`, `server_error`.
+- penutupan: `idle_timeout` (tak ada event selama `RT_IDLE_TIMEOUT_SEC`) dan `session_expired` (`RT_MAX_SESSION_SEC`) → close 1008; `memory_pressure` saat memory guard darurat → close 1013. Event `error` selalu dikirim sebelum close. Frame > 2 MB ditutup 1009.
+
+Batas lewat env (`RT_MAX_SESSIONS` 2, `RT_MAX_SESSION_SEC` 1800, `RT_IDLE_TIMEOUT_SEC` 120, `RT_MAX_TURN_SEC` 60). Tiap giliran yang di-commit tercatat sebagai pemakaian API key (`WS /api/v1/realtime`). Log hanya berisi id, ukuran, dan durasi — tidak pernah transkrip atau audio. Di belakang nginx, teruskan header `Upgrade`/`Connection` dan set `proxy_read_timeout` ≥ `RT_IDLE_TIMEOUT_SEC`.
+
 ### Error, antrean, dan limit
 
 - Error di bawah `/api/v1` berbentuk OpenAI `{ error: { message, type, param, code } }` (termasuk 401, 404, 429 rate limit IP), sehingga SDK melempar exception yang tepat. Route `/api/*` lain tetap memakai `{ error, code, status, requestId }`.

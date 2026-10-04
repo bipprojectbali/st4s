@@ -27,6 +27,7 @@ import { agentDocResponse, isAgentDoc } from './readme';
 import { isSeoFile, seoResponse } from './seo';
 import { getBranding } from './settings-branding';
 import { maintenanceGate } from './settings-maintenance';
+import { attachRealtimeDevBridge } from './v1/realtime-dev';
 
 // Dev-only (this entry runs only under `bun run dev`): sync the local DB schema
 // on boot so a fresh or behind database doesn't 500 on first query. Prod
@@ -125,6 +126,9 @@ const server = createServer((req, res) => {
 // HMR rides the app's own port. Without `ws.server`, middleware mode opens a
 // second WebSocket port (24678) that collides when two projects run at once.
 // `port` keeps the client's direct-connect fallback off Vite's default 5173.
+// /api/v1/realtime WebSocket upgrades → internal Bun.serve (HMR upgrades stay with Vite).
+attachRealtimeDevBridge(server, (r) => api.handle(r));
+
 const vite = await createViteServer({
   server: { middlewareMode: true, port: env.PORT, ws: { server } },
   appType: 'custom',
