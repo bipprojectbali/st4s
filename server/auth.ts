@@ -8,6 +8,7 @@ import { db } from './db';
 import * as schema from './db/schema';
 import { env, hasGoogleAuth, signupDisabled } from './env';
 import { logger } from './logger';
+import { RESOLVED_IP_HEADER } from './middleware/client-ip';
 import { describeClient, loginMethodFromPath } from './middleware/request-meta';
 import { normalizeIp } from './middleware/visitor';
 import { ac, ROLES, roles } from './permissions';
@@ -128,6 +129,8 @@ export const auth = betterAuth({
     },
   },
   hooks: { before: enforceEmailAuthGate },
+  // Session IPs and the built-in sign-in rate limit must use the TRUSTED_PROXIES-aware IP, not raw X-Forwarded-For.
+  advanced: { ipAddress: { ipAddressHeaders: [RESOLVED_IP_HEADER] } },
   emailAndPassword: {
     enabled: true,
     // Also enforced (with a 403 + message) by enforceEmailAuthGate; kept as a backstop.

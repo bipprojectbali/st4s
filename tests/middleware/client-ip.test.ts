@@ -3,6 +3,7 @@ import {
   CLIENT_IP_HEADER,
   isTrustedProxy,
   normalizeIp,
+  RESOLVED_IP_HEADER,
   resolveClientIp,
   stampClientIp,
 } from '../../server/middleware/client-ip';
@@ -109,6 +110,30 @@ describe('stampClientIp', () => {
     });
     stampClientIp(req, null);
     expect(req.headers.get(CLIENT_IP_HEADER)).toBe('');
+  });
+});
+
+describe('stampClientIp — resolved IP header', () => {
+  const resolvedFrom = (socket: string | null, extra: Record<string, string> = {}) => {
+    const req = new Request('http://localhost/api/x', { headers: extra });
+    stampClientIp(req, socket);
+    return req.headers.get(RESOLVED_IP_HEADER);
+  };
+
+  it('spoofed X-Forwarded-For from an untrusted peer resolves to the peer', () => {
+    delete process.env.TRUSTED_PROXIES;
+    expect(resolvedFrom('::ffff:9.9.9.9', { 'x-forwarded-for': '1.2.3.4' })).toBe('9.9.9.9');
+  });
+
+  it('trusted loopback proxy resolves to the right-most untrusted hop', () => {
+    process.env.TRUSTED_PROXIES = 'loopback';
+    expect(resolvedFrom('::1', { 'x-forwarded-for': '6.6.6.6, 203.0.113.9' })).toBe('203.0.113.9');
+  });
+
+  it('overwrites a client-sent resolved header, blanking it when the socket is unknown', () => {
+    delete process.env.TRUSTED_PROXIES;
+    expect(resolvedFrom('8.8.8.8', { [RESOLVED_IP_HEADER]: '1.1.1.1' })).toBe('8.8.8.8');
+    expect(resolvedFrom(null, { [RESOLVED_IP_HEADER]: '1.1.1.1' })).toBe('');
   });
 });
 

@@ -17,6 +17,9 @@ import { logger } from '../logger';
 /** Set by the HTTP servers from the socket address; never trusted from the wire. */
 export const CLIENT_IP_HEADER = 'x-makuro-client-ip';
 
+/** Client IP after the trust rules, set by stampClientIp; the only IP header Better Auth reads. */
+export const RESOLVED_IP_HEADER = 'x-makuro-resolved-ip';
+
 /** Canonical, human-readable form (IPv4-mapped → IPv4, IPv6 loopback → 127.0.0.1). */
 export function normalizeIp(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -84,7 +87,8 @@ export function resolveClientIp(headers: Headers, socketIp?: string | null): str
   return hops[0] ?? normalizeIp(headers.get('x-real-ip')) ?? peer;
 }
 
-/** Stamp the socket IP onto a request (empty when unknown) so downstream handlers apply the trust rules. */
+/** Stamp the socket IP and the resolved client IP (empty when unknown), always overwriting the wire values. */
 export function stampClientIp(request: Request, socketIp: string | null | undefined): void {
   request.headers.set(CLIENT_IP_HEADER, normalizeIp(socketIp) ?? '');
+  request.headers.set(RESOLVED_IP_HEADER, resolveClientIp(request.headers) ?? '');
 }
