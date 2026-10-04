@@ -126,21 +126,26 @@ describe('api key refusal logging', () => {
     expect(refusals()[0]?.[0]).not.toHaveProperty('keyId');
   });
 
-  test('expired, disabled, revoked and IP-blocked keys each log their code', async () => {
+  test('expired, disabled, revoked and IP-blocked keys each log their code and reason', async () => {
     const cases = [
-      ['expired', 401, 'KEY_EXPIRED'],
-      ['disabled', 401, 'KEY_DISABLED'],
-      ['revoked', 401, 'KEY_REVOKED'],
-      ['ip', 403, 'IP_NOT_ALLOWED'],
+      ['expired', 401, 'INVALID_API_KEY', 'KEY_EXPIRED'],
+      ['disabled', 401, 'INVALID_API_KEY', 'KEY_DISABLED'],
+      ['revoked', 401, 'INVALID_API_KEY', 'KEY_REVOKED'],
+      ['ip', 403, 'IP_NOT_ALLOWED', null],
     ] as const;
-    for (const [name, status, code] of cases) {
+    for (const [name, status, code, rawCode] of cases) {
       warnSpy.mockClear();
       const res = await call('/api/me/logins', k(name).key);
       expect(res.status).toBe(status);
       expect((await res.json()).code).toBe(code);
-      expectOneRefusal(k(name).key, { code, status, path: '/api/me/logins' });
+      expectOneRefusal(k(name).key, {
+        code,
+        status,
+        path: '/api/me/logins',
+        ...(rawCode ? { rawCode } : {}),
+      });
       // Expired/disabled fail inside Better Auth before the key id is known.
-      if (code === 'KEY_REVOKED' || code === 'IP_NOT_ALLOWED')
+      if (name === 'revoked' || name === 'ip')
         expect(refusals()[0]?.[0]).toMatchObject({ keyId: k(name).id });
     }
   });
