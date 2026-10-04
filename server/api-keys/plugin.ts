@@ -12,6 +12,7 @@ import { normalizeIp, resolveClientIp } from '../middleware/client-ip';
 import { resolveGeo } from '../middleware/visitor-geo';
 import { resolveUserRole } from '../roles';
 import { parseLines } from '../settings.core';
+import { isV1Path, v1Code, v1Error } from '../v1/errors';
 import { getApiKeyIdentity, setApiKeyIdentity } from './identity';
 import { isPublicRead, requiredScope, roleAllowsScope, type Scope } from './scopes';
 import { recordUsage } from './usage';
@@ -34,11 +35,18 @@ export function ipAllowed(list: string[] | null, ip: string | null): boolean {
   );
 }
 
-const deny = (status: number, error: string, extra: Record<string, unknown> = {}) =>
-  new Response(JSON.stringify({ error, ...extra }), {
-    status,
-    headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
-  });
+/** Rejection Response in the template shape, or OpenAI shape for /api/v1. */
+const denier =
+  (pathname: string) =>
+  (status: number, error: string, extra: Record<string, unknown> = {}) =>
+    isV1Path(pathname)
+      ? v1Error(status, error, {
+          code: v1Code(extra.code) ?? (status === 401 ? 'invalid_api_key' : null),
+        })
+      : new Response(JSON.stringify({ error, ...extra }), {
+          status,
+          headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+        });
 
 export function apiKeyPlugin() {
   return (
@@ -50,6 +58,7 @@ export function apiKeyPlugin() {
         const key = extractApiKey(request.headers);
         if (!key) return;
         const url = new URL(request.url);
+        const deny = denier(url.pathname);
         const scope = requiredScope(request.method, url.pathname);
         const publicRead = isPublicRead(request.method, url.pathname);
         if (!scope && !publicRead)

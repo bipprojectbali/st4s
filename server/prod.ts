@@ -22,8 +22,10 @@ import bundledChangelog from '../CHANGELOG.md' with { type: 'text' };
 import { api } from './api';
 import { newRequestId } from './api-error';
 import { registerBundledChangelog } from './changelog';
+import { bootEngines, exitOnShutdownSignals } from './engines/boot';
 import { env } from './env';
 import { errorResponse } from './error-page';
+import { needsLongTimeout, serveLimits } from './http-limits';
 import { isHttpProbe, probeResponse } from './http-probes';
 import { logger } from './logger';
 import { stampClientIp } from './middleware/client-ip';
@@ -44,11 +46,17 @@ const CLIENT_DIR = Bun.isStandaloneExecutable
   ? `${path.join(import.meta.dir, 'client')}/`
   : `${path.join(import.meta.dir, '../build/client')}/`;
 
+// Engines are lazy: this registers them without starting a child or loading a model.
+bootEngines();
+exitOnShutdownSignals();
+
 const server = Bun.serve({
   port: env.PORT,
-  idleTimeout: 60,
+  ...serveLimits(),
   async fetch(request, bunServer) {
     const url = new URL(request.url);
+    // Long transcriptions, queued speech/SSE and warmups send nothing for minutes.
+    if (needsLongTimeout(url.pathname)) bunServer.timeout(request, 0);
     // Socket IP → internal header, so rate limiting and analytics see the real client.
     stampClientIp(request, bunServer.requestIP(request)?.address);
 

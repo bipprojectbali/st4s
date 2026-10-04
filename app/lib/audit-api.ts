@@ -109,6 +109,9 @@ const ACTION_META: Record<string, { label: string; color: string }> = {
   'apikey.rotate': { label: 'Rotasi API key', color: 'yellow' },
   'apikey.revoke': { label: 'Cabut API key', color: 'red' },
   'apikey.delete': { label: 'Hapus API key', color: 'red' },
+  'engine.warmup': { label: 'Warmup engine', color: 'teal' },
+  'engine.unload': { label: 'Unload engine', color: 'orange' },
+  'engine.auto_unload': { label: 'Unload otomatis engine', color: 'red' },
 };
 
 export function actionMeta(action: string): { label: string; color: string } {
@@ -120,4 +123,5 @@ export const TARGET_LABELS: Record<string, string> = {
   session: 'Sesi',
   settings: 'Settings',
   logs: 'Log',
+  engine: 'Engine',
 };

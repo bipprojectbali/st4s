@@ -5,7 +5,6 @@ import { LEVEL_NAMES, logBuffer } from '../log-buffer';
 function formatEntry(entry: ReturnType<typeof logBuffer.query>[number]): string {
   const time = new Date(entry.time).toISOString();
   const level = (LEVEL_NAMES[entry.level] ?? String(entry.level)).toUpperCase().padEnd(5);
-  // biome-ignore lint/correctness/noUnusedVariables: destructured to exclude from rest
   const { level: _l, time: _t, msg: _m, env: _e, ...rest } = entry;
   const extra = Object.keys(rest).length ? ` ${JSON.stringify(rest)}` : '';
   return `[${time}] ${level} ${entry.msg}${extra}`;

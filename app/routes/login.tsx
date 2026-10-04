@@ -12,7 +12,7 @@ import {
 } from '@mantine/core';
 import { hasLength, isEmail, isNotEmpty, useForm } from '@mantine/form';
 import { hasGoogleAuth } from '@server/env';
-import { getSettings } from '@server/settings';
+import { emailAuthGate } from '@server/settings-auth';
 import { getBranding } from '@server/settings-branding';
 import { useState } from 'react';
 import { FcGoogle } from 'react-icons/fc';
@@ -23,15 +23,24 @@ import { type AuthNotice, describeAuthError, loginNotice } from '~/lib/auth-erro
 import type { Route } from './+types/login';
 
 export function meta({ loaderData }: Route.MetaArgs) {
-  return [{ title: `Masuk — ${loaderData?.branding.appName ?? 'Makuro'}` }];
+  const app = loaderData?.branding.appName ?? 'Makuro';
+  return [
+    { title: `Masuk — ${app}` },
+    {
+      name: 'description',
+      content: `Masuk ke ${app} dengan akun Google atau email untuk memakai layanan transkripsi suara (STT) dan sintesis suara (TTS) Anda.`,
+    },
+  ];
 }
 
 export async function loader() {
-  const [{ emailAuthEnabled, signupEnabled }, branding] = await Promise.all([
-    getSettings(),
-    getBranding(),
-  ]);
-  return { googleEnabled: hasGoogleAuth, emailAuthEnabled, signupEnabled, branding };
+  const [gate, branding] = await Promise.all([emailAuthGate(), getBranding()]);
+  return {
+    googleEnabled: hasGoogleAuth,
+    emailAuthEnabled: gate.signIn,
+    signupEnabled: gate.signUp,
+    branding,
+  };
 }
 
 const MIN_PASSWORD = 8;
@@ -86,7 +95,16 @@ export default function Login({ loaderData }: Route.ComponentProps) {
     setGoogleLoading(true);
     try {
       // Success → /go (role-aware home). Failure (e.g. banned) → back here with ?error=<code>.
-      await signIn.social({ provider: 'google', callbackURL: '/go', errorCallbackURL: '/login' });
+      const res = await signIn.social({
+        provider: 'google',
+        callbackURL: '/go',
+        errorCallbackURL: '/login',
+      });
+      // Errors before the redirect (e.g. INVALID_ORIGIN) come back as a value, not a throw.
+      if (res.error) {
+        setNotice(describeAuthError(res.error));
+        setGoogleLoading(false);
+      }
     } catch (err) {
       setNotice(describeAuthError({ message: err instanceof Error ? err.message : null }));
       setGoogleLoading(false);
@@ -120,10 +138,16 @@ export default function Login({ loaderData }: Route.ComponentProps) {
 
           {googleEnabled && (
             <>
+              {/* White chip keeps the multicolour icon legible on the filled button. */}
               <Button
-                variant="default"
+                variant="filled"
                 fullWidth
-                leftSection={<FcGoogle size={18} />}
+                leftSection={
+                  <FcGoogle
+                    size={18}
+                    style={{ background: 'white', borderRadius: 4, padding: 1 }}
+                  />
+                }
                 loading={googleLoading}
                 disabled={banned}
                 onClick={continueWithGoogle}
@@ -139,6 +163,7 @@ export default function Login({ loaderData }: Route.ComponentProps) {
               <Stack>
                 {mode === 'signup' && signupEnabled && (
                   <TextInput
+                    size="md"
                     label="Nama"
                     placeholder="Nama Anda"
                     key={form.key('name')}
@@ -146,6 +171,7 @@ export default function Login({ loaderData }: Route.ComponentProps) {
                   />
                 )}
                 <TextInput
+                  size="md"
                   label="Email"
                   placeholder="anda@contoh.com"
                   inputMode="email"
@@ -154,17 +180,29 @@ export default function Login({ loaderData }: Route.ComponentProps) {
                   {...form.getInputProps('email')}
                 />
                 <PasswordInput
+                  size="md"
                   label="Kata sandi"
                   placeholder={`Minimal ${MIN_PASSWORD} karakter`}
                   autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
                   key={form.key('password')}
                   {...form.getInputProps('password')}
                 />
-                <Button type="submit" loading={loading} fullWidth>
+                <Button
+                  type="submit"
+                  variant={googleEnabled ? 'default' : 'filled'}
+                  loading={loading}
+                  fullWidth
+                >
                   {mode === 'signup' && signupEnabled ? 'Buat akun' : 'Masuk'}
                 </Button>
               </Stack>
             </form>
+          )}
+
+          {emailAuthEnabled && !signupEnabled && (
+            <Text c="dimmed" size="sm" ta="center">
+              Pendaftaran akun baru ditutup. Hubungi administrator untuk dibuatkan akun.
+            </Text>
           )}
 
           {!googleEnabled && !emailAuthEnabled && (

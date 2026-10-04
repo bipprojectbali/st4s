@@ -8,11 +8,13 @@ import { maintenancePlugin } from '../middleware/maintenance';
 import { rateLimitPlugin } from '../middleware/rate-limiter';
 import { applyRateLimitSettings } from '../settings';
 import { startRetentionScheduler } from '../settings-retention';
+import { v1Api } from '../v1';
 import { adminApi } from './admin';
 import { analyticsApi } from './analytics';
 import { apiKeysApi } from './api-keys';
 import { apiKeysUsageApi } from './api-keys-usage';
 import { auditApi } from './audit';
+import { enginesApi } from './engines';
 import { fileHealthApi } from './file-health';
 import { logsApi } from './logs';
 import { meApi } from './me';
@@ -87,6 +89,8 @@ export const api = new Elysia({ prefix: '/api' })
   .use(settingsOpsApi)
   // Operational tools (status, MCP catalog, cache resets) — super-admin only.
   .use(opsApi)
+  // Speech engine status + warmup/unload (super-admin session only).
+  .use(enginesApi)
   // Current-user endpoints (profile page) + personal API keys.
   .use(meApiKeysApi)
   .use(meApi)
@@ -103,6 +107,8 @@ export const api = new Elysia({ prefix: '/api' })
   }))
   .get('/me', ({ user }) => ({ user }))
   // Posts (public reads, session writes, admin moderation) live in posts.ts.
-  .use(postsApi);
+  .use(postsApi)
+  // OpenAI-compatible speech API (/api/v1/audio/*, /api/v1/models).
+  .use(v1Api);
 
 export type Api = typeof api;

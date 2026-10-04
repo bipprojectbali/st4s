@@ -132,7 +132,7 @@ export function AppFrame(props: Props) {
             opened={mobileOpened}
             onClick={toggleMobile}
             size="sm"
-            aria-label="Buka navigasi"
+            aria-label={mobileOpened ? 'Tutup navigasi' : 'Buka navigasi'}
           />
           <Link to={home} style={{ textDecoration: 'none', color: 'inherit', minWidth: 0 }}>
             <Group gap={6} wrap="nowrap">

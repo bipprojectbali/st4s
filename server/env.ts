@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-const EnvSchema = z.object({
+/** Schema for process.env; exported so parsing rules are unit-testable. */
+export const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().default(3000),
   APP_URL: z.string().url().default('http://localhost:3000'),
@@ -13,6 +14,11 @@ const EnvSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   // Comma-separated emails granted super-admin (env is the source of truth).
   SUPER_ADMIN_EMAILS: z.string().optional(),
+  // 'true' closes email+password sign-up; unset or empty → closed in production, open elsewhere.
+  AUTH_DISABLE_SIGNUP: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+    z.enum(['true', 'false']).optional(),
+  ),
   // MCP debug server — if not set, /api/mcp returns 503.
   // Generate: openssl rand -hex 32
   MCP_ADMIN_TOKEN: z.string().min(32).optional(),
@@ -32,6 +38,13 @@ if (!parsed.success) {
 export const env = parsed.data;
 export const isProd = env.NODE_ENV === 'production';
 export const hasGoogleAuth = Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
+
+/** Whether email+password sign-up is closed: explicit AUTH_DISABLE_SIGNUP wins, else closed in production. */
+export function resolveSignupDisabled(raw: 'true' | 'false' | undefined, nodeEnv: string): boolean {
+  return raw === undefined ? nodeEnv === 'production' : raw === 'true';
+}
+
+export const signupDisabled = resolveSignupDisabled(env.AUTH_DISABLE_SIGNUP, env.NODE_ENV);
 
 /** Normalized set of super-admin emails (lowercased, de-duped, blanks dropped). */
 export const superAdminEmails: ReadonlySet<string> = new Set(

@@ -26,5 +26,7 @@ export default [
     route('dev/server-logs', 'routes/super/server-logs.tsx'),
     route('dev/audit', 'routes/super/audit.tsx'),
     route('dev/changelog', 'routes/super/changelog.tsx'),
+    route('dev/engines', 'routes/super/engines.tsx'),
+    route('dev/playground', 'routes/super/playground.tsx'),
   ]),
 ] satisfies RouteConfig;

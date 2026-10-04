@@ -5,6 +5,7 @@ import { getSidebarCollapsed } from '@server/sidebar';
 import { devSidebarBadges } from '@server/sidebar-badges';
 import {
   FiClipboard,
+  FiCpu,
   FiDatabase,
   FiEdit3,
   FiFileText,
@@ -13,6 +14,7 @@ import {
   FiKey,
   FiList,
   FiLogIn,
+  FiMic,
   FiMonitor,
   FiSettings,
   FiShield,
@@ -122,6 +124,18 @@ const NAV: NavGroup[] = [
         label: 'Tools & MCP',
         icon: FiTool,
         description: 'Akses agent, status proses, reset cache',
+      },
+      {
+        to: '/dev/engines',
+        label: 'Engines',
+        icon: FiCpu,
+        description: 'Status model STT/TTS, warmup dan unload',
+      },
+      {
+        to: '/dev/playground',
+        label: 'Playground',
+        icon: FiMic,
+        description: 'Coba transkripsi dan sintesis suara langsung',
       },
       {
         to: '/dev/changelog',

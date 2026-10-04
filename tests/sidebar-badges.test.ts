@@ -1,6 +1,7 @@
 /** /dev sidebar counters: one badge per menu, sane tones, short-lived cache. */
 import { describe, expect, test } from 'bun:test';
-import { devSidebarBadges } from '../server/sidebar-badges';
+import type { EngineStatus } from '../server/engines/types';
+import { devSidebarBadges, engineBadge } from '../server/sidebar-badges';
 
 describe('devSidebarBadges', () => {
   test('returns a numeric badge with tooltip and tone for every console menu it covers', async () => {
@@ -39,5 +40,25 @@ describe('devSidebarBadges', () => {
     const b = devSidebarBadges();
     expect(a).toBe(b);
     expect(await devSidebarBadges({ fresh: true })).not.toBe(await a);
+  });
+  test('engine badge: none when unregistered, alert on error, else loaded count', () => {
+    const st = (kind: 'stt' | 'tts', state: EngineStatus['state']): EngineStatus => ({
+      kind,
+      model: 'm',
+      state,
+      queued: 0,
+      loadedAt: null,
+      lastError: state === 'error' ? 'boom' : null,
+      rssBytes: null,
+      stats: { requests: 0, errors: 0, p50Ms: null, p95Ms: null, rtfP50: null },
+    });
+    expect(engineBadge([])).toBeNull();
+    expect(engineBadge([st('stt', 'ready'), st('tts', 'unloaded')])).toMatchObject({
+      value: 1,
+      tone: 'info',
+    });
+    const err = engineBadge([st('stt', 'error'), st('tts', 'ready')]);
+    expect(err).toMatchObject({ value: 1, tone: 'alert', color: 'red' });
+    expect(err?.tooltip).toContain('boom');
   });
 });

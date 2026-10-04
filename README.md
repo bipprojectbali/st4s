@@ -19,6 +19,7 @@ Dokumentasi ini adalah satu-satunya sumber dan bisa dibaca tanpa JavaScript:
 - `GET /api/version` — `{ name, version, env, bun }`, publik.
 - API dipakai dengan header `X-API-Key: mk_live_…` atau `Authorization: Bearer mk_live_…`; scope per route ada di bagian **API keys**. Semua error API berbentuk JSON `{ error, code, status, requestId }`.
 - Server MCP di `/api/mcp` (Streamable HTTP) menerima API key ber-scope `mcp`; katalog tool ada di bagian **Dev console → Tools & MCP**.
+- Speech-to-text dan text-to-speech kompatibel OpenAI ada di `/api/v1` (`baseURL: <host>/api/v1` di SDK `openai`); error di bawah `/api/v1` berbentuk OpenAI `{ error: { message, type, param, code } }`. Lihat bagian **Speech API (kompatibel OpenAI)**.
 
 Untuk mesin pencari: `/robots.txt` (area login, konsol, dan API ditutup) dan `/sitemap.xml` dibangun dari `APP_URL`, sedangkan landing punya meta Open Graph/Twitter, `og:image` (`/og.png`, 1200×630), dan `canonical` — jadi set `APP_URL` ke origin publik di produksi.
 
@@ -34,10 +35,11 @@ Ketiga URL dokumentasi dilayani sebelum SSR, ber-ETag (`304` bila tidak berubah)
 | **SSR tanpa waterfall** | React Router v8 loader berjalan server-side, session tersedia di loader |
 | **ORM type-safe** | Drizzle ORM + PostgreSQL, schema-as-code, migration files, Drizzle Studio |
 | **UI kit terkonfigurasi** | Mantine v9, TanStack Query, Zustand, Biome — semua sudah terhubung |
-| **Dev console `/dev`** | 14 halaman operasional: users, sessions, posts, API keys, DB schema, log pengunjung/login/rate-limit/server/audit, file health, tools, settings — badge hidup di sidebar |
+| **Dev console `/dev`** | 17 halaman operasional: users, sessions, posts, API keys, DB schema, log pengunjung/login/rate-limit/server/audit, file health, engines, playground, tools, settings — badge hidup di sidebar |
 | **API keys** | Kunci `mk_live_…` ber-scope, kedaluwarsa, rotasi dengan masa tenggang, IP allow-list, rate limit per kunci, jejak pemakaian + rollup harian, kunci pribadi per user |
 | **Observability** | Visitor/login/rate-limit log dengan geo & perangkat, audit trail semua aksi admin, buffer log server, retensi otomatis, mode maintenance, feature flags |
 | **Error yang konsisten** | Halaman 404/401/403/5xx bermerek (sidebar tetap tampil di konsol), error API selalu `{ error, code, status, requestId }`, fallback HTML bila SSR gagal |
+| **Speech server** | `/api/v1` kompatibel SDK `openai`: transkripsi (Qwen3-ASR) dan sintesis suara (Supertonic 3) lokal, keduanya streaming, engine di child process |
 | **Ramah AI agent** | `/README.md` + `/llms.txt` teks polos, server MCP ber-API-key, tool file health agar konteks agent tidak meledak |
 
 ## Stack
@@ -100,6 +102,7 @@ bun run start
 | `bun run db:migrate` | Apply migration |
 | `bun run db:push` | Push schema langsung (interaktif) |
 | `bun run db:studio` | Drizzle Studio |
+| `bun run admin:verify <email>` | Tandai email user di `SUPER_ADMIN_EMAILS` sebagai terverifikasi (bootstrap super-admin tanpa Google) |
 | `bun run test` | Test suite (bun:test, `tests/`, pakai DATABASE_URL_TEST) |
 
 ## Binary distribution (tanpa Bun di server)
@@ -134,6 +137,8 @@ Seperti Go binary: copy satu file ke server, langsung jalan. Tidak perlu `build/
 
 > **Teknik:** SSR bundle di-embed via static `import * as ssrBuild from '../build/server/index.js'` — Bun bundler mengikuti static import dan mem-bundle seluruh dependensi (`@react-router/node`, `react-dom`, dll) ke dalam binary. `--asset ./build/client` embed seluruh direktori client ke VFS (tersedia di runtime sebagai `client/` — satu level parent directory di-strip). `inlineDynamicImports: true` di Vite memastikan SSR bundle adalah satu file tunggal tanpa dynamic chunk splits.
 
+**Engine suara di binary:** model, `libcrispasr`, dan ffmpeg **tidak** di-embed — binary membacanya dari path di env (lihat bagian **Speech API**). Binary menjalankan engine dengan me-re-exec dirinya sendiri sebagai `--s4s-engine-child stt|tts`, jadi tidak butuh Bun di server. STT jalan apa adanya. TTS butuh `libonnxruntime.1.dylib` (dari `node_modules/onnxruntime-node/bin/napi-v6/<os>/<arch>/`) diletakkan di samping binary dan direktorinya diset di `DYLD_LIBRARY_PATH` — `bun build --compile` meng-embed `onnxruntime_binding.node` tetapi tidak library dinamisnya. Di Linux padanannya `libonnxruntime.so.1` + `LD_LIBRARY_PATH` (belum dites).
+
 > **Catatan:** Binary lebih besar (~130 MB) karena embed Bun runtime (JavaScriptCore). Trade-off yang sama dengan semua single-binary JS runtimes (Deno, Node SEA).
 
 ## Struktur project
@@ -147,7 +152,7 @@ app/                    React Router app (SSR)
     home.tsx            Landing page (angka hidup dari server/landing-stats.ts)
     login.tsx  go.tsx   Login/signup, post-auth resolver ke home role
     user/  admin/       Area /profile dan /dashboard (layout + ErrorBoundary ber-sidebar)
-    super/              Area /dev: 14 halaman konsol super-admin
+    super/              Area /dev: 17 halaman konsol super-admin
   components/
     AppFrame.tsx frame/ Shell sidebar (nav model, badge, brand header)
     errors/             ErrorPage (standalone), ErrorPanel, AreaErrorBoundary
@@ -172,6 +177,8 @@ server/
   settings*.ts          app_setting: auth, rate limit, retensi, maintenance, flags, branding
   middleware/           client-ip, visitor (+geo, UA), rate-limiter, maintenance
   mcp/                  Server MCP + tool (status, log, DB, file health)
+  v1/                   API audio kompatibel OpenAI (/api/v1: models, transcriptions, speech)
+  engines/              Engine STT/TTS (kontrak, registry, child process, boot/shutdown)
   file-health/          Pemindai ukuran file / risiko konteks agent
   db/
     schema.*.ts         Drizzle schema per concern (auth, app, logs, keys)
@@ -199,7 +206,35 @@ Sistem role: `user` → `admin` → `super-admin`. Role tersimpan di tabel `user
 | `admin` | `/dashboard` | Dashboard, manajemen user (ban, role change), API key pribadi |
 | `super-admin` | `/dev` | Overview, users, sessions, posts, DB schema, visitor/login/rate-limit/server/audit logs, file health, tools & MCP, settings |
 
-Google OAuth: set `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`. Authorized redirect URI di Google Console: `${BETTER_AUTH_URL}/api/auth/callback/google`.
+**Login Google (OAuth).** Tombol "Lanjutkan dengan Google" muncul di `/login` (sebagai tombol utama) begitu kedua env di bawah di-set; tanpa keduanya Google mati dan email+password jadi satu-satunya jalan masuk.
+
+1. Google Cloud Console → *APIs & Services* → *Credentials* → *Create OAuth client ID* → tipe **Web application**.
+2. **Authorized redirect URI**: `${BETTER_AUTH_URL}/api/auth/callback/google` — harus sama persis dengan origin tempat app diakses (skema, host, port). Contoh dev: `http://localhost:<PORT>/api/auth/callback/google`; produksi: `https://<domain-anda>/api/auth/callback/google`. Daftarkan keduanya bila satu client dipakai untuk dev dan produksi.
+3. Env: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `BETTER_AUTH_URL` (origin publik app; juga satu-satunya trusted origin default Better Auth), dan `SUPER_ADMIN_EMAILS`.
+4. Restart server.
+
+Perilaku saat masuk lewat Google:
+
+- **Pendaftaran tertutup juga berlaku untuk Google.** Bila sign-up ditutup (`AUTH_DISABLE_SIGNUP` atau toggle "Pendaftaran" di `/dev/settings`), login Google yang akan **membuat user baru** ditolak dan kembali ke `/login?error=signup_disabled` dengan pesan "Pendaftaran akun baru sedang ditutup…". Pengecualian: email di `SUPER_ADMIN_EMAILS` (tanpa membedakan huruf besar/kecil) tetap boleh membuat akun, agar pemilik tidak pernah terkunci. Ditegakkan lewat hook `user.validateUserInfo` Better Auth sebelum user disimpan.
+- **User yang sudah ada tetap bisa masuk.** Bila email Google sudah terdaftar dan terverifikasi, akun Google ditautkan otomatis (default `accountLinking` Better Auth). Email yang terdaftar lewat kata sandi tapi **belum terverifikasi** tidak ditautkan (mencegah pengambilalihan akun) dan kembali ke `/login?error=account_not_linked`; user itu masuk dengan email + kata sandi.
+
+**Super-admin & sign-up di produksi.** Role `super-admin` dari `SUPER_ADMIN_EMAILS` hanya diberikan ke email yang **terverifikasi**. Template ini tidak mengirim email verifikasi, jadi di produksi super-admin masuk lewat Google, atau operator menjalankan `bun run admin:verify <email>` (lihat checklist di bawah). Sign-up tertutup saat `NODE_ENV=production` (termasuk binary) kecuali `AUTH_DISABLE_SIGNUP=false` (kosong = belum di-set); login user lama (email maupun Google) tetap jalan, dan akun baru lewat Google hanya untuk email di `SUPER_ADMIN_EMAILS`.
+
+**Toggle "Login email" & "Pendaftaran" di `/dev/settings` ditegakkan server.** `POST /api/auth/sign-in/email` dan `/sign-up/email` yang dinonaktifkan dijawab `403` (`EMAIL_AUTH_DISABLED` / `SIGNUP_DISABLED`) dengan pesan bahasa Indonesia; login Google user lama tidak terpengaruh, tetapi toggle "Pendaftaran" juga menutup akun baru lewat Google (lihat di atas). Aturan efektifnya (satu helper `server/settings-auth.ts`, dipakai hook auth dan halaman login):
+
+- Login email aktif bila toggle "Login email" menyala **atau Google tidak dikonfigurasi** — tanpa Google, email adalah satu-satunya jalan masuk sehingga tidak bisa dimatikan.
+- Sign-up aktif bila login email aktif **dan** toggle "Pendaftaran" menyala **dan** sign-up tidak ditutup env (`AUTH_DISABLE_SIGNUP`).
+
+**Checklist deploy (production)**
+
+1. `bun run db:migrate` terhadap database produksi.
+2. Set `SUPER_ADMIN_EMAILS`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`.
+3. Bootstrap super-admin — pilih satu:
+   - Google: set `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`, lalu login Google dengan email di `SUPER_ADMIN_EMAILS`.
+   - Tanpa Google: jalankan sementara dengan `AUTH_DISABLE_SIGNUP=false`, daftar dengan email itu, jalankan `bun run admin:verify <email>` (menolak email di luar allowlist / user yang belum ada; output hanya email ter-mask), lalu kosongkan lagi `AUTH_DISABLE_SIGNUP` dan restart.
+4. Speech: `FFMPEG_PATH`, `CRISPASR_LIB`, `STT_MODEL`, `TTS_MODEL_DIR` (lihat **Speech API**).
+5. Binary: letakkan `libonnxruntime.1.dylib` di samping binary dan set `DYLD_LIBRARY_PATH` (Linux: `libonnxruntime.so.1` + `LD_LIBRARY_PATH`) agar TTS jalan.
+6. Di belakang reverse proxy (nginx/caddy): set `TRUSTED_PROXIES` (mis. `loopback` bila proxy di host yang sama, atau IP/CIDR proxy). Tanpa itu `X-Forwarded-For` diabaikan dan semua klien terlihat ber-IP proxy (satu bucket rate limit). Proxy juga harus membiarkan respons yang lama diam: transkripsi panjang dan antrean engine bisa tidak mengirim byte selama beberapa menit. Untuk nginx di `/api/v1/audio/` dan `/api/engines/`: `proxy_read_timeout 1800s;` dan `proxy_buffering off;` (SSE). Server sendiri menutup koneksi diam setelah 60 dtk kecuali di dua prefix itu, dan menolak body > `V1_MAX_UPLOAD_MB` + 1 MiB dengan 413 sebelum mem-buffer.
 
 **Ban & hapus akun — apa yang dilihat user.** Better Auth sendiri hanya menolak *pembuatan sesi baru* untuk user yang diblokir; template ini melengkapinya:
 
@@ -272,9 +307,119 @@ Akses terprogram ke `/api/*` tanpa cookie sesi. Dikelola super-admin di `/dev/ap
 
 ## Rate limiting
 
-Setiap request `/api/*` dibatasi per IP klien dengan jendela geser. Default 100 request / 60 detik dari env `RATE_LIMIT_MAX` dan `RATE_LIMIT_WINDOW_MS`; super-admin bisa menimpanya (batas, jendela, path yang dikecualikan, atau mematikan sementara) di `/dev/settings` tanpa restart — nilai tersimpan di `app_setting`, `NULL` berarti pakai default env. `/api/auth/*` (Better Auth) dan `/api/mcp` (API key/token) dikecualikan. Setiap response membawa `X-RateLimit-Limit` / `X-RateLimit-Remaining`; request yang ditolak mendapat 429 + `Retry-After`, dan request yang ditolak tidak memperpanjang jendela. IP klien diambil dari `X-Forwarded-For` / `X-Real-IP`, lalu dari alamat socket yang distempel server (`server/middleware/client-ip.ts`), jadi tanpa proxy pun tiap klien punya bucket sendiri.
+Setiap request `/api/*` dibatasi per IP klien dengan jendela geser. Default 100 request / 60 detik dari env `RATE_LIMIT_MAX` dan `RATE_LIMIT_WINDOW_MS`; super-admin bisa menimpanya (batas, jendela, path yang dikecualikan, atau mematikan sementara) di `/dev/settings` tanpa restart — nilai tersimpan di `app_setting`, `NULL` berarti pakai default env. `/api/auth/*` (Better Auth) dan `/api/mcp` (API key/token) dikecualikan. Setiap response membawa `X-RateLimit-Limit` / `X-RateLimit-Remaining`; request yang ditolak mendapat 429 + `Retry-After`, dan request yang ditolak tidak memperpanjang jendela. IP klien adalah alamat socket yang distempel server (`server/middleware/client-ip.ts`); `X-Forwarded-For` / `X-Real-IP` hanya dipercaya bila socket itu proxy di `TRUSTED_PROXIES`, dan yang dipakai adalah hop paling kanan yang bukan proxy tepercaya — header palsu dari klien tidak membuat bucket baru.
 
 Plugin `rateLimitPlugin()` harus didaftarkan **pertama** di `server/api/index.ts` — hook Elysia hanya berlaku untuk route yang didaftarkan setelahnya. Request yang ditolak dicatat ke `rate_limit_log` (method, IP, geo, perangkat) dan ditampilkan di `/dev/rate-limit-logs` dengan API `/api/analytics/rate-limit-logs` (`search`, `ip`, `path`, `method`, `country`, `device`, `days`, `/stats`, `/export`, `DELETE` massal). State limiter ada di memori proses; untuk multi-instance gunakan Redis.
+
+## Speech API (kompatibel OpenAI)
+
+App ini juga speech server lokal: speech-to-text memakai **Qwen3-ASR 1.7B** (GGUF lewat `libcrispasr`) dan text-to-speech memakai **Supertonic 3** (ONNX lewat `onnxruntime-node`). Endpoint di `/api/v1` meniru API audio OpenAI, jadi SDK `openai` (dan klien lain yang kompatibel) cukup diarahkan ke `baseURL: <host>/api/v1`.
+
+**Auth.** Buat API key di `/profile` (kunci pribadi) atau `/dev/api-keys` dengan scope `stt:transcribe` (transkripsi) dan/atau `tts:speak` (sintesis), lalu kirim sebagai `Authorization: Bearer <key>` — SDK melakukannya dari `apiKey`. Sesi login browser juga diterima. Tanpa kredensial → `401 invalid_api_key`. `GET /models`, `/models/:id`, dan `/audio/voices` publik.
+
+```js
+import OpenAI from 'openai';
+const client = new OpenAI({ apiKey: process.env.S4S_API_KEY, baseURL: 'https://your-host/api/v1' });
+```
+
+### Model & voice
+
+`GET /api/v1/models` mendaftar model beserta aliasnya; `GET /api/v1/models/:id` → `404 model_not_found` bila tidak dikenal. `GET /api/v1/audio/voices` (ekstensi s4s) → `{ object: 'list', data: [{ id, object: 'voice', voice }] }`.
+
+| Model asli | Alias OpenAI yang diterima |
+|---|---|
+| `qwen3-asr-1.7b` (STT) | `whisper-1`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe` |
+| `supertonic-3` (TTS) | `tts-1`, `tts-1-hd`, `gpt-4o-mini-tts` |
+
+Voice asli `F1`–`F5` dan `M1`–`M5`; nama voice OpenAI dipetakan (tidak peka huruf besar): `alloy`→F1, `coral`/`marin`→F2, `fable`→F3, `nova`→F4, `shimmer`/`sage`→F5, `ash`→M1, `ballad`→M2, `echo`→M3, `onyx`/`cedar`→M4, `verse`→M5.
+
+```bash
+curl https://your-host/api/v1/models
+curl https://your-host/api/v1/audio/voices
+```
+
+```js
+const models = await client.models.list();
+```
+
+### `POST /api/v1/audio/transcriptions`
+
+Multipart dengan `file` dan `model`. Opsi:
+
+- `response_format`: `json` (default), `text`, `srt`, `vtt`, `verbose_json` (+ `timestamp_granularities[]` = `word`/`segment`).
+- `stream=true` (hanya untuk `json`/`text`): SSE `transcript.text.delta` lalu `transcript.text.done` dengan `usage: { type: 'duration', seconds }`. Qwen3-ASR tidak punya callback per token, jadi delta datang **per potongan VAD**, bukan per kata — audio pendek bisa hanya satu delta.
+- `language`: kode ISO-639-1; kosong → `STT_DEFAULT_LANGUAGE` (default `id`). **Beda dari OpenAI:** OpenAI mendeteksi bahasa otomatis bila `language` kosong, s4s menganggapnya bahasa Indonesia. Untuk audio bahasa lain kirim `language`, atau set `STT_DEFAULT_LANGUAGE=auto` (butuh `STT_LID_MODEL`).
+- `prompt` dan ekstensi s4s `keywords` (dipisah koma) dikirim sebagai hotword ke decoder; gabungan maks. 50 istilah dan 1000 karakter, lebih dari itu → `400` dengan `param: 'keywords'`.
+- Audio: WAV didecode langsung (PCM 8/16/24/32-bit atau float32); `flac`, `mp3`, `mp4`, `mpeg`, `mpga`, `m4a`, `ogg`, `webm` lewat ffmpeg.
+- Batas: upload > `V1_MAX_UPLOAD_MB` (25) → `413 file_too_large`; durasi > `V1_MAX_AUDIO_SEC` (1800) → `400 audio_too_long`.
+- Decode audio dibatasi `V1_DECODE_CONCURRENCY` (2) upload sekaligus; request yang menunggu slot lebih dari `V1_DECODE_WAIT_MS` (5000) → `429 engine_busy`. Bila antrean STT sudah penuh, request ditolak `429` sebelum body upload dibaca.
+- Tanpa VAD (`STT_VAD_MODEL` kosong atau gagal), audio dipotong rata per `STT_MAX_CHUNK_SEC`. Klien yang memutus koneksi membatalkan job di batas potongan berikutnya (potongan yang sedang didecode tetap selesai), sehingga antrean langsung bergerak.
+
+```bash
+curl https://your-host/api/v1/audio/transcriptions \
+  -H "Authorization: Bearer $S4S_API_KEY" \
+  -F file=@rapat.m4a -F model=whisper-1 -F language=id -F keywords="Makuro,Supertonic"
+```
+
+```js
+import fs from 'node:fs';
+const stream = await client.audio.transcriptions.create({
+  file: fs.createReadStream('rapat.m4a'), model: 'whisper-1', stream: true,
+});
+for await (const ev of stream) if (ev.type === 'transcript.text.delta') process.stdout.write(ev.delta);
+```
+
+`POST /api/v1/audio/translations` tidak didukung → `400` dengan `code: 'unsupported'`.
+
+### `POST /api/v1/audio/speech`
+
+JSON `{ model, input, voice }`; `input` maks. 4096 karakter, `voice` berupa nama atau `{ id }`. Opsi:
+
+- `response_format`: `mp3` (default), `opus`, `aac`, `flac`, `wav`, `pcm`. Selain `wav`/`pcm` butuh ffmpeg; tanpa ffmpeg → `400 unsupported_format`.
+- `speed`: 0.25–4.
+- `stream_format`: `audio` (default, byte audio di-stream) atau `sse` (event `speech.audio.delta` berisi audio base64, lalu `speech.audio.done` dengan `usage`). `sse` ditolak untuk `tts-1`/`tts-1-hd`, sama seperti OpenAI — pakai `gpt-4o-mini-tts`.
+- Ekstensi s4s: `language` (ISO-639-1, default `TTS_DEFAULT_LANGUAGE` = `id`) dan `steps` (langkah denoising, di-clamp 1–20, default `TTS_STEPS` = 8).
+- Teks dipecah per unit (`TTS_MAX_UNIT_CHARS`, 400) dan tiap unit dikirim begitu selesai, jadi audio pertama datang sebelum seluruh teks selesai disintesis.
+
+```bash
+curl https://your-host/api/v1/audio/speech \
+  -H "Authorization: Bearer $S4S_API_KEY" -H "Content-Type: application/json" \
+  -d '{"model":"tts-1","voice":"alloy","input":"Selamat pagi.","response_format":"wav","language":"id"}' \
+  -o pagi.wav
+```
+
+```js
+const res = await client.audio.speech.create({
+  model: 'gpt-4o-mini-tts', voice: 'nova', input: 'Selamat pagi.', language: 'id', // language = ekstensi s4s
+});
+fs.writeFileSync('pagi.mp3', Buffer.from(await res.arrayBuffer()));
+```
+
+### Error, antrean, dan limit
+
+- Error di bawah `/api/v1` berbentuk OpenAI `{ error: { message, type, param, code } }` (termasuk 401, 404, 429 rate limit IP), sehingga SDK melempar exception yang tepat. Route `/api/*` lain tetap memakai `{ error, code, status, requestId }`.
+- Tiap engine memproses satu request sekaligus dengan antrean (`STT_MAX_QUEUE` 4, `TTS_MAX_QUEUE` 8). Antrean penuh → `429 engine_busy` + `Retry-After`; engine tidak tersedia, atau di-unload saat job berjalan (idle, `/dev/engines`, shutdown) → `503 engine_unavailable` (+ `Retry-After` untuk unload).
+- Rate limit IP global (lihat **Rate limiting**) juga berlaku untuk `/api/v1`.
+
+### Engine & kebutuhan
+
+Engine dimuat malas: child process dan model baru dimuat pada request pertama (atau lewat tombol warmup), lalu dilepas setelah idle (`STT_IDLE_TIMEOUT_SEC`/`TTS_IDLE_TIMEOUT_SEC`, 600 dtk). `bun run dev`/`start`/binary mendaftarkan engine saat boot dan melepasnya dengan rapi saat SIGINT/SIGTERM. Super-admin memantau dan mengendalikannya di `/dev/engines` (status, RSS, latensi, warmup/unload; API `GET /api/engines`, `POST /api/engines/:kind/warmup|unload`, sesi browser saja) dan mencobanya di `/dev/playground`.
+
+Yang harus ada di mesin (path diatur lewat env, lihat komentar di `.env.example`):
+
+- **STT** — shared library `libcrispasr` (`CRISPASR_LIB`), model Qwen3-ASR GGUF (`STT_MODEL`), opsional Silero VAD (`STT_VAD_MODEL`) untuk memotong audio panjang dan model language-ID (`STT_LID_MODEL`). Tuning: `STT_THREADS`, `STT_MAX_CHUNK_SEC`, `STT_GPU` (default mati = decode CPU; `1` = Metal dengan fallback ke CPU).
+  - **libcrispasr ber-patch (default)** — `CRISPASR_LIB` default `~/tmp/crispasr-s4s/build/src/libcrispasr.dylib`, hasil `scripts/crispasr/build.sh`. Lib tanpa patch tetap bisa dipakai lewat `CRISPASR_LIB`, tetapi puncak RAM STT ~3,5 GB (bukan ~2,1 GB). `scripts/crispasr/build.sh` menyalin source CrispASR (`CRISPASR_SRC`, default `~/tmp/stt`; boleh URL git) ke `CRISPASR_DIR` (default `~/tmp/crispasr-s4s`), menerapkan `scripts/crispasr/crisp-audio-filtered-load.patch` (commit upstream `e144dd03`: encoder audio hanya memuat tensor `audio.*`, bukan seluruh GGUF), lalu build `-j2` (`JOBS`). Bila `CRISPASR_DIR` diubah, arahkan `CRISPASR_LIB` ke `<CRISPASR_DIR>/build/src/libcrispasr.dylib`. Source upstream yang sudah memuat `e144dd03` tidak perlu patch (skrip mendeteksinya).
+- **TTS** — direktori model Supertonic berisi `onnx/` dan `voice_styles/` (`TTS_MODEL_DIR`). Tuning: `TTS_STEPS`, `TTS_THREADS`, `TTS_MAX_UNIT_CHARS`.
+- **ffmpeg** — untuk decode upload non-WAV dan encode mp3/opus/aac/flac (`FFMPEG_PATH`); default `ffmpeg` di `PATH`.
+- **Cek saat boot** — server memeriksa semua path di atas dan ffmpeg sekali saat start; yang hilang dicatat satu baris log per item (`error` di production, `warn` di dev) dan tampil di field `deps` `GET /api/engines`. Server tetap jalan; engine baru gagal saat dipakai. Encode ffmpeg dihentikan setelah `TTS_FFMPEG_TIMEOUT_MS` tanpa audio baru (idle), bukan total durasi stream.
+- **Memori** — child STT (decode CPU) memakai ~1,6 GB footprint setelah model dimuat dan ~3,45 GB sejak request pertama, lalu datar untuk audio 15 dtk maupun 60 dtk. Lonjakan sekali jalan itu berasal dari `libcrispasr`, yang memuat GGUF kedua kalinya untuk encoder audio (+1,4 GB) ditambah KV/compute (~0,4 GB). Dengan libcrispasr ber-patch (lihat atas) salinan kedua itu hilang: puncak footprint terukur turun dari ~3,48 GB ke ~2,08 GB dengan transkrip identik. Dengan lib tanpa patch dan `STT_GPU=1`, salinan itu ter-wire ke Metal di luar RSS dan bisa menghabiskan RAM bebas mesin 8 GB, jadi biarkan mati di host 8 GB. Child TTS sekitar 0,5 GB, jadi mesin 8 GB cukup untuk keduanya. Tiap upload yang sedang didecode juga memegang file + PCM float32 (±230 MB untuk audio 30 menit) dan antrean STT menyimpan PCM tiap job. Untuk host 8 GB disarankan `STT_MAX_QUEUE=2`, `V1_MAX_AUDIO_SEC=600`, dan `V1_DECODE_CONCURRENCY=1`–`2`.
+- **Memory guard** — memantau RAM bebas (macOS: level memorystatus kernel + pressure; Linux: `MemAvailable`) dan bertindak bertingkat:
+  - di bawah `MEM_GUARD_WARN_PCT` (30%), request baru `/api/v1/audio/*` dan warmup ditolak dengan `503 memory_pressure` + `Retry-After`. Penolakan baru berhenti setelah RAM bebas ≥ `MEM_GUARD_RECOVER_PCT` (40%) selama `MEM_GUARD_RECOVER_SEC` (30 dtk);
+  - di bawah `MEM_GUARD_CRITICAL_PCT` (20%) atau saat pressure kernel kritis, engine idle di-unload lebih dulu, lalu engine yang sedang bekerja pada tick berikutnya;
+  - di bawah `MEM_GUARD_EMERGENCY_PCT` (12%), STT lalu TTS di-unload segera;
+  - sebelum memuat engine yang belum termuat (request `/api/v1/audio/transcriptions`/`speech` atau warmup), RAM bebas dicek terhadap `MEM_BUDGET_STT_MB` (2600) / `MEM_BUDGET_TTS_MB` (600). Bila kurang, request ditolak `503 memory_pressure` + `Retry-After` dengan pesan RAM yang dibutuhkan vs tersedia. Budget dipesan sampai engine siap atau gagal, jadi dua cold load bersamaan dihitung keduanya. Engine yang sudah termuat tidak dicek; `0` menonaktifkan cek engine itu.
+
+  Engine tidak dimuat ulang otomatis; warmup manual setelah RAM pulih. Polling bersifat adaptif: tanpa timer saat tidak ada engine termuat, 10 dtk saat engine idle, dan 500 ms saat engine bekerja atau RAM menipis. Tiap unload tercatat di log dan Audit Log, dan statusnya muncul di field `memoryGuard` `GET /api/engines`, peringatan `/dev/engines`, dan badge sidebar. Nonaktifkan dengan `MEM_GUARD_ENABLED=false`.
 
 ## File health & penyelamat konteks agent
 

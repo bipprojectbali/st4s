@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterEach, describe, expect, mock, test } from 'bun:test';
 
 // Bypass auth — settings PUT requires super-admin; GET is public.
 mock.module('../../server/guard', () => ({

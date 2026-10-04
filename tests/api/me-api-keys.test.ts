@@ -4,9 +4,11 @@ import { eq } from 'drizzle-orm';
 import Elysia from 'elysia';
 import { MAX_PERSONAL_KEYS, meApiKeysApi } from '../../server/api/me-api-keys';
 import { setApiKeyIdentity } from '../../server/api-keys/identity';
+import { isAdminScope, SCOPES, type Scope } from '../../server/api-keys/scopes';
 import { auth } from '../../server/auth';
 import { db } from '../../server/db';
 import { auditLog, user } from '../../server/db/schema';
+import { ROLES } from '../../server/permissions';
 import * as rolesMod from '../../server/roles';
 
 // Real resolveActor; only the session lookup and role reconciliation are stubbed
@@ -110,7 +112,10 @@ describe('/me/api-keys', () => {
     const list = await call('/');
     expect(list.status).toBe(200);
     const ids = (list.body.scopes as Array<{ id: string }>).map((s) => s.id);
-    expect(ids).toEqual(['posts:write', 'me:read']);
+    // Independent of scopesForRole (which the route uses): exactly the USER-tier scopes, in catalogue order.
+    expect(ids).toEqual(SCOPES.filter((s) => s.minRole === ROLES.USER).map((s) => s.id));
+    expect(ids).toEqual(expect.arrayContaining(['posts:write', 'me:read']));
+    expect(ids.some((id) => isAdminScope(id as Scope))).toBe(false);
     expect(list.body.max).toBe(MAX_PERSONAL_KEYS);
     const tooHigh = await call('/', json('POST', input('nope', ['users:read'])));
     expect(tooHigh.status).toBe(400);

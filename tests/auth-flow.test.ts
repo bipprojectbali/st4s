@@ -11,15 +11,22 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
-import { redirect } from 'react-router';
 import { api } from '../server/api';
 import { db } from '../server/db';
-import { loginLog, user } from '../server/db/schema';
+import { appSetting, loginLog, user } from '../server/db/schema';
 import { redirectToHome } from '../server/guard';
+import {
+  invalidateSettingsCache,
+  readSettingsRow,
+  type SettingsRow,
+  SINGLETON_ID,
+  upsertSettingsRow,
+} from '../server/settings.core';
 
 const TEST_EMAIL = `auth-flow-${crypto.randomUUID()}@test.local`;
 const TEST_PASS = 'TestPass123!';
 let sessionCookie = '';
+let originalSettings: SettingsRow | null = null;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -54,6 +61,10 @@ async function signIn() {
 // ─── Setup / Teardown ────────────────────────────────────────────────────────
 
 beforeAll(async () => {
+  // Email auth is gated server-side by the login settings; open it for this flow.
+  invalidateSettingsCache();
+  originalSettings = await readSettingsRow();
+  await upsertSettingsRow({ emailAuthEnabled: true, signupEnabled: true });
   const res = await signUp();
   expect(res.status).toBe(200);
   // Capture session cookies for subsequent tests
@@ -66,6 +77,13 @@ afterAll(async () => {
     .delete(user)
     .where(eq(user.email, TEST_EMAIL))
     .catch(() => {});
+  if (originalSettings) {
+    const { emailAuthEnabled, signupEnabled } = originalSettings;
+    await upsertSettingsRow({ emailAuthEnabled, signupEnabled });
+  } else {
+    await db.delete(appSetting).where(eq(appSetting.id, SINGLETON_ID));
+  }
+  invalidateSettingsCache();
 });
 
 // ─── Sign-up ─────────────────────────────────────────────────────────────────

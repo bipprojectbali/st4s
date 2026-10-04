@@ -4,7 +4,7 @@ import { introspectDrizzleSchema } from './db/schema-introspect';
 import { MCP_TOOL_CATALOG } from './mcp/tool-catalog';
 
 /** Routes under /dev that render a page (keep in sync with app/routes.ts; tested). */
-export const CONSOLE_PAGE_COUNT = 15;
+export const CONSOLE_PAGE_COUNT = 17;
 
 async function countTestFiles(): Promise<number> {
   if (Bun.isStandaloneExecutable) return 0;

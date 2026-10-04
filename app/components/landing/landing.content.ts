@@ -14,6 +14,7 @@ import {
   FiLayers,
   FiList,
   FiLogIn,
+  FiMic,
   FiMonitor,
   FiPackage,
   FiSettings,
@@ -165,6 +166,18 @@ export const CONSOLE_PAGES: ConsolePage[] = [
     icon: FiTag,
     label: 'Changelog',
     desc: 'Riwayat perubahan per versi dari CHANGELOG.md, dengan filter dan pencarian.',
+    group: 'Tools',
+  },
+  {
+    icon: FiCpu,
+    label: 'Engines',
+    desc: 'Status model STT dan TTS, latensi, memori, plus warmup dan unload sekali klik.',
+    group: 'Tools',
+  },
+  {
+    icon: FiMic,
+    label: 'Playground',
+    desc: 'Rekam atau unggah audio untuk transkripsi live, ketik teks untuk sintesis suara streaming.',
     group: 'Tools',
   },
   {

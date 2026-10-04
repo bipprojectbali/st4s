@@ -11,6 +11,7 @@
 import { Elysia } from 'elysia';
 import { isProd } from './env';
 import { logger } from './logger';
+import { isV1Path, v1Code, v1Error } from './v1/errors';
 
 export type ApiErrorBody = {
   error: string;
@@ -46,7 +47,28 @@ type StatusLike = { statusCode?: unknown; status?: unknown; message?: unknown };
 
 export const newRequestId = () => crypto.randomUUID().slice(0, 12);
 
+/** /api/v1 speaks OpenAI: `{ error: { message, type, param, code } }`, 422 -> 400, request id in a header. */
+function v1JsonError(body: ApiErrorBody): Response {
+  const status = body.status === 422 ? 400 : body.status;
+  const where = `${body.method} ${body.path}`;
+  const message =
+    body.code === 'NOT_FOUND'
+      ? `URL tidak dikenal (${where}). Cek path dan method di README.`
+      : body.code === 'VALIDATION'
+        ? `Request tidak valid: ${body.issues?.map((i) => `${i.path} ${i.message}`.trim()).join('; ') || where}`
+        : body.code === 'INTERNAL'
+          ? 'Terjadi kesalahan di server. Coba lagi; sertakan header x-request-id bila melapor.'
+          : body.error;
+  const code = body.code === 'INTERNAL' ? 'server_error' : v1Code(body.code);
+  return v1Error(status, message, {
+    code,
+    param: body.issues?.[0]?.path.replace(/^\//, '') || null,
+    headers: { 'x-request-id': body.requestId },
+  });
+}
+
 function jsonError(body: ApiErrorBody): Response {
+  if (body.path && isV1Path(body.path)) return v1JsonError(body);
   return new Response(JSON.stringify(body), {
     status: body.status,
     headers: {

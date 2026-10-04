@@ -12,8 +12,11 @@ import { changelogOverview } from './changelog';
 import { db } from './db';
 import { auditLog, loginLog, post, session, user, visitLog } from './db/schema';
 import { migrationStatus } from './db/schema-stats';
+import { getStt, getTts } from './engines/registry';
+import type { EngineStatus } from './engines/types';
 import { env } from './env';
 import { scanFileHealth } from './file-health/file-health.scan';
+import { type MemoryGuardStatus, memoryGuardStatus } from './memory-guard/state';
 import { settingsOverview } from './settings';
 
 export type SidebarBadge = {
@@ -50,6 +53,56 @@ async function safe<T>(fallback: T, run: () => Promise<T>): Promise<T> {
   } catch {
     return fallback;
   }
+}
+
+/** Status of each registered engine; an unregistered or failing engine is skipped. */
+function engineStatuses(): EngineStatus[] {
+  return [getStt, getTts].flatMap((get) => {
+    try {
+      return [get().status()];
+    } catch {
+      return [];
+    }
+  });
+}
+
+const GUARD_RECENT_MS = 60 * 60 * 1000;
+
+/**
+ * Engines badge: alert when any engine is in error, or while the memory guard sheds requests /
+ * unloaded an engine within the last hour; else the loaded count; none when unregistered.
+ */
+export function engineBadge(
+  statuses: EngineStatus[],
+  guard: MemoryGuardStatus = memoryGuardStatus(),
+  now = Date.now(),
+): SidebarBadge | null {
+  if (!statuses.length) return null;
+  const failed = statuses.filter((s) => s.state === 'error');
+  if (failed.length)
+    return alert(
+      failed.length,
+      'red',
+      `Engine error: ${failed.map((s) => `${s.kind.toUpperCase()} — ${s.lastError ?? 'tanpa pesan'}`).join('; ')}`,
+    );
+  const last = guard.lastAction;
+  const recent = last && now - Date.parse(last.at) < GUARD_RECENT_MS;
+  if (guard.shedding || recent)
+    return alert(
+      1,
+      'orange',
+      [
+        guard.shedding &&
+          `RAM menipis (sisa ${guard.freePct ?? '?'}%): permintaan audio baru ditolak sementara`,
+        recent &&
+          last &&
+          `Memory guard melepas engine ${last.engine.toUpperCase()} pada ${new Date(last.at).toLocaleTimeString('id-ID')}`,
+      ]
+        .filter(Boolean)
+        .join('; '),
+    );
+  const loaded = statuses.filter((s) => s.state === 'ready' || s.state === 'busy').length;
+  return info(loaded, `${loaded}/${statuses.length} engine sudah memuat model`);
 }
 
 async function collect(): Promise<SidebarBadges> {
@@ -195,6 +248,8 @@ async function collect(): Promise<SidebarBadges> {
           changelog.unreleasedCount,
           `${nf.format(changelog.unreleasedCount)} perubahan belum dirilis`,
         );
+  const engines = engineBadge(engineStatuses());
+  if (engines) badges['/dev/engines'] = engines;
   return badges;
 }
 

@@ -76,7 +76,7 @@ describe('LogBuffer', () => {
     const buf = new LogBuffer(10);
     const writable = buf.asWritable();
     const entry = { level: 50, time: Date.now(), msg: 'written via stream', pid: 123 };
-    writable.write(JSON.stringify(entry) + '\n');
+    writable.write(`${JSON.stringify(entry)}\n`);
     await new Promise<void>((r) => setTimeout(r, 0));
     expect(buf.size()).toBe(1);
     expect(buf.query({})[0].msg).toBe('written via stream');

@@ -28,17 +28,15 @@ async function call(path: string, init?: RequestInit) {
 let keyId = '';
 
 beforeAll(async () => {
-  await db
-    .insert(user)
-    .values({
-      id: adminId,
-      name: 'Key Admin',
-      email: `${adminId}@test.local`,
-      emailVerified: true,
-      role: 'admin',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+  await db.insert(user).values({
+    id: adminId,
+    name: 'Key Admin',
+    email: `${adminId}@test.local`,
+    emailVerified: true,
+    role: 'admin',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
 });
 afterAll(async () => {
   await db
@@ -59,12 +57,22 @@ describe('API key management API', () => {
   test('create enforces role ceiling and expiry rules; returns the key once', async () => {
     const tooHigh = await call(
       '/api-keys',
-      json('POST', { name: 'terlalu tinggi', ownerId: adminId, scopes: ['settings:write'], expiresDays: 30 }),
+      json('POST', {
+        name: 'terlalu tinggi',
+        ownerId: adminId,
+        scopes: ['settings:write'],
+        expiresDays: 30,
+      }),
     );
     expect(tooHigh.status).toBe(400);
     const noExpiry = await call(
       '/api-keys',
-      json('POST', { name: 'tanpa expiry', ownerId: adminId, scopes: ['users:read'], expiresDays: null }),
+      json('POST', {
+        name: 'tanpa expiry',
+        ownerId: adminId,
+        scopes: ['users:read'],
+        expiresDays: null,
+      }),
     );
     expect(noExpiry.status).toBe(400);
     const ok = await call(

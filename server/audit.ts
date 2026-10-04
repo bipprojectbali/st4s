@@ -33,10 +33,20 @@ export const AUDIT_ACTIONS = {
   APIKEY_ROTATE: 'apikey.rotate',
   APIKEY_REVOKE: 'apikey.revoke',
   APIKEY_DELETE: 'apikey.delete',
+  ENGINE_WARMUP: 'engine.warmup',
+  ENGINE_UNLOAD: 'engine.unload',
+  ENGINE_AUTO_UNLOAD: 'engine.auto_unload',
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
-export type AuditTargetType = 'user' | 'session' | 'settings' | 'logs' | 'post' | 'apikey';
+export type AuditTargetType =
+  | 'user'
+  | 'session'
+  | 'settings'
+  | 'logs'
+  | 'post'
+  | 'apikey'
+  | 'engine';
 
 export type AuditInput = {
   actor: { id: string; email?: string | null } | null;
