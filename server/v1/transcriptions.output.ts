@@ -1,6 +1,6 @@
 /** Transcription results in OpenAI response formats: json/text/srt/vtt/verbose_json and the SSE stream. */
 
-import { EngineUnloadedError } from '../engines/errors';
+import { EngineNotReadyError, EngineUnloadedError } from '../engines/errors';
 import {
   EngineBusyError,
   type SttEngine,
@@ -82,6 +82,8 @@ export function engineErrorResponse(err: unknown, requestId: string): Response {
       headers: { 'retry-after': String(err.retryAfterSec) },
     });
   if (err instanceof EngineUnloadedError) return v1EngineUnloaded(err);
+  if (err instanceof EngineNotReadyError)
+    return v1Error(503, err.message, { code: 'engine_unavailable' });
   logger.error({ err, requestId }, 'stt transcription failed');
   return v1Error(500, 'Transkripsi gagal. Coba lagi; sertakan header x-request-id bila melapor.', {
     code: 'server_error',

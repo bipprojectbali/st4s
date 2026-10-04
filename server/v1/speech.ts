@@ -2,7 +2,7 @@ import { Elysia } from 'elysia';
 import { newRequestId } from '../api-error';
 import { CONTENT_TYPES, NATIVE_FORMATS } from '../audio/encode';
 import { ffmpegAvailable } from '../audio/encode-ffmpeg';
-import { EngineUnloadedError } from '../engines/errors';
+import { EngineNotReadyError, EngineUnloadedError } from '../engines/errors';
 import { getTts } from '../engines/registry';
 import { EngineBusyError, type TtsEngine } from '../engines/types';
 import { logger } from '../logger';
@@ -74,6 +74,8 @@ async function speak(request: Request, body: unknown): Promise<Response> {
         headers: { 'retry-after': String(err.retryAfterSec) },
       });
     if (err instanceof EngineUnloadedError) return v1EngineUnloaded(err);
+    if (err instanceof EngineNotReadyError)
+      return v1Error(503, err.message, { code: 'engine_unavailable' });
     if (ctrl.signal.aborted) {
       logger.info(
         { requestId, units: units.length, totalMs: ms(t0) },

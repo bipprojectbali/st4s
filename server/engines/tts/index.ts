@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { logger } from '../../logger';
 import { TTS_MODEL_ID } from '../../v1/aliases';
-import { EngineUnloadedError } from '../errors';
+import { EngineNotReadyError, EngineUnloadedError } from '../errors';
+import { selfTestEnabled } from '../stt/selftest-env';
 import {
   EngineBusyError,
   type EngineState,
@@ -12,6 +13,7 @@ import {
 } from '../types';
 import { loadTtsConfig, type TtsConfig } from './config';
 import type { ChildMsg } from './protocol';
+import { startTtsSelfTest } from './selftest';
 import { bunSpawner, type ChildHandle, type Spawner } from './spawner';
 import { RollingStats } from './stats';
 import { isTtsLanguage } from './text';
@@ -30,6 +32,8 @@ interface Job {
 export interface TtsEngineOptions {
   config?: Partial<TtsConfig>;
   spawn?: Spawner;
+  /** Run the load-time self-test; defaults to selfTestEnabled() (off for injected spawners). */
+  selfTest?: boolean;
 }
 
 class SupertonicEngine implements TtsEngine {
@@ -48,10 +52,12 @@ class SupertonicEngine implements TtsEngine {
   private rate: number | null = null;
   private voiceList: string[] | null = null;
   private readonly stats = new RollingStats();
+  private probe: { take(msg: ChildMsg): boolean } | null = null;
 
   constructor(
     private readonly cfg: TtsConfig,
     private readonly spawn: Spawner,
+    private readonly selfTest: boolean,
   ) {}
 
   get sampleRate(): number {
@@ -238,25 +244,34 @@ class SupertonicEngine implements TtsEngine {
   private fail(message: string): void {
     this.failed = true;
     this.lastError = message;
-    this.loader?.reject(new Error(message));
+    this.loader?.reject(new EngineNotReadyError('tts', message));
     logger.error({ err: message }, 'tts: engine failure');
   }
 
   private onMessage(handle: ChildHandle, msg: ChildMsg): void {
     if (handle !== this.child) return;
     this.rss = msg.rss;
+    if (this.probe?.take(msg)) return;
     if (msg.type === 'loaded') {
       this.failed = false;
-      this.loadedAt = new Date().toISOString();
       this.rate = msg.sampleRate;
       logger.info({ loadMs: Math.round(msg.loadMs), rss: msg.rss }, 'tts: model loaded');
-      this.loader?.resolve();
+      if (!this.selfTest) this.markLoaded();
+      else
+        this.probe = startTtsSelfTest(
+          (m) => handle.send(m),
+          { voice: this.voices()[0], steps: this.cfg.steps, sampleRate: msg.sampleRate },
+          (reason) => {
+            this.probe = null;
+            if (handle !== this.child) return;
+            if (reason) this.refuse(handle, reason);
+            else this.markLoaded();
+          },
+        );
       return;
     }
     if (msg.type === 'error' && msg.id === undefined) {
-      this.child = null;
-      handle.kill();
-      this.fail(msg.message);
+      this.refuse(handle, msg.message);
       return;
     }
     const job = this.running;
@@ -281,8 +296,20 @@ class SupertonicEngine implements TtsEngine {
     this.scheduleIdle();
   }
 
+  private markLoaded(): void {
+    this.loadedAt = new Date().toISOString();
+    this.loader?.resolve();
+  }
+
+  private refuse(handle: ChildHandle, reason: string): void {
+    this.child = null;
+    handle.kill();
+    this.fail(reason);
+  }
+
   private onExit(handle: ChildHandle, code: number | null, signal: string | null): void {
     if (handle !== this.child) return;
+    this.probe = null;
     this.child = null;
     this.loadedAt = null;
     this.fail(`TTS child exited unexpectedly (code ${code}, signal ${signal})`);
@@ -312,5 +339,9 @@ class SupertonicEngine implements TtsEngine {
 
 /** Create the Supertonic 3 TTS engine (lazy child process, serial FIFO queue). */
 export function createTtsEngine(opts: TtsEngineOptions = {}): TtsEngine {
-  return new SupertonicEngine({ ...loadTtsConfig(), ...opts.config }, opts.spawn ?? bunSpawner);
+  return new SupertonicEngine(
+    { ...loadTtsConfig(), ...opts.config },
+    opts.spawn ?? bunSpawner,
+    opts.selfTest ?? selfTestEnabled(!!opts.spawn),
+  );
 }

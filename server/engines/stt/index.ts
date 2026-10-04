@@ -1,12 +1,14 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { logger } from '../../logger';
-import { EngineUnloadedError } from '../errors';
+import { EngineNotReadyError, EngineUnloadedError } from '../errors';
 import type { EngineState, SttEngine, TranscribeRequest, TranscribeResult } from '../types';
 import { loadSttConfig, type SttConfig } from './config';
 import { type SttChild, type SttSpawner, spawnBunChild } from './host';
 import { abortError, type Job, queueBusyError, rejectOnAbort } from './jobs';
 import type { FromChild } from './protocol';
+import { createSttProbe, runSttSelfTest } from './selftest';
+import { selfTestEnabled } from './selftest-env';
 import { RollingStats } from './stats';
 import { createVadBridge, isVadReply, type SttVad } from './vad';
 
@@ -14,12 +16,15 @@ import { createVadBridge, isVadReply, type SttVad } from './vad';
 export interface SttEngineOptions {
   config?: Partial<SttConfig>;
   spawn?: SttSpawner;
+  /** Run the load-time self-test; defaults to selfTestEnabled() (off for injected spawners). */
+  selfTest?: boolean;
 }
 
 /** Qwen3-ASR engine: one child process, serial FIFO queue, lazy load, idle unload, crash respawn. */
 export function createSttEngine(opts: SttEngineOptions = {}): SttEngine & Partial<SttVad> {
   const cfg: SttConfig = { ...loadSttConfig(), ...opts.config };
   const spawn = opts.spawn ?? spawnBunChild();
+  const selfTest = opts.selfTest ?? selfTestEnabled(!!opts.spawn);
   const log = logger.child({ engine: 'stt' });
   const stats = new RollingStats();
   const queue: Job[] = [];
@@ -38,31 +43,41 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine & Partia
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
   let nextId = 1;
 
-  function fail(msg: string): Error {
-    lastError = msg;
-    return new Error(msg);
+  function markReady() {
+    loadedAt = new Date().toISOString();
+    state = 'ready';
+    settleReady?.ok();
+  }
+
+  /** The child loaded wrong or not at all: stay in `error`, fail waiters with 503, stop the child. */
+  function refuse(reason: string) {
+    log.error({ reason }, 'stt engine not ready');
+    lastError = reason;
+    expectedExit = 'error';
+    state = 'error';
+    settleReady?.fail(new EngineNotReadyError('stt', reason));
+    child?.kill();
   }
 
   function onMessage(m: FromChild) {
+    if (probe.take(m)) return;
     if (isVadReply(m)) return vadBridge.onMessage(m);
     if (m.t === 'ready') {
-      loadedAt = new Date().toISOString();
       rss = m.rss;
-      state = 'ready';
       log.info(
         { loadMs: Math.round(m.loadMs), rss: m.rss, backend: m.backend, gpu: m.gpu },
         'stt model loaded',
       );
-      settleReady?.ok();
+      if (!selfTest) return markReady();
+      const c = child;
+      void runSttSelfTest(probe, { vad: !!cfg.vadModelPath, log }).then((reason) => {
+        if (child !== c) return;
+        if (reason) refuse(reason);
+        else markReady();
+      });
       return;
     }
-    if (m.t === 'load_error') {
-      expectedExit = 'error';
-      state = 'error';
-      settleReady?.fail(fail(m.message));
-      child?.kill();
-      return;
-    }
+    if (m.t === 'load_error') return refuse(m.message);
     const job = current;
     if (!job || job.id !== m.id) return;
     if (m.t === 'delta') {
@@ -94,7 +109,8 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine & Partia
       if (!job.dropped) job.resolve(m.result);
     } else {
       stats.fail();
-      if (!job.dropped) job.reject(fail(`STT transcription failed: ${m.message}`));
+      lastError = `STT transcription failed: ${m.message}`;
+      if (!job.dropped) job.reject(new Error(lastError));
     }
     pump();
   }
@@ -116,11 +132,14 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine & Partia
       expectedExit = null;
       err = new EngineUnloadedError('stt');
     } else {
-      err = fail(`STT child process exited unexpectedly (code ${code}, signal ${signal})`);
+      const msg = `STT child process exited unexpectedly (code ${code}, signal ${signal})`;
+      lastError = msg;
+      err = state === 'loading' ? new EngineNotReadyError('stt', msg) : new Error(msg);
       state = 'error';
       log.error({ code, signal, inFlight: sent?.id ?? null }, 'stt child crashed');
     }
     settleReady?.fail(err);
+    probe.failAll(err);
     vadBridge.failAll(err);
     if (sent) {
       stats.fail();
@@ -150,7 +169,9 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine & Partia
     } catch (e) {
       ready = null;
       state = 'error';
-      settleReady?.fail(fail(`Failed to start STT child: ${(e as Error).message}`));
+      lastError = `Failed to start STT child: ${(e as Error).message}`;
+      log.error({ reason: lastError }, 'stt engine not ready');
+      settleReady?.fail(new EngineNotReadyError('stt', lastError));
     }
     return p;
   }
@@ -237,6 +258,11 @@ export function createSttEngine(opts: SttEngineOptions = {}): SttEngine & Partia
     });
     return unloading;
   }
+
+  const probe = createSttProbe((m) => {
+    child?.send(m);
+    return !!child;
+  });
 
   // warmup() also re-arms the idle timer, so VAD traffic keeps the child loaded mid-session.
   const vadBridge = createVadBridge({

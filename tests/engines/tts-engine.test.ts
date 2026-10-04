@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { EngineUnloadedError } from '../../server/engines/errors';
+import { EngineNotReadyError, EngineUnloadedError } from '../../server/engines/errors';
 import { createTtsEngine } from '../../server/engines/tts';
 import type { ChildMsg, ParentMsg } from '../../server/engines/tts/protocol';
 import type { Spawner } from '../../server/engines/tts/spawner';
@@ -230,8 +230,12 @@ describe('tts engine', () => {
 
   test('load failure rejects queued work with the load error', async () => {
     const { engine } = setup({}, { failLoad: true });
-    await expect(engine.synthesize(req())).rejects.toThrow('model missing');
+    const err = await engine.synthesize(req()).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(EngineNotReadyError);
+    expect((err as EngineNotReadyError).message).toContain('Mesin TTS gagal dimuat');
+    expect((err as EngineNotReadyError).detail).toContain('model missing');
     expect(engine.status().state).toBe('error');
+    expect(engine.status().lastError).toContain('model missing');
   });
 
   test('unload kills the child; the next request reloads', async () => {

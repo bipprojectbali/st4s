@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { EngineUnloadedError } from '../../server/engines/errors';
+import { EngineNotReadyError, EngineUnloadedError } from '../../server/engines/errors';
 import { createSttEngine } from '../../server/engines/stt';
 import type { SttChildEvents, SttSpawner } from '../../server/engines/stt/host';
 import type { ToChild, TranscribeMsg } from '../../server/engines/stt/protocol';
@@ -181,7 +181,11 @@ describe('stt engine (fake child)', () => {
     const p2 = eng.transcribe({ audio: audio() });
     await tick();
     f.children[0]!.on.message({ t: 'load_error', message: 'STT model load failed: bad gguf' });
-    await expect(p1).rejects.toThrow(/bad gguf/);
+    const err = await p1.catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(EngineNotReadyError);
+    expect((err as EngineNotReadyError).message).toContain('Mesin STT gagal dimuat');
+    expect((err as EngineNotReadyError).detail).toContain('bad gguf');
+    expect(eng.status().lastError).toContain('bad gguf');
     // engine kills the failed child; the fake's kill() delivers its exit
     expect(f.children[0]!.killed).toBe(true);
     await tick();

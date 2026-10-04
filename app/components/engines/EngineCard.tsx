@@ -114,7 +114,7 @@ export function EngineCard({
         disabled={Boolean(reason)}
         onClick={() => actions.confirm(kind, action)}
       >
-        {action === 'unload' ? 'Unload' : 'Warmup'}
+        {action === 'unload' ? 'Unload' : s.state === 'error' ? 'Coba muat ulang' : 'Warmup'}
       </Button>
     );
     return reason ? (
@@ -147,7 +147,17 @@ export function EngineCard({
           </Group>
         </Group>
         {s.lastError && (
-          <Alert color="red" variant="light" icon={<FiAlertTriangle size={16} />} p="xs">
+          <Alert
+            color="red"
+            variant="light"
+            icon={<FiAlertTriangle size={16} />}
+            p="xs"
+            title={
+              s.state === 'error'
+                ? 'Engine gagal siap — request ditolak (503) sampai dimuat ulang'
+                : 'Error terakhir'
+            }
+          >
             <Text size="sm" style={{ wordBreak: 'break-word' }}>
               {s.lastError}
             </Text>
