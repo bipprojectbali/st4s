@@ -48,7 +48,9 @@ export async function* synthUnits(opts: {
     }
   } finally {
     // Generator closed early: the in-flight prefetch is aborted via `signal`; observe its rejection.
-    pending?.catch((err) => logger.debug({ err, requestId: opts.requestId }, 'tts prefetch dropped'));
+    pending?.catch((err) =>
+      logger.debug({ err, requestId: opts.requestId }, 'tts prefetch dropped'),
+    );
   }
 }
 
@@ -108,18 +110,24 @@ export function responseBody(opts: {
         let r = await it.next();
         // A pull that enqueues nothing may never be re-invoked, so skip empty chunks here.
         while (!r.done && r.value.length === 0) r = await it.next();
+        // cancel() may have run while we awaited; the controller is closed then.
+        if (ended) return;
         const { value, done } = r;
         if (done) {
-          if (opts.sse) controller.enqueue(sse({ type: 'speech.audio.done', usage: speechUsage(opts.chars) }));
+          if (opts.sse)
+            controller.enqueue(sse({ type: 'speech.audio.done', usage: speechUsage(opts.chars) }));
           controller.close();
           end(false);
           return;
         }
         ttfbAt ??= performance.now();
         controller.enqueue(
-          opts.sse ? sse({ type: 'speech.audio.delta', audio: Buffer.from(value).toString('base64') }) : value,
+          opts.sse
+            ? sse({ type: 'speech.audio.delta', audio: Buffer.from(value).toString('base64') })
+            : value,
         );
       } catch (err) {
+        if (ended) return;
         logger.warn({ err }, 'tts response stream failed');
         controller.error(err);
         end(false);
