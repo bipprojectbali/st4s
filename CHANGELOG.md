@@ -22,6 +22,7 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 
 ### Changed
 - Error di bawah `/api/v1` kini berbentuk error OpenAI (`{ error: { message, type, param, code } }`) agar SDK `openai` bisa membacanya. Route `/api/*` lain tetap memakai format lama.
+- Pesan error `/api/v1` kini berbahasa Indonesia (nilai `code`, `type`, dan status HTTP tidak berubah), dan `V1_FFMPEG_PATH` digabung ke `FFMPEG_PATH` — satu variabel kini dipakai untuk decode upload maupun encode audio.
 - Saat antrean engine penuh, API menjawab `429 engine_busy` dengan header `Retry-After` agar klien tahu kapan mencoba lagi.
 - Server dev, production, dan binary kini menyiapkan engine suara saat boot dan mematikannya dengan rapi saat dihentikan (Ctrl+C atau SIGTERM).
 - Binary bisa menjalankan engine suara tanpa Bun terpasang. Untuk text-to-speech, letakkan library onnxruntime di samping binary (lihat README).
@@ -35,6 +36,10 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 - `/dev/changelog` tidak lagi error saat dibuka di browser.
 - Console browser tidak lagi menampilkan error hydration ketika ekstensi browser (VPN/keamanan) menandai elemen halaman dengan atribut `bis_*`/`__processed_*__`.
 - Visitor Logs tidak lagi salah menandai bot monitor (UptimeRobot, Pingdom) dan bot lain berawalan `Mozilla/5.0` sebagai `seo-crawler`. Kunjungan lama yang sudah tercatat tidak berubah.
+
+### Security
+- Role super-admin dari `SUPER_ADMIN_EMAILS` kini hanya diberikan ke email yang sudah terverifikasi. Karena belum ada pengiriman email verifikasi, super-admin di produksi masuk lewat Google (atau operator men-set `email_verified` di DB).
+- Pendaftaran akun email+password kini tertutup di produksi (termasuk binary). Buka lagi dengan `AUTH_DISABLE_SIGNUP=false`; login user lama dan Google tetap berjalan.
 
 ## [0.1.0] - 2026-09-14
 

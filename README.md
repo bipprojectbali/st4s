@@ -207,6 +207,8 @@ Sistem role: `user` → `admin` → `super-admin`. Role tersimpan di tabel `user
 
 Google OAuth: set `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`. Authorized redirect URI di Google Console: `${BETTER_AUTH_URL}/api/auth/callback/google`.
 
+**Super-admin & sign-up di produksi.** Role `super-admin` dari `SUPER_ADMIN_EMAILS` hanya diberikan ke email yang **terverifikasi**. Template ini tidak mengirim email verifikasi, jadi di produksi super-admin masuk lewat Google (atau operator men-set `email_verified` di DB). Sign-up email+password tertutup saat `NODE_ENV=production` (termasuk binary) kecuali `AUTH_DISABLE_SIGNUP=false`; login user lama dan Google OAuth tetap jalan.
+
 **Ban & hapus akun — apa yang dilihat user.** Better Auth sendiri hanya menolak *pembuatan sesi baru* untuk user yang diblokir; template ini melengkapinya:
 
 - Saat admin memblokir (`POST /api/admin/users/:id/ban`), semua sesi aktif user itu dicabut seketika (tercatat di audit). Request berikutnya dari perangkat user diarahkan ke `/login?notice=session` dengan pesan bahwa sesi berakhir.
@@ -378,7 +380,7 @@ Yang harus ada di mesin (path diatur lewat env, lihat komentar di `.env.example`
 
 - **STT** — shared library `libcrispasr` (`CRISPASR_LIB`), model Qwen3-ASR GGUF (`STT_MODEL`), opsional Silero VAD (`STT_VAD_MODEL`) untuk memotong audio panjang dan model language-ID (`STT_LID_MODEL`). Tuning: `STT_THREADS`, `STT_MAX_CHUNK_SEC`.
 - **TTS** — direktori model Supertonic berisi `onnx/` dan `voice_styles/` (`TTS_MODEL_DIR`). Tuning: `TTS_STEPS`, `TTS_THREADS`, `TTS_MAX_UNIT_CHARS`.
-- **ffmpeg** — untuk decode upload non-WAV (`V1_FFMPEG_PATH`) dan encode mp3/opus/aac/flac (`FFMPEG_PATH`); default `ffmpeg` di `PATH`.
+- **ffmpeg** — untuk decode upload non-WAV dan encode mp3/opus/aac/flac (`FFMPEG_PATH`); default `ffmpeg` di `PATH`.
 - **Memori** — child STT memakai sekitar 3 GB RSS dan child TTS sekitar 0,5 GB, jadi mesin 8 GB cukup untuk keduanya.
 
 ## File health & penyelamat konteks agent
