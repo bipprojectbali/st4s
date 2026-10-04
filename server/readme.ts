@@ -4,10 +4,12 @@
  *  - /README.md, /readme.md  → text/markdown, the file as-is
  *  - /llms-full.txt          → same content as text/plain (llmstxt.org convention)
  *  - /llms.txt               → short index built from the README headings
+ *  - /skill.md               → docs/skill.md (API usage guide), {{BASE_URL}} → APP_URL
  * No JavaScript, no SSR, no visit logging; ETag so polling agents get 304s.
  * Dev reads the file on every request; prod/binary serve the build-time copy.
  */
 import path from 'node:path';
+import bundledSkill from '../docs/skill.md' with { type: 'text' };
 import bundledReadme from '../README.md' with { type: 'text' };
 import { APP_VERSION } from './app-info';
 import { env, isProd } from './env';
@@ -17,23 +19,36 @@ const ROUTES = {
   '/readme.md': 'markdown',
   '/llms-full.txt': 'text',
   '/llms.txt': 'index',
+  '/skill.md': 'skill',
 } as const;
 type Variant = (typeof ROUTES)[keyof typeof ROUTES];
 const CACHE_SECONDS = 300;
 const README_PATH = path.join(import.meta.dir, '../README.md');
+const SKILL_PATH = path.join(import.meta.dir, '../docs/skill.md');
 
 export function isAgentDoc(pathname: string): pathname is keyof typeof ROUTES {
   return pathname in ROUTES;
 }
 
-/** README source: live file in development so edits show immediately; bundled text elsewhere. */
-export async function readmeText(): Promise<string> {
-  if (isProd || Bun.isStandaloneExecutable) return bundledReadme;
+/** Live file in development so edits show immediately; bundled text in prod/binary or if the file is gone. */
+async function sourceText(file: string, bundled: string): Promise<string> {
+  if (isProd || Bun.isStandaloneExecutable) return bundled;
   try {
-    return await Bun.file(README_PATH).text();
+    return await Bun.file(file).text();
   } catch {
-    return bundledReadme;
+    return bundled;
   }
+}
+
+/** README source (see sourceText). */
+export const readmeText = () => sourceText(README_PATH, bundledReadme);
+
+/** docs/skill.md with every {{BASE_URL}} replaced by the app's public URL (no trailing slash). */
+export async function skillText(appUrl: string): Promise<string> {
+  return (await sourceText(SKILL_PATH, bundledSkill)).replaceAll(
+    '{{BASE_URL}}',
+    appUrl.replace(/\/$/, ''),
+  );
 }
 
 const etagOf = (s: string) => `"${Bun.hash(s).toString(16)}"`;
@@ -58,10 +73,11 @@ export function llmsIndex(readme: string, appUrl: string, version = APP_VERSION)
     '',
     `> ${summary}`,
     '',
-    `Versi ${version}. Semua dokumentasi berasal dari satu sumber: README.md.`,
+    `Versi ${version}. Dokumentasi berasal dari README.md; panduan pemakaian Speech API dari docs/skill.md.`,
     '',
     '## Dokumentasi',
     '',
+    `- [Pakai API ini (skill)](${base}/skill.md): Speech API kompatibel OpenAI — auth, contoh SDK, endpoint, kode error`,
     `- [README lengkap (markdown)](${base}/README.md): arsitektur, setup, API, auth, API key, MCP`,
     `- [README lengkap (teks polos)](${base}/llms-full.txt)`,
     '',
@@ -83,14 +99,20 @@ export async function agentDocResponse(
   pathname: keyof typeof ROUTES,
 ): Promise<Response> {
   const variant: Variant = ROUTES[pathname];
-  const readme = await readmeText();
-  const body = variant === 'index' ? llmsIndex(readme, env.APP_URL) : readme;
+  const body =
+    variant === 'skill'
+      ? await skillText(env.APP_URL)
+      : variant === 'index'
+        ? llmsIndex(await readmeText(), env.APP_URL)
+        : await readmeText();
   const etag = etagOf(body);
   const headers = {
     etag,
     'cache-control': `public, max-age=${CACHE_SECONDS}`,
     'content-type':
-      variant === 'markdown' ? 'text/markdown; charset=utf-8' : 'text/plain; charset=utf-8',
+      variant === 'markdown' || variant === 'skill'
+        ? 'text/markdown; charset=utf-8'
+        : 'text/plain; charset=utf-8',
     'x-content-type-options': 'nosniff',
   };
   if (request.headers.get('if-none-match') === etag)

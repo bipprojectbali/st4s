@@ -1,4 +1,4 @@
-/** /README.md, /llms-full.txt and /llms.txt: single source, plain text, cacheable, secret-free. */
+/** /README.md, /llms-full.txt, /llms.txt and /skill.md: single source, plain text, cacheable, secret-free. */
 import { describe, expect, test } from 'bun:test';
 import { shouldSkip } from '../server/middleware/visitor';
 import { agentDocResponse, isAgentDoc, llmsIndex, readmeText } from '../server/readme';
@@ -43,7 +43,7 @@ describe('agent docs', () => {
     expect(await head.text()).toBe('');
   });
   test('routes are recognized, exempt from maintenance and not counted as visits', () => {
-    for (const p of ['/README.md', '/readme.md', '/llms.txt', '/llms-full.txt']) {
+    for (const p of ['/README.md', '/readme.md', '/llms.txt', '/llms-full.txt', '/skill.md']) {
       expect(isAgentDoc(p)).toBe(true);
       expect(isMaintenanceExempt(p)).toBe(true);
       expect(shouldSkip(p)).toBe(true);
@@ -51,10 +51,14 @@ describe('agent docs', () => {
     expect(isAgentDoc('/README')).toBe(false);
     expect(isAgentDoc('/')).toBe(false);
   });
-  test('the README never carries secrets (it is served publicly)', async () => {
-    const readme = await readmeText();
-    expect(readme).not.toMatch(/mk_live_[A-Za-z0-9]{16,}/);
-    expect(readme).not.toMatch(/(SECRET|PASSWORD|TOKEN)\s*=\s*['"]?[A-Za-z0-9+/]{16,}/);
-    expect(readme).not.toMatch(/postgres(ql)?:\/\/[^:\s]+:[^@\s]+@/);
+  test('README and docs/skill.md never carry secrets (both are served publicly)', async () => {
+    const skill = await Bun.file(`${import.meta.dir}/../docs/skill.md`).text();
+    for (const doc of [await readmeText(), skill]) {
+      expect(doc).not.toMatch(/mk_live_[A-Za-z0-9]{16,}/);
+      expect(doc).not.toMatch(/(SECRET|PASSWORD|TOKEN)\s*=\s*['"]?[A-Za-z0-9+/]{16,}/);
+      expect(doc).not.toMatch(/postgres(ql)?:\/\/[^:\s]+:[^@\s]+@/);
+    }
+    // skill.md names no host at all: every URL goes through the {{BASE_URL}} placeholder.
+    expect(skill).not.toMatch(/\b(https?|wss?):\/\/(?!\{\{BASE_URL\}\})[\w.-]/);
   });
 });

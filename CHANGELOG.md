@@ -7,6 +7,7 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 ## [Unreleased]
 
 ### Added
+- Panduan pemakaian Speech API untuk agent di `/skill.md` (auth dan scope, contoh curl/Python/JavaScript dengan SDK `openai`, parameter tiap endpoint, event streaming dan WebSocket, serta tabel kode error), ditautkan pertama di `/llms.txt`.
 - Server memeriksa library, model STT/TTS, dan ffmpeg saat boot. Yang tidak ditemukan dicatat di log (error di production) dan dilaporkan di field `deps` pada `GET /api/engines`, sehingga salah konfigurasi ketahuan sebelum request pertama gagal.
 - Halaman `/dev/changelog` untuk membaca riwayat perubahan langsung dari konsol, lengkap dengan filter jenis perubahan, pencarian, dan peringatan bila versi yang berjalan belum tercatat.
 - Dev server menjalankan migrasi database otomatis saat boot, sehingga database lokal yang baru atau tertinggal tidak lagi memicu error `relation does not exist`.

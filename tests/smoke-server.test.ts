@@ -17,6 +17,7 @@ describe('smoke checks', () => {
       '/api/version',
       '/README.md',
       '/llms.txt',
+      '/skill.md',
       '/favicon.ico',
       '/api/mcp',
       '/api/v1/realtime',
