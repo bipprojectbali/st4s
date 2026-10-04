@@ -40,6 +40,7 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 - Binary bisa menjalankan engine suara tanpa Bun terpasang. Untuk text-to-speech, letakkan library onnxruntime di samping binary (lihat README).
 - Tombol "Lanjutkan dengan Google" kini menjadi tombol utama di halaman login saat Google dikonfigurasi; login email tampil sebagai pilihan kedua. Halaman login juga punya deskripsi untuk mesin pencari.
 - README dan `.env.example` menjelaskan cara menyiapkan login Google: redirect URI yang perlu didaftarkan (`${BETTER_AUTH_URL}/api/auth/callback/google`), env yang dibutuhkan, dan aturan pendaftaran tertutup.
+- Setiap request yang ditolak karena API key (kunci tidak dikenal, kedaluwarsa, nonaktif, dicabut, scope atau IP tidak diizinkan) kini tercatat sebagai satu baris peringatan `api key refused` di Server Logs berisi kode, status, path, dan ID kunci bila sudah dikenali, tanpa isi kunci. Klien yang salah konfigurasi atau penyalahgunaan kini terlihat.
 
 ### Fixed
 - Request transkripsi/suara yang sedang diproses atau mengantre saat engine dilepas (RAM menipis, idle, shutdown, atau unload manual di `/dev`) kini langsung ditolak dengan 503 `engine_unloaded` + `Retry-After: 5` (di luar `/api/v1`: `ENGINE_UNLOADED`), bukan diam-diam memuat ulang model dan memakan RAM lagi. Request baru setelahnya tetap memuat engine seperti biasa.
