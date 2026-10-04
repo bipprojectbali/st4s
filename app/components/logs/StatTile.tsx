@@ -1,6 +1,5 @@
 import { Group, Paper, SimpleGrid, Skeleton, Text, ThemeIcon } from '@mantine/core';
 import type { IconType } from 'react-icons';
-import { TruncatedText } from './TruncatedText';
 
 export type StatTileProps = {
   label: string;
@@ -18,16 +17,16 @@ export function StatTile({ label, value, hint, icon: Icon, color = 'blue' }: Sta
     <Paper withBorder radius="md" p="md">
       <Group justify="space-between" align="flex-start" wrap="nowrap" gap="xs">
         <div style={{ minWidth: 0 }}>
-          <TruncatedText size="xs" c="dimmed" tt="uppercase" fw={600} lts={0.3}>
+          <Text size="xs" c="dimmed" tt="uppercase" fw={600} lts={0.3}>
             {label}
-          </TruncatedText>
+          </Text>
           <Text fz={26} fw={700} lh={1.2} mt={4}>
             {value}
           </Text>
           {hint && (
-            <TruncatedText size="xs" c="dimmed" mt={2}>
+            <Text size="xs" c="dimmed" mt={2}>
               {hint}
-            </TruncatedText>
+            </Text>
           )}
         </div>
         <ThemeIcon variant="light" color={color} size="lg" radius="md" style={{ flexShrink: 0 }}>

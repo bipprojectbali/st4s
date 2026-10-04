@@ -31,7 +31,7 @@ function Field({ label, value }: { label: string; value: string }) {
       <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
         {label}
       </Text>
-      <Text size="sm" fw={500} truncate>
+      <Text size="sm" fw={500} style={{ overflowWrap: 'anywhere' }}>
         {value}
       </Text>
     </div>

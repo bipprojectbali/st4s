@@ -59,6 +59,9 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 - Console browser tidak lagi menampilkan error hydration ketika ekstensi browser (VPN/keamanan) menandai elemen halaman dengan atribut `bis_*`/`__processed_*__`.
 - Visitor Logs tidak lagi salah menandai bot monitor (UptimeRobot, Pingdom) dan bot lain berawalan `Mozilla/5.0` sebagai `seo-crawler`. Kunjungan lama yang sudah tercatat tidak berubah.
 - Transkripsi panjang, request yang menunggu di antrean engine, stream SSE, dan warmup model di production tidak lagi terputus ("socket closed") setelah 60 detik tanpa data. Batas idle 60 detik tetap berlaku untuk route lain.
+- `/dev/engines` kini selalu menampilkan ringkasan memory guard (level, sisa RAM, ambang menipis/kritis/darurat, budget STT/TTS). Judul peringatan mengikuti keadaan sebenarnya ("Request audio ditolak sampai RAM pulih", "STT di-unload otomatis", penolakan budget) dan tidak lagi berbunyi "RAM normal" dengan warna peringatan.
+- Waktu "Dimuat" di kartu engine tidak lagi terpotong di desktop; kolom input dan slider di `/dev/playground` memakai lebar penuh di layar ponsel; label kartu statistik (mis. `/dev/audit`) tidak lagi terpotong di layar 375 px.
+- Log memory guard di konsol dev tidak lagi tampil sebagai `USERLVL`, dan levelnya terbaca benar di Server Logs dan log JSON production.
 
 ### Security
 - Body request di production dibatasi `V1_MAX_UPLOAD_MB` + 1 MiB (default 26 MiB) dan ditolak 413 sebelum dibaca, sehingga upload raksasa tidak lagi menghabiskan memori server sebelum autentikasi.

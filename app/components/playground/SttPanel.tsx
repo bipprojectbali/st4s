@@ -5,6 +5,7 @@ import {
   Group,
   Paper,
   Select,
+  SimpleGrid,
   Stack,
   Text,
   TextInput,
@@ -150,7 +151,7 @@ export function SttPanel({
             Belum ada audio. Rekam dari mikrofon atau unggah file.
           </Text>
         )}
-        <Group grow wrap="wrap" align="flex-start">
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
           <Select
             label="Bahasa"
             data={languages}
@@ -158,7 +159,6 @@ export function SttPanel({
             onChange={(v) => setLanguage(v ?? defaultLanguage)}
             allowDeselect={false}
             searchable
-            miw={140}
           />
           <TextInput
             label="Kata kunci (opsional)"
@@ -166,9 +166,8 @@ export function SttPanel({
             description="Dipisah koma; membantu ejaan nama"
             value={keywords}
             onChange={(e) => setKeywords(e.currentTarget.value)}
-            miw={200}
           />
-        </Group>
+        </SimpleGrid>
         <Group gap="xs" wrap="wrap">
           <Button size="sm" onClick={run} loading={running} disabled={!audio || recorder.recording}>
             Transkripsikan

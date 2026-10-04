@@ -5,6 +5,7 @@ import {
   Group,
   Paper,
   Select,
+  SimpleGrid,
   Slider,
   Stack,
   Text,
@@ -159,7 +160,7 @@ export function TtsPanel(props: {
             </Group>
           </Chip.Group>
         </div>
-        <Group grow wrap="wrap" align="flex-start">
+        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
           <Select
             label="Bahasa"
             data={props.languages}
@@ -167,9 +168,8 @@ export function TtsPanel(props: {
             onChange={(v) => setLanguage(v ?? props.defaultLanguage)}
             allowDeselect={false}
             searchable
-            miw={140}
           />
-          <div style={{ minWidth: 160 }}>
+          <div>
             <Text size="sm" fw={500}>
               Kecepatan {fmtSpeed(speed)}
             </Text>
@@ -183,13 +183,13 @@ export function TtsPanel(props: {
               mt={6}
             />
           </div>
-          <div style={{ minWidth: 160 }}>
+          <div>
             <Text size="sm" fw={500}>
               Steps {steps}
             </Text>
             <Slider min={1} max={20} step={1} value={steps} onChange={setSteps} mt={6} />
           </div>
-        </Group>
+        </SimpleGrid>
         <Group gap="xs" wrap="wrap">
           <Button
             size="sm"

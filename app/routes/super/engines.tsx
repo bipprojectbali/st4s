@@ -1,6 +1,7 @@
 import { Button, Group, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { engineOverview } from '@server/api/engines';
 import { requireRole } from '@server/guard';
+import { loadGuardConfig } from '@server/memory-guard/config';
 import { ROLES } from '@server/permissions';
 import { useQuery } from '@tanstack/react-query';
 import { FiActivity, FiCpu, FiHardDrive, FiMic, FiRefreshCw } from 'react-icons/fi';
@@ -22,7 +23,12 @@ export function meta() {
 
 export async function loader({ request }: Route.LoaderArgs) {
   await requireRole(request, ROLES.SUPER_ADMIN);
-  return { overview: toJson<EngineOverview>(engineOverview()), loadedAt: Date.now() };
+  const { warnPct, criticalPct, emergencyPct, recoverPct, recoverSec } = loadGuardConfig();
+  return {
+    overview: toJson<EngineOverview>(engineOverview()),
+    loadedAt: Date.now(),
+    thresholds: { warnPct, criticalPct, emergencyPct, recoverPct, recoverSec },
+  };
 }
 
 export default function EnginesPage({ loaderData }: Route.ComponentProps) {
@@ -74,7 +80,12 @@ export default function EnginesPage({ loaderData }: Route.ComponentProps) {
           Gagal memperbarui status: {q.error.message}. Menampilkan data terakhir.
         </Text>
       )}
-      <MemoryGuardAlert guard={d.memoryGuard} now={q.dataUpdatedAt} dateTime={dateTime} />
+      <MemoryGuardAlert
+        guard={d.memoryGuard}
+        thresholds={loaderData.thresholds}
+        now={q.dataUpdatedAt}
+        dateTime={dateTime}
+      />
 
       <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
         <StatTile label="RSS server" value={formatBytes(mem.serverRssBytes)} icon={FiCpu} />
