@@ -13,6 +13,8 @@ import { db } from './db';
 import { auditLog, loginLog, post, session, user, visitLog } from './db/schema';
 import { migrationStatus } from './db/schema-stats';
 import { env } from './env';
+import { getStt, getTts } from './engines/registry';
+import type { EngineStatus } from './engines/types';
 import { scanFileHealth } from './file-health/file-health.scan';
 import { settingsOverview } from './settings';
 
@@ -50,6 +52,31 @@ async function safe<T>(fallback: T, run: () => Promise<T>): Promise<T> {
   } catch {
     return fallback;
   }
+}
+
+/** Status of each registered engine; an unregistered or failing engine is skipped. */
+function engineStatuses(): EngineStatus[] {
+  return [getStt, getTts].flatMap((get) => {
+    try {
+      return [get().status()];
+    } catch {
+      return [];
+    }
+  });
+}
+
+/** Engines badge: alert when any engine is in error, else the loaded count; none when unregistered. */
+export function engineBadge(statuses: EngineStatus[]): SidebarBadge | null {
+  if (!statuses.length) return null;
+  const failed = statuses.filter((s) => s.state === 'error');
+  if (failed.length)
+    return alert(
+      failed.length,
+      'red',
+      `Engine error: ${failed.map((s) => `${s.kind.toUpperCase()} — ${s.lastError ?? 'tanpa pesan'}`).join('; ')}`,
+    );
+  const loaded = statuses.filter((s) => s.state === 'ready' || s.state === 'busy').length;
+  return info(loaded, `${loaded}/${statuses.length} engine sudah memuat model`);
 }
 
 async function collect(): Promise<SidebarBadges> {
@@ -195,6 +222,8 @@ async function collect(): Promise<SidebarBadges> {
           changelog.unreleasedCount,
           `${nf.format(changelog.unreleasedCount)} perubahan belum dirilis`,
         );
+  const engines = engineBadge(engineStatuses());
+  if (engines) badges['/dev/engines'] = engines;
   return badges;
 }
 

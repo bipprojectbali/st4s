@@ -1,11 +1,13 @@
 import { Group, Paper, SimpleGrid, Text, ThemeIcon, UnstyledButton } from '@mantine/core';
 import type { IconType } from 'react-icons';
 import {
+  FiCpu,
   FiDatabase,
   FiFileText,
   FiKey,
   FiList,
   FiLogIn,
+  FiMic,
   FiSettings,
   FiShield,
   FiTag,
@@ -68,6 +70,20 @@ const LINKS: Array<{
     description: 'Diagram tabel dan relasi',
     icon: FiDatabase,
     color: 'grape',
+  },
+  {
+    to: '/dev/engines',
+    label: 'Engines',
+    description: 'Status model, warmup, unload',
+    icon: FiCpu,
+    color: 'violet',
+  },
+  {
+    to: '/dev/playground',
+    label: 'Playground',
+    description: 'Coba STT dan TTS langsung',
+    icon: FiMic,
+    color: 'pink',
   },
   {
     to: '/dev/changelog',
