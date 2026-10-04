@@ -5,6 +5,7 @@ import { ROLES } from '@server/permissions';
 import { NATIVE_VOICES } from '@server/v1/aliases';
 import { FiCpu, FiInfo } from 'react-icons/fi';
 import { Link } from 'react-router';
+import { RealtimePanel } from '~/components/playground/RealtimePanel';
 import { SttPanel } from '~/components/playground/SttPanel';
 import { TtsPanel } from '~/components/playground/TtsPanel';
 import type { Route } from './+types/playground';
@@ -37,8 +38,8 @@ export default function PlaygroundPage({ loaderData: d }: Route.ComponentProps) 
         <div>
           <Title order={3}>Playground</Title>
           <Text size="sm" c="dimmed">
-            Coba endpoint /api/v1/audio dengan sesi browser ini. Request pertama menunggu model
-            dimuat bila engine belum di-warmup.
+            Coba endpoint /api/v1/audio dan /api/v1/realtime dengan sesi browser ini. Request
+            pertama menunggu model dimuat bila engine belum di-warmup.
           </Text>
         </div>
         <Button
@@ -65,6 +66,11 @@ export default function PlaygroundPage({ loaderData: d }: Route.ComponentProps) 
           defaultLanguage={d.ttsDefaultLanguage}
         />
       </SimpleGrid>
+      <RealtimePanel
+        languages={sttLanguages}
+        defaultLanguage={d.sttDefaultLanguage}
+        sttRegistered={d.sttRegistered}
+      />
     </Stack>
   );
 }
