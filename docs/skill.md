@@ -125,7 +125,7 @@ With the SDKs, pass extensions as `extra_body` (Python) or extra object keys (JS
 
 OpenAI Realtime GA protocol, transcription sessions only. URL `{{BASE_URL}}/api/v1/realtime` with `http`→`ws`, `https`→`wss`; `?intent=transcription` optional, any other intent gets an `error` event and close 1008.
 
-Auth is checked on the HTTP upgrade request, before the socket opens: `Authorization: Bearer <key>` / `X-API-Key` with scope `stt:transcribe`, or a same-origin session cookie. There is **no** query-string or subprotocol key auth, so browser `new WebSocket()` cannot use an API key (it can't set headers): use a server-side client. Refusals are plain HTTP: `401 invalid_api_key`, `403 origin_not_allowed` (cookie from a foreign Origin), `426 upgrade_required`, `429 too_many_sessions` (default 2 concurrent), `503 memory_pressure` / `engine_unavailable`.
+Auth is checked on the HTTP upgrade request, before the socket opens: `Authorization: Bearer <key>` / `X-API-Key` with scope `stt:transcribe`, or a same-origin session cookie. There is **no** query-string or subprotocol key auth, so browser `new WebSocket()` cannot use an API key (it can't set headers): use a server-side client. Refusals are plain HTTP: `401 invalid_api_key`, `403 origin_not_allowed` (cookie from a foreign Origin), `426 upgrade_required`, `429 too_many_sessions` (default 2 concurrent), `429 rate_limit_exceeded` / `insufficient_quota` (key limits), `503 memory_pressure` / `engine_unavailable`.
 
 The Node openai SDK works as is (`npm i openai ws`); it always dials `wss://`, so the server must be behind TLS:
 
@@ -172,8 +172,7 @@ Every HTTP error under `/api/v1` is `{"error": {"message", "type", "param", "cod
 | 400 | `unsupported` | `/audio/translations` | Use transcriptions |
 | 400 | `validation` / `parse` | Malformed request / body not parseable (e.g. invalid JSON) | Fix the request |
 | 400 | `upgrade_failed` | WebSocket upgrade failed | Reconnect |
-| 401 | `invalid_api_key` / `key_not_found` | No credential, or key unknown/invalid (other key-library codes such as `usage_exceeded` pass through lowercased) | Send a valid key |
-| 401 | `key_expired` / `key_disabled` / `key_revoked` / `owner_missing` | Key not usable | Get a new key |
+| 401 | `invalid_api_key` | No credential, or key unknown, expired, disabled, revoked or ownerless (the message says which) | Send a valid key / get a new one |
 | 401 | `invalid_cookie_signature` | Tampered session cookie | Sign in again or use an API key |
 | 403 | `missing_scope` | Key lacks `stt:transcribe` / `tts:speak` | Create a key with the scope |
 | 403 | `role_too_low` / `owner_banned` / `ip_not_allowed` | Key owner or client IP not allowed | Ask the admin |
@@ -182,8 +181,8 @@ Every HTTP error under `/api/v1` is `{"error": {"message", "type", "param", "cod
 | 413 | `file_too_large` | Upload over limit (default 25 MB) | Compress or split |
 | 415 | `invalid_file_type` | Upload type rejected by the framework | Send a supported audio type |
 | 426 | `upgrade_required` | `/realtime` without WebSocket upgrade | Connect via WebSocket |
-| 429 | `rate_limit_exceeded` | Per-IP rate limit (default 100 req/60 s) | Wait `Retry-After` |
-| 429 | `rate_limited` | Per-key rate limit | Slow down |
+| 429 | `rate_limit_exceeded` | Per-IP rate limit (default 100 req/60 s) or per-key rate limit | Wait `Retry-After` |
+| 429 | `insufficient_quota` | Key's usage quota is used up (the key is then deleted) | Get a new key / ask the admin |
 | 429 | `engine_busy` | Engine queue full or decode slots busy | Wait `Retry-After`, retry |
 | 429 | `too_many_sessions` | Realtime session limit | Retry after 10 s |
 | 500 | `vad_failed` | Voice-activity model failed on this audio | Retry; report `x-request-id` |

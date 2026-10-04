@@ -40,6 +40,54 @@ export function ipAllowed(list: string[] | null, ip: string | null): boolean {
 /** Log fields of a refusal; `keyId` (a row id, not secret) is set only once the key verified. */
 type RefusalCtx = { requestId: string; path: string; keyId?: string };
 
+type Refusal = { status: number; code: string; message: string };
+
+const INVALID_KEY: Refusal = {
+  status: 401,
+  code: 'INVALID_API_KEY',
+  message: 'API key tidak valid',
+};
+
+/**
+ * Better Auth verify failures → public, OpenAI-aligned codes (lowercased under /api/v1).
+ * Unlisted codes fall back to INVALID_KEY so a library code never reaches the client.
+ */
+const VERIFY_REFUSALS: Record<string, Refusal> = {
+  KEY_NOT_FOUND: INVALID_KEY,
+  INVALID_API_KEY: INVALID_KEY,
+  KEY_EXPIRED: {
+    status: 401,
+    code: 'INVALID_API_KEY',
+    message: 'API key kedaluwarsa. Buat API key baru.',
+  },
+  KEY_DISABLED: {
+    status: 401,
+    code: 'INVALID_API_KEY',
+    message: 'API key dinonaktifkan. Minta admin mengaktifkannya atau buat API key baru.',
+  },
+  USAGE_EXCEEDED: {
+    status: 429,
+    code: 'INSUFFICIENT_QUOTA',
+    message: 'Kuota pemakaian API key habis. Minta admin menambah kuota atau buat API key baru.',
+  },
+  RATE_LIMITED: {
+    status: 429,
+    code: 'RATE_LIMIT_EXCEEDED',
+    message: 'API key melampaui batas request. Tunggu sebentar lalu coba lagi.',
+  },
+};
+
+/** Public refusal for a Better Auth verify error code (unknown → invalid key). */
+function verifyRefusal(rawCode: unknown): Refusal {
+  return (typeof rawCode === 'string' && VERIFY_REFUSALS[rawCode]) || INVALID_KEY;
+}
+
+/** Retry-After seconds from Better Auth's RATE_LIMITED `details.tryAgainIn` (ms), if present. */
+function retryAfterSec(error: unknown): string | null {
+  const ms = (error as { details?: { tryAgainIn?: unknown } } | null)?.details?.tryAgainIn;
+  return typeof ms === 'number' && ms > 0 ? String(Math.ceil(ms / 1000)) : null;
+}
+
 /**
  * Rejection Response in the template shape, or OpenAI shape for /api/v1, plus one warn line.
  * Never logs the key: Better Auth's stored `start` is its first 6 chars, all inside the public
@@ -47,7 +95,12 @@ type RefusalCtx = { requestId: string; path: string; keyId?: string };
  */
 const denier =
   (ctx: RefusalCtx) =>
-  (status: number, error: string, extra: Record<string, unknown> = {}) => {
+  (
+    status: number,
+    error: string,
+    extra: Record<string, unknown> = {},
+    internal: { rawCode?: string; retryAfter?: string | null } = {},
+  ) => {
     const code = typeof extra.code === 'string' ? extra.code : 'ENDPOINT_NOT_ALLOWED';
     logger.warn(
       {
@@ -55,11 +108,16 @@ const denier =
         code,
         status,
         ...(typeof extra.scope === 'string' ? { scope: extra.scope } : {}),
+        // Why the key failed (Better Auth code or KEY_REVOKED/OWNER_MISSING); log-only, never sent.
+        ...(internal.rawCode ? { rawCode: internal.rawCode } : {}),
       },
       'api key refused',
     );
     // Same requestId as the log line, carried the way api-error.ts does (header always; body field outside v1).
-    const headers = { 'x-request-id': ctx.requestId };
+    const headers: Record<string, string> = {
+      'x-request-id': ctx.requestId,
+      ...(internal.retryAfter ? { 'retry-after': internal.retryAfter } : {}),
+    };
     return isV1Path(ctx.path)
       ? v1Error(status, error, {
           code: v1Code(extra.code) ?? (status === 401 ? 'invalid_api_key' : null),
@@ -99,12 +157,14 @@ export function apiKeyPlugin() {
         // KEY_NOT_FOUND, so scope is checked here to give callers a precise 403.
         const verified = await auth.api.verifyApiKey({ body: { key } });
         if (!verified.valid || !verified.key) {
-          const code = verified.error?.code ?? 'INVALID_API_KEY';
-          if (code === 'RATE_LIMITED')
-            return deny(429, 'API key melampaui batas request', { code });
-          if (code === 'KEY_EXPIRED') return deny(401, 'API key kedaluwarsa', { code });
-          if (code === 'KEY_DISABLED') return deny(401, 'API key dinonaktifkan', { code });
-          return deny(401, 'API key tidak valid', { code });
+          const rawCode = String(verified.error?.code ?? 'INVALID_API_KEY');
+          const r = verifyRefusal(rawCode);
+          return deny(
+            r.status,
+            r.message,
+            { code: r.code },
+            { rawCode, retryAfter: r.status === 429 ? retryAfterSec(verified.error) : null },
+          );
         }
         ctx.keyId = verified.key.id;
         const rawPerms: unknown = verified.key.permissions;
@@ -127,7 +187,13 @@ export function apiKeyPlugin() {
           .from(apikey)
           .where(eq(apikey.id, verified.key.id))
           .limit(1);
-        if (extra?.revokedAt) return deny(401, 'API key sudah dicabut', { code: 'KEY_REVOKED' });
+        if (extra?.revokedAt)
+          return deny(
+            401,
+            'API key sudah dicabut. Buat API key baru.',
+            { code: INVALID_KEY.code },
+            { rawCode: 'KEY_REVOKED' },
+          );
         const ip = resolveClientIp(request.headers);
         if (!ipAllowed(parseLines(extra?.allowedIps ?? null), ip))
           return deny(403, 'IP tidak diizinkan untuk API key ini', { code: 'IP_NOT_ALLOWED' });
@@ -143,7 +209,13 @@ export function apiKeyPlugin() {
           .from(user)
           .where(eq(user.id, verified.key.referenceId))
           .limit(1);
-        if (!owner) return deny(401, 'Pemilik API key tidak ditemukan', { code: 'OWNER_MISSING' });
+        if (!owner)
+          return deny(
+            401,
+            'Pemilik API key tidak ditemukan. Buat API key baru.',
+            { code: INVALID_KEY.code },
+            { rawCode: 'OWNER_MISSING' },
+          );
         if (owner.banned) return deny(403, 'Pemilik API key diblokir', { code: 'OWNER_BANNED' });
         const role = await resolveUserRole(owner);
         if (scope && !roleAllowsScope(role, scope as Scope))
