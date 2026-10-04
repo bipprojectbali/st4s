@@ -53,11 +53,11 @@ function v1JsonError(body: ApiErrorBody): Response {
   const where = `${body.method} ${body.path}`;
   const message =
     body.code === 'NOT_FOUND'
-      ? `Invalid URL (${where})`
+      ? `URL tidak dikenal (${where}). Cek path dan method di README.`
       : body.code === 'VALIDATION'
-        ? `Invalid request: ${body.issues?.map((i) => `${i.path} ${i.message}`.trim()).join('; ') || where}`
+        ? `Request tidak valid: ${body.issues?.map((i) => `${i.path} ${i.message}`.trim()).join('; ') || where}`
         : body.code === 'INTERNAL'
-          ? 'The server had an error while processing your request. Include the x-request-id header when reporting.'
+          ? 'Terjadi kesalahan di server. Coba lagi; sertakan header x-request-id bila melapor.'
           : body.error;
   const code = body.code === 'INTERNAL' ? 'server_error' : v1Code(body.code);
   return v1Error(status, message, {

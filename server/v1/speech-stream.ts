@@ -3,6 +3,7 @@ import { encodeNative, floatToS16le } from '../audio/encode';
 import { encodeFfmpeg } from '../audio/encode-ffmpeg';
 import type { SpeakRequest, TtsEngine } from '../engines/types';
 import { logger } from '../logger';
+import { v1Config } from './config';
 import { speechConfig } from './speech-config';
 import type { SpeechParams } from './speech-params';
 
@@ -62,7 +63,7 @@ export function encodeUnits(
   if (params.format === 'wav' || params.format === 'pcm')
     return encodeNative(params.format, sampleRate, clips, knownSamples);
   return encodeFfmpeg({
-    bin: speechConfig.ffmpegBin,
+    bin: v1Config.ffmpegPath,
     format: params.format,
     sampleRate,
     pcm16: (async function* () {

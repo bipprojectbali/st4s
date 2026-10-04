@@ -105,7 +105,7 @@ describe('openai SDK — audio.transcriptions.create', () => {
   test('an unknown /api/v1 path is an OpenAI-shaped 404', async () => {
     const err = await sdk.get('/nope').catch((e: unknown) => e);
     expect(err).toBeInstanceOf(NotFoundError);
-    expect((err as NotFoundError).error).toMatchObject({ type: 'not_found_error', message: 'Invalid URL (GET /api/v1/nope)' });
+    expect((err as NotFoundError).error).toMatchObject({ type: 'not_found_error', code: 'not_found' });
   });
 });
 
@@ -137,15 +137,15 @@ describe('raw /api/v1/audio/transcriptions', () => {
   });
 
   test('non-WAV audio without ffmpeg is 400 unsupported_format', async () => {
-    const prev = process.env.V1_FFMPEG_PATH;
-    process.env.V1_FFMPEG_PATH = '/nonexistent/ffmpeg-for-test';
+    const prev = process.env.FFMPEG_PATH;
+    process.env.FFMPEG_PATH = '/nonexistent/ffmpeg-for-test';
     try {
       const res = await post(form({ model: 'whisper-1' }, new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]), 'a.mp3'));
       expect(res.status).toBe(400);
       expect(await errorOf(res)).toMatchObject({ code: 'unsupported_format', param: 'file' });
     } finally {
-      if (prev === undefined) delete process.env.V1_FFMPEG_PATH;
-      else process.env.V1_FFMPEG_PATH = prev;
+      if (prev === undefined) delete process.env.FFMPEG_PATH;
+      else process.env.FFMPEG_PATH = prev;
     }
   });
 

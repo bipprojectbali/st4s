@@ -15,7 +15,7 @@ export class AudioDecodeError extends Error {
   }
 }
 
-const SUPPORTED_NATIVE = 'WAV (PCM 8/16/24/32-bit or float32)';
+const SUPPORTED_NATIVE = 'WAV (PCM 8/16/24/32-bit atau float32)';
 const SUPPORTED_FFMPEG = 'flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, webm';
 
 /** Linear-interpolation resample of mono PCM to TARGET_RATE. */
@@ -46,14 +46,14 @@ export async function decodeTo16kMono(
       return { audio: resampleLinear(samples, sampleRate), durationSec: samples.length / sampleRate };
     } catch (err) {
       // Unusual WAV encodings (ADPCM, µ-law, 64-bit float) still have a chance with ffmpeg.
-      if (!findFfmpeg()) throw new AudioDecodeError('invalid_audio', `Could not decode WAV file: ${(err as Error).message}`);
+      if (!findFfmpeg()) throw new AudioDecodeError('invalid_audio', `File WAV tidak bisa didekode: ${(err as Error).message}`);
     }
   }
   const bin = findFfmpeg();
   if (!bin) {
     throw new AudioDecodeError(
       'unsupported_format',
-      `Unsupported audio format${hint.filename ? ` (${hint.filename})` : ''}. This server decodes ${SUPPORTED_NATIVE}; install ffmpeg to also accept ${SUPPORTED_FFMPEG}.`,
+      `Format audio tidak didukung${hint.filename ? ` (${hint.filename})` : ''}. Server ini mendekode ${SUPPORTED_NATIVE}; pasang ffmpeg agar juga menerima ${SUPPORTED_FFMPEG}.`,
     );
   }
   try {
@@ -63,7 +63,7 @@ export async function decodeTo16kMono(
     logger.warn({ err, mime: hint.mime, bytes: bytes.length }, 'audio decode via ffmpeg failed');
     throw new AudioDecodeError(
       'invalid_audio',
-      `Could not decode audio file. Supported formats: ${SUPPORTED_FFMPEG}.`,
+      `File audio tidak bisa didekode. Format yang didukung: ${SUPPORTED_FFMPEG}.`,
     );
   }
 }

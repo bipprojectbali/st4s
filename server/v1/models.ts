@@ -29,6 +29,6 @@ export const modelsApi = new Elysia()
   .get('/models/:id', ({ params }) =>
     MODEL_IDS.includes(params.id)
       ? model(params.id)
-      : v1Error(404, `The model '${params.id}' does not exist`, { code: 'model_not_found', param: 'model' }),
+      : v1Error(404, `Model '${params.id}' tidak ada. Lihat GET /api/v1/models.`, { code: 'model_not_found', param: 'model' }),
   )
   .get('/audio/voices', voiceList);

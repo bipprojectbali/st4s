@@ -87,7 +87,7 @@ export function rateLimitPlugin(limiter: RateLimiter = rateLimiter) {
       headers: request.headers,
     });
     if (isV1Path(pathname))
-      return v1ErrorBody(429, `Too many requests. Retry in ${retryAfterSec}s.`, 'rate_limit_exceeded');
+      return v1ErrorBody(429, `Terlalu banyak request. Coba lagi dalam ${retryAfterSec} dtk.`, 'rate_limit_exceeded');
     return { error: 'Too many requests', retryAfterSeconds: retryAfterSec };
   });
 }

@@ -14,11 +14,11 @@ export const v1Config = {
   get maxAudioSec() {
     return num('V1_MAX_AUDIO_SEC', 1800);
   },
-  /** V1_FFMPEG_PATH (default "ffmpeg", looked up on PATH): decoder for non-WAV uploads. */
+  /** FFMPEG_PATH (default "ffmpeg", looked up on PATH): decodes non-WAV uploads and encodes TTS mp3/opus/aac/flac. */
   get ffmpegPath() {
-    return process.env.V1_FFMPEG_PATH || 'ffmpeg';
+    return process.env.FFMPEG_PATH || 'ffmpeg';
   },
-  /** V1_FFMPEG_TIMEOUT_MS (default 120000): ffmpeg is killed after this. */
+  /** V1_FFMPEG_TIMEOUT_MS (default 120000): upload-decoding ffmpeg is killed after this. */
   get ffmpegTimeoutMs() {
     return num('V1_FFMPEG_TIMEOUT_MS', 120_000);
   },

@@ -3,13 +3,13 @@ import { findFfmpeg } from '../../server/audio/decode-ffmpeg';
 import { AudioDecodeError, decodeTo16kMono, resampleLinear } from '../../server/audio/decode';
 import { makeWav } from '../v1/wav-fixture';
 
-const ORIGINAL_FFMPEG = process.env.V1_FFMPEG_PATH;
+const ORIGINAL_FFMPEG = process.env.FFMPEG_PATH;
 afterEach(() => {
-  if (ORIGINAL_FFMPEG === undefined) delete process.env.V1_FFMPEG_PATH;
-  else process.env.V1_FFMPEG_PATH = ORIGINAL_FFMPEG;
+  if (ORIGINAL_FFMPEG === undefined) delete process.env.FFMPEG_PATH;
+  else process.env.FFMPEG_PATH = ORIGINAL_FFMPEG;
 });
 const noFfmpeg = () => {
-  process.env.V1_FFMPEG_PATH = '/nonexistent/ffmpeg-for-test';
+  process.env.FFMPEG_PATH = '/nonexistent/ffmpeg-for-test';
 };
 const rms = (a: Float32Array) => Math.sqrt(a.reduce((s, x) => s + x * x, 0) / a.length);
 

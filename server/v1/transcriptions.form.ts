@@ -21,7 +21,7 @@ export type TranscriptionInput = {
 const bad = (message: string, param: string, code = 'invalid_value') => v1Error(400, message, { code, param });
 
 const tooLarge = () =>
-  v1Error(413, `Audio file exceeds the ${Math.round(v1Config.maxUploadBytes / 1024 / 1024)} MB upload limit.`, {
+  v1Error(413, `File audio melebihi batas unggah ${Math.round(v1Config.maxUploadBytes / 1024 / 1024)} MB.`, {
     code: 'file_too_large',
     param: 'file',
   });
@@ -46,42 +46,43 @@ function parseBool(v: string | undefined): boolean | null {
 export async function readTranscriptionForm(request: Request): Promise<TranscriptionInput | Response> {
   if (Number(request.headers.get('content-length') ?? 0) > v1Config.maxUploadBytes + 64 * 1024) return tooLarge();
   if (!request.headers.get('content-type')?.includes('multipart/form-data'))
-    return bad('Request body must be multipart/form-data.', 'file', 'invalid_content_type');
+    return bad('Body request harus multipart/form-data.', 'file', 'invalid_content_type');
   let form: FormData;
   try {
     form = await request.formData();
-  } catch (err) {
-    return bad(`Could not parse multipart body: ${(err as Error).message}`, 'file', 'invalid_body');
+  } catch {
+    // Parser detail is not shown to the caller; the 400 itself is the signal.
+    return bad('Body multipart tidak bisa dibaca. Kirim ulang sebagai multipart/form-data yang valid.', 'file', 'invalid_body');
   }
 
   const file = form.get('file');
-  if (!(file instanceof File)) return bad("Missing required parameter: 'file'.", 'file', 'missing_required_parameter');
+  if (!(file instanceof File)) return bad('Parameter `file` wajib diisi.', 'file', 'missing_required_parameter');
   if (file.size > v1Config.maxUploadBytes) return tooLarge();
-  if (file.size === 0) return bad('Audio file is empty.', 'file', 'invalid_audio');
+  if (file.size === 0) return bad('File audio kosong.', 'file', 'invalid_audio');
 
   const model = text(form, 'model');
-  if (!model) return bad("Missing required parameter: 'model'.", 'model', 'missing_required_parameter');
-  if (!isSttModel(model)) return bad(`Model '${model}' does not support transcription.`, 'model', 'model_not_found');
+  if (!model) return bad('Parameter `model` wajib diisi.', 'model', 'missing_required_parameter');
+  if (!isSttModel(model)) return bad(`Model '${model}' tidak mendukung transkripsi.`, 'model', 'model_not_found');
 
   const responseFormat = (text(form, 'response_format') ?? 'json') as ResponseFormat;
   if (!RESPONSE_FORMATS.includes(responseFormat))
-    return bad(`response_format must be one of ${RESPONSE_FORMATS.join(', ')}.`, 'response_format');
+    return bad(`response_format harus salah satu dari ${RESPONSE_FORMATS.join(', ')}.`, 'response_format');
 
   const stream = parseBool(text(form, 'stream'));
-  if (stream === null) return bad('stream must be true or false.', 'stream');
+  if (stream === null) return bad('stream harus true atau false.', 'stream');
   if (stream && !STREAMABLE.includes(responseFormat))
-    return bad(`Streaming is only supported with response_format ${STREAMABLE.join(' or ')}.`, 'stream');
+    return bad(`Streaming hanya didukung untuk response_format ${STREAMABLE.join(' atau ')}.`, 'stream');
 
   const language = text(form, 'language')?.toLowerCase();
   if (language && !/^[a-z]{2}$/.test(language))
-    return bad('language must be an ISO-639-1 code such as "en" or "id".', 'language');
+    return bad('`language` harus kode ISO 639-1, mis. "id" atau "en".', 'language');
 
   const granularities = [...form.getAll('timestamp_granularities[]'), ...form.getAll('timestamp_granularities')]
     .map(String)
     .map((g) => g.trim());
   const unknown = granularities.find((g) => !GRANULARITIES.includes(g));
   if (unknown !== undefined)
-    return bad(`timestamp_granularities must be word or segment, got '${unknown}'.`, 'timestamp_granularities');
+    return bad(`timestamp_granularities harus word atau segment, bukan '${unknown}'.`, 'timestamp_granularities');
 
   return {
     file,

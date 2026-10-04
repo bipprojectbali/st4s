@@ -11,7 +11,7 @@ export async function requireV1Caller({ request }: { request: Request }): Promis
   if (await resolveActor(request)) return;
   return v1Error(
     401,
-    'Missing or invalid credentials. Send "Authorization: Bearer <API key>" or sign in.',
+    'Kredensial tidak ada atau tidak valid. Kirim "Authorization: Bearer <API key>" atau login.',
     { code: 'invalid_api_key' },
   );
 }

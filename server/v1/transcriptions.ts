@@ -30,7 +30,7 @@ async function transcribe(request: Request, requestId: string, meta: LogMeta, on
   }
   meta.durationSec = Math.round(decoded.durationSec * 100) / 100;
   if (decoded.durationSec > v1Config.maxAudioSec)
-    return v1Error(400, `Audio is ${Math.round(decoded.durationSec)}s long; the limit is ${v1Config.maxAudioSec}s.`, {
+    return v1Error(400, `Durasi audio ${Math.round(decoded.durationSec)} dtk melebihi batas ${v1Config.maxAudioSec} dtk.`, {
       code: 'audio_too_long',
       param: 'file',
     });
@@ -40,7 +40,7 @@ async function transcribe(request: Request, requestId: string, meta: LogMeta, on
     engine = getStt();
   } catch (err) {
     logger.error({ err, requestId }, 'stt engine not registered');
-    return v1Error(503, 'The transcription engine is not available yet. Retry shortly.', { code: 'engine_unavailable' });
+    return v1Error(503, 'Mesin STT belum siap. Coba lagi sebentar lagi.', { code: 'engine_unavailable' });
   }
 
   const ctrl = new AbortController();
@@ -70,7 +70,7 @@ async function transcribe(request: Request, requestId: string, meta: LogMeta, on
     const result = await engine.transcribe({ ...req, signal: ctrl.signal });
     return formatResult(result, input.responseFormat, result.duration || decoded.durationSec, input.wordTimestamps);
   } catch (err) {
-    if (ctrl.signal.aborted) return v1Error(400, 'Request was cancelled by the client.', { code: 'request_aborted' });
+    if (ctrl.signal.aborted) return v1Error(400, 'Request dibatalkan oleh klien.', { code: 'request_aborted' });
     return engineErrorResponse(err, requestId);
   } finally {
     request.signal.removeEventListener('abort', abort);
@@ -106,7 +106,7 @@ export const transcriptionsApi = new Elysia()
   .post(
     '/audio/translations',
     () =>
-      v1Error(400, 'Audio translation is not supported by this server; use /audio/transcriptions.', {
+      v1Error(400, 'Terjemahan audio tidak didukung server ini; pakai /audio/transcriptions.', {
         code: 'unsupported',
       }),
     { parse: 'none' },

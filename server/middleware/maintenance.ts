@@ -8,7 +8,7 @@ import { isV1Path, v1Error } from '../v1/errors';
 async function asV1(blocked: Response): Promise<Response> {
   const { message } = (await blocked.json()) as { message?: string };
   const retryAfter = blocked.headers.get('retry-after');
-  return v1Error(503, message ?? 'Service is under maintenance.', {
+  return v1Error(503, message ?? 'Layanan sedang dalam pemeliharaan. Coba lagi nanti.', {
     code: 'maintenance',
     headers: retryAfter ? { 'retry-after': retryAfter } : {},
   });

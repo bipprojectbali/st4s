@@ -58,12 +58,12 @@ export function formatResult(r: TranscribeResult, format: ResponseFormat, durati
 /** Busy -> 429 + Retry-After; anything else -> 500 without internals. */
 export function engineErrorResponse(err: unknown, requestId: string): Response {
   if (err instanceof EngineBusyError)
-    return v1Error(429, 'The transcription engine is busy. Retry shortly.', {
+    return v1Error(429, 'Mesin STT sedang penuh. Coba lagi beberapa detik lagi.', {
       code: 'engine_busy',
       headers: { 'retry-after': String(err.retryAfterSec) },
     });
   logger.error({ err, requestId }, 'stt transcription failed');
-  return v1Error(500, 'Transcription failed. Retry; include the x-request-id header when reporting.', {
+  return v1Error(500, 'Transkripsi gagal. Coba lagi; sertakan header x-request-id bila melapor.', {
     code: 'server_error',
   });
 }
@@ -130,7 +130,7 @@ export async function streamTranscript({ engine, req, ctrl, duration, requestId,
     },
     (err: unknown) => {
       if (!ctrl.signal.aborted) logger.error({ err, requestId }, 'stt stream failed mid-way');
-      push(v1ErrorBody(500, 'Transcription failed mid-stream.', 'server_error'));
+      push(v1ErrorBody(500, 'Transkripsi terhenti di tengah stream. Coba lagi.', 'server_error'));
       close();
       onEnd(ctrl.signal.aborted ? 499 : 500);
     },

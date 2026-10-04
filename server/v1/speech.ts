@@ -7,6 +7,7 @@ import { EngineBusyError, type TtsEngine } from '../engines/types';
 import { logger } from '../logger';
 import { speechUnits } from '../text/speech-units';
 import { requireV1Caller } from './auth';
+import { v1Config } from './config';
 import { v1Error } from './errors';
 import { speechConfig } from './speech-config';
 import { parseSpeechParams } from './speech-params';
@@ -21,7 +22,7 @@ async function speak(request: Request, body: unknown): Promise<Response> {
   const params = parseSpeechParams(body);
   if (params instanceof Response) return params;
 
-  if (!NATIVE_FORMATS.includes(params.format) && !ffmpegAvailable(speechConfig.ffmpegBin))
+  if (!NATIVE_FORMATS.includes(params.format) && !ffmpegAvailable(v1Config.ffmpegPath))
     return v1Error(400, `Format ${params.format} butuh ffmpeg yang tidak terpasang di server; pakai wav atau pcm.`, {
       code: 'unsupported_format',
       param: 'response_format',

@@ -23,7 +23,7 @@ export function parseWav(bytes: Uint8Array): WavMono {
     const size = view.getUint32(offset + 4, true);
     const body = offset + 8;
     if (id === 'fmt ') {
-      if (size < 16) throw new Error('WAV fmt chunk is too short');
+      if (size < 16) throw new Error('chunk fmt WAV terlalu pendek');
       let format = view.getUint16(body, true);
       // WAVE_FORMAT_EXTENSIBLE: the real format is the first 2 bytes of the SubFormat GUID.
       if (format === EXTENSIBLE && size >= 40) format = view.getUint16(body + 24, true);
@@ -34,14 +34,14 @@ export function parseWav(bytes: Uint8Array): WavMono {
         bits: view.getUint16(body + 14, true),
       };
     } else if (id === 'data') {
-      if (!fmt) throw new Error('WAV data chunk appears before fmt chunk');
+      if (!fmt) throw new Error('chunk data WAV muncul sebelum chunk fmt');
       // Streamed WAVs may carry 0xFFFFFFFF or a too-large size: clamp to what was uploaded.
       const len = Math.min(size, bytes.length - body);
       return { samples: toMono(view, body, len, fmt), sampleRate: fmt.sampleRate };
     }
     offset = body + size + (size % 2);
   }
-  throw new Error('WAV file has no data chunk');
+  throw new Error('file WAV tidak punya chunk data');
 }
 
 function toMono(
@@ -51,7 +51,7 @@ function toMono(
   f: { format: number; channels: number; sampleRate: number; bits: number },
 ): Float32Array {
   const read = sampleReader(view, f.format, f.bits);
-  if (f.channels < 1 || f.sampleRate < 1) throw new Error('WAV header has no channels or sample rate');
+  if (f.channels < 1 || f.sampleRate < 1) throw new Error('header WAV tidak punya jumlah kanal atau sample rate');
   const width = f.bits / 8;
   const frameBytes = width * f.channels;
   const frames = Math.floor(len / frameBytes);
@@ -67,7 +67,7 @@ function toMono(
 
 function sampleReader(view: DataView, format: number, bits: number): (o: number) => number {
   if (format === FLOAT && bits === 32) return (o) => view.getFloat32(o, true);
-  if (format !== PCM) throw new Error(`WAV encoding ${format} (${bits}-bit) is not supported`);
+  if (format !== PCM) throw new Error(`encoding WAV ${format} (${bits}-bit) tidak didukung`);
   switch (bits) {
     case 8:
       return (o) => (view.getUint8(o) - 128) / 128;
@@ -81,6 +81,6 @@ function sampleReader(view: DataView, format: number, bits: number): (o: number)
     case 32:
       return (o) => view.getInt32(o, true) / 2147483648;
     default:
-      throw new Error(`WAV PCM ${bits}-bit is not supported`);
+      throw new Error(`WAV PCM ${bits}-bit tidak didukung`);
   }
 }
