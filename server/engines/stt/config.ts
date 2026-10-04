@@ -29,7 +29,8 @@ function int(v: string | undefined, def: number): number {
 /** Read STT config from env; every value has a documented default. */
 export function loadSttConfig(env: Record<string, string | undefined> = process.env): SttConfig {
   return {
-    libPath: env.CRISPASR_LIB || path.join(os.homedir(), 'tmp/stt/build/src/libcrispasr.dylib'),
+    libPath:
+      env.CRISPASR_LIB || path.join(os.homedir(), 'tmp/crispasr-s4s/build/src/libcrispasr.dylib'),
     modelPath: env.STT_MODEL || path.join(CACHE, 'qwen3-asr-1.7b-q4_k.gguf'),
     vadModelPath: env.STT_VAD_MODEL ?? path.join(CACHE, 'ggml-silero-v6.2.0.bin'),
     lidModelPath: env.STT_LID_MODEL || path.join(CACHE, 'ggml-tiny.bin'),

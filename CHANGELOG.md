@@ -25,6 +25,7 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 - Memory guard mengecek RAM bebas sebelum memuat engine yang belum termuat (STT butuh 2.600 MB, TTS 600 MB; diatur lewat `MEM_BUDGET_STT_MB`/`MEM_BUDGET_TTS_MB`, `0` = nonaktif). Bila kurang, request atau warmup ditolak `503 memory_pressure` dengan pesan RAM yang dibutuhkan vs tersedia, dan `/dev/engines` menampilkan penolakan terakhir. Unload otomatis kini tercatat sebagai aksi sendiri "Unload otomatis engine" di Audit Log.
 
 ### Changed
+- STT kini memakai libcrispasr ber-patch secara default (`~/tmp/crispasr-s4s/build/src/libcrispasr.dylib`, dibangun lewat `scripts/crispasr/build.sh`), sehingga puncak RAM STT turun dari ~3,5 GB ke ~2,1 GB dengan transkrip yang sama. Lib tanpa patch masih bisa dipakai lewat `CRISPASR_LIB`.
 - Error di bawah `/api/v1` kini berbentuk error OpenAI (`{ error: { message, type, param, code } }`) agar SDK `openai` bisa membacanya. Route `/api/*` lain tetap memakai format lama.
 - Pesan error `/api/v1` kini berbahasa Indonesia (nilai `code`, `type`, dan status HTTP tidak berubah), dan `V1_FFMPEG_PATH` digabung ke `FFMPEG_PATH` — satu variabel kini dipakai untuk decode upload maupun encode audio.
 - Saat antrean engine penuh, API menjawab `429 engine_busy` dengan header `Retry-After` agar klien tahu kapan mencoba lagi.

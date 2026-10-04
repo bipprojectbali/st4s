@@ -1,7 +1,24 @@
 import type { Pointer } from 'bun:ffi';
 import { describe, expect, test } from 'bun:test';
+import os from 'node:os';
+import path from 'node:path';
 import { openSttSession } from '../../server/engines/stt/child';
 import { loadSttConfig } from '../../server/engines/stt/config';
+
+describe('loadSttConfig CRISPASR_LIB', () => {
+  const patched = path.join(os.homedir(), 'tmp/crispasr-s4s/build/src/libcrispasr.dylib');
+
+  test('defaults to the patched build from scripts/crispasr/build.sh', () => {
+    expect(loadSttConfig({}).libPath).toBe(patched);
+    expect(loadSttConfig({ CRISPASR_LIB: '' }).libPath).toBe(patched);
+  });
+
+  test('env overrides the default', () => {
+    expect(loadSttConfig({ CRISPASR_LIB: '/opt/lib/libcrispasr.dylib' }).libPath).toBe(
+      '/opt/lib/libcrispasr.dylib',
+    );
+  });
+});
 
 describe('loadSttConfig STT_GPU', () => {
   test('defaults to CPU when unset or empty', () => {
