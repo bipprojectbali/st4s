@@ -55,6 +55,25 @@ describe('checkEngineDeps', () => {
     expect(deps.CRISPASR_LIB.ok).toBe(true);
   });
 
+  test('binary mode: missing files name the resolved path and the st4s fix', () => {
+    const deps = byName(
+      checkEngineDeps({
+        env: { ST4S_HOME: '/h' },
+        exists: () => false,
+        which: () => null,
+        binary: true,
+      }),
+    );
+    expect(deps.STT_MODEL.detail).toBe(
+      'tidak ditemukan: /h/models/stt/qwen3-asr-1.7b-q4_k.gguf — jalankan `st4s models pull` (atau `st4s models import <dir>`), cek dengan `st4s doctor`',
+    );
+    expect(deps.TTS_MODEL_DIR.detail).toContain('/h/models/tts/onnx');
+    expect(deps.TTS_MODEL_DIR.detail).toContain('st4s models pull');
+    expect(deps.CRISPASR_LIB.detail).toContain('/h/lib/libcrispasr');
+    expect(deps.CRISPASR_LIB.detail).toContain('st4s doctor');
+    expect(deps.CRISPASR_LIB.detail).not.toContain('models pull');
+  });
+
   test('empty STT_VAD_MODEL disables VAD and is not a failure; FFMPEG_PATH defaults to ffmpeg', () => {
     const seen: string[] = [];
     const deps = byName(
