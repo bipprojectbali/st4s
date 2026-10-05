@@ -431,4 +431,4 @@ Pola autentikasi di integration test: stub `auth.api.getSession` dan `resolveUse
 
 ## Lisensi
 
-MIT
+MIT — lihat [LICENSE](LICENSE).

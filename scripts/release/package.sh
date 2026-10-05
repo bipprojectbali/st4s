@@ -59,9 +59,7 @@ for f in "$OUT/st4s" "$OUT"/lib/*; do
   fi
 done
 
-if [ -f LICENSE ]; then cp LICENSE "$OUT/LICENSES/st4s.txt"; else
-  echo "st4s is released under the MIT License (README.md, section \"Lisensi\")." >"$OUT/LICENSES/st4s.txt"
-fi
+cp LICENSE "$OUT/LICENSES/st4s.txt"
 cp "$CRISPASR_DIR/LICENSE" "$OUT/LICENSES/crispasr.txt"
 cp "$CRISPASR_DIR/ggml/LICENSE" "$OUT/LICENSES/ggml.txt"
 ORT_RAW="https://raw.githubusercontent.com/microsoft/onnxruntime/v$ORT_VERSION"
