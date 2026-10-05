@@ -1,5 +1,6 @@
 import os from 'node:os';
 import path from 'node:path';
+import { CRISPASR_LIB_FILE, st4sLibDir, st4sModelsDir } from '../../st4s-home';
 
 /** STT engine settings resolved from env (see defaults below). */
 export interface SttConfig {
@@ -31,13 +32,16 @@ export function defaultCrispasrLib(cwd: string = process.cwd()): string {
   return path.resolve(cwd, '.crispasr/build/src/libcrispasr.dylib');
 }
 
-/** Read STT config from env; every value has a documented default. */
+/** Read STT config from env; each path: explicit var > ST4S_HOME layout > dev default. */
 export function loadSttConfig(env: Record<string, string | undefined> = process.env): SttConfig {
+  const lib = st4sLibDir(env);
+  const modelsDir = st4sModelsDir(env);
+  const model = (file: string) => path.join(modelsDir ? path.join(modelsDir, 'stt') : CACHE, file);
   return {
-    libPath: env.CRISPASR_LIB || defaultCrispasrLib(),
-    modelPath: env.STT_MODEL || path.join(CACHE, 'qwen3-asr-1.7b-q4_k.gguf'),
-    vadModelPath: env.STT_VAD_MODEL ?? path.join(CACHE, 'ggml-silero-v6.2.0.bin'),
-    lidModelPath: env.STT_LID_MODEL || path.join(CACHE, 'ggml-tiny.bin'),
+    libPath: env.CRISPASR_LIB || (lib ? path.join(lib, CRISPASR_LIB_FILE) : defaultCrispasrLib()),
+    modelPath: env.STT_MODEL || model('qwen3-asr-1.7b-q4_k.gguf'),
+    vadModelPath: env.STT_VAD_MODEL ?? model('ggml-silero-v6.2.0.bin'),
+    lidModelPath: env.STT_LID_MODEL || model('ggml-tiny.bin'),
     threads: Math.max(1, int(env.STT_THREADS, 4)),
     useGpu: /^(1|true|yes|on)$/i.test(env.STT_GPU ?? ''),
     defaultLanguage: env.STT_DEFAULT_LANGUAGE || 'id',

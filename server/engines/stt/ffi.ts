@@ -41,9 +41,10 @@ export function dlopenCrispasr(libPath: string) {
     return dlopen(libPath, SYMBOLS);
   } catch (e) {
     const what = existsSync(libPath) ? 'cannot be loaded' : 'not found';
-    throw new Error(
-      `libcrispasr ${what} at ${libPath} — run \`bash scripts/crispasr/build.sh\` or set CRISPASR_LIB (${(e as Error).message})`,
-    );
+    const fix = Bun.isStandaloneExecutable
+      ? 'reinstall st4s (lib/ ships in the tarball) or set CRISPASR_LIB, then run `st4s doctor`'
+      : 'run `bash scripts/crispasr/build.sh` or set CRISPASR_LIB';
+    throw new Error(`libcrispasr ${what} at ${libPath} — ${fix} (${(e as Error).message})`);
   }
 }
 

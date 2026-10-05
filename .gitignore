@@ -30,3 +30,5 @@ service-account.json
 /st4s.exe
 # libcrispasr build (scripts/crispasr/build.sh)
 /.crispasr/
+# release bundles (scripts/release/package.sh)
+/dist/

@@ -1,9 +1,10 @@
 import os from 'node:os';
 import path from 'node:path';
+import { st4sModelsDir } from '../../st4s-home';
 
 /** TTS engine settings, read from env with documented defaults. */
 export interface TtsConfig {
-  /** TTS_MODEL_DIR — contains onnx/ and voice_styles/ (read-only). Default ~/.wibu/tts/model. */
+  /** TTS_MODEL_DIR — contains onnx/ and voice_styles/ (read-only). See ttsModelDir(). */
   modelDir: string;
   /** TTS_STEPS — denoising steps when the request gives none. Default 8 (upstream default). */
   steps: number;
@@ -24,9 +25,11 @@ function intEnv(name: string, fallback: number, min: number): number {
   return n;
 }
 
-/** TTS_MODEL_DIR, or the default ~/.wibu/tts/model. */
+/** TTS_MODEL_DIR, else `<ST4S_HOME>/models/tts`, else the dev default ~/.wibu/tts/model. */
 export function ttsModelDir(env: Record<string, string | undefined> = process.env): string {
-  return env.TTS_MODEL_DIR || path.join(os.homedir(), '.wibu', 'tts', 'model');
+  if (env.TTS_MODEL_DIR) return env.TTS_MODEL_DIR;
+  const modelsDir = st4sModelsDir(env);
+  return modelsDir ? path.join(modelsDir, 'tts') : path.join(os.homedir(), '.wibu', 'tts', 'model');
 }
 
 /** Read the TTS config from process.env. */

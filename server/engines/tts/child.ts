@@ -1,4 +1,5 @@
 // TTS child process: owns the ONNX sessions so inference never blocks (or crashes) the server.
+import { preloadOrt } from './ort-preload';
 import type { ChildMsg, ParentMsg } from './protocol';
 import type { Supertonic } from './supertonic';
 
@@ -9,12 +10,6 @@ function reply(msg: ChildMsg): void {
   process.send(msg);
 }
 
-// `bun build --compile` embeds onnxruntime_binding.node but not its @rpath dependency libonnxruntime.1.dylib/.so.
-const binaryHint = (message: string) =>
-  Bun.isStandaloneExecutable && /libonnxruntime/.test(message)
-    ? ' — the compiled binary cannot find libonnxruntime: set DYLD_LIBRARY_PATH (macOS) / LD_LIBRARY_PATH (Linux) to node_modules/onnxruntime-node/bin/napi-v6/<os>/<arch>, or run from source (`bun run start`)'
-    : '';
-
 /** Run the TTS child loop: load on demand, then serve synth requests one at a time. */
 export function runTtsChild(): void {
   let tts: Supertonic | null = null;
@@ -24,6 +19,7 @@ export function runTtsChild(): void {
     if (msg.type === 'load') {
       const t0 = performance.now();
       try {
+        preloadOrt();
         // Lazy so the binary can start this child (and report the error) even when onnxruntime-node is missing.
         const { Supertonic } = await import('./supertonic');
         tts = await Supertonic.load(msg.modelDir, msg.threads);
@@ -37,7 +33,7 @@ export function runTtsChild(): void {
         const reason = (e as Error).message;
         reply({
           type: 'error',
-          message: `TTS model load failed (${msg.modelDir}): ${reason}${binaryHint(reason)}`,
+          message: `TTS model load failed (${msg.modelDir}): ${reason}`,
           rss: rss(),
         });
       }
