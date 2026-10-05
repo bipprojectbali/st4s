@@ -4,7 +4,7 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan versi mengikuti
 [Semantic Versioning](https://semver.org/lang/id/).
 
-## [Unreleased]
+## [0.2.0] - 2026-10-05
 
 ### Added
 - Perintah binary `st4s init` (menyiapkan folder dan `.env` berizin 0600 dengan secret acak, tanpa pernah menimpa `.env` yang ada), `st4s doctor` (checklist ✅/❌ beserta saran perbaikan untuk `.env`, database, karantina macOS, library, model, ffmpeg, dan RAM), `st4s migrate` (migrasi database sudah ter-embed di binary), dan `st4s --version`. Binary kini membaca `.env` dari folder st4s (bukan dari direktori kerja), berjalan sebagai production bila `NODE_ENV` tidak di-set, dan menolak start dengan pesan "jalankan `st4s migrate`" bila database belum dimigrasi.
