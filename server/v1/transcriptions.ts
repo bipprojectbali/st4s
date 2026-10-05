@@ -1,6 +1,6 @@
 /** POST /api/v1/audio/transcriptions (OpenAI-compatible STT) and the unsupported /audio/translations. */
 import { Elysia } from 'elysia';
-import { newRequestId } from '../api-error';
+import { requestIdOf } from '../api-error';
 import { AudioDecodeError } from '../audio/decode';
 import { getStt } from '../engines/registry';
 import type { SttEngine } from '../engines/types';
@@ -98,7 +98,7 @@ async function transcribe(
 /** Runs the request and writes exactly one `stt transcription` info log (never the transcript). */
 async function handle(request: Request): Promise<Response> {
   const t0 = performance.now();
-  const requestId = request.headers.get('x-request-id') ?? newRequestId();
+  const requestId = requestIdOf(request);
   const meta: LogMeta = { stream: false };
   let logged = false;
   const log = (status: number) => {

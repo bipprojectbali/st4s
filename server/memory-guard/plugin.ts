@@ -1,6 +1,6 @@
 /** Admission control for speech work: wakes the guard, sheds new requests with 503 while RAM is low, and refuses cold loads that do not fit the RAM budget. */
 import { Elysia } from 'elysia';
-import { newRequestId } from '../api-error';
+import { requestIdOf } from '../api-error';
 import { v1Error } from '../v1/errors';
 import { BUDGET_MESSAGE } from './budget';
 import type { GuardEngine } from './machine';
@@ -39,7 +39,7 @@ export const memoryGuardPlugin = new Elysia({ name: 'memory-guard' }).onBeforeHa
       code: 'memory_pressure',
       headers: {
         'retry-after': String(a.retryAfterSec),
-        'x-request-id': request.headers.get('x-request-id') ?? newRequestId(),
+        'x-request-id': requestIdOf(request),
       },
     });
   },

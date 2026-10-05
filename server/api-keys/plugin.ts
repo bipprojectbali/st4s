@@ -5,7 +5,7 @@
  */
 import { eq } from 'drizzle-orm';
 import { Elysia } from 'elysia';
-import { newRequestId } from '../api-error';
+import { requestIdOf } from '../api-error';
 import { API_KEY_PREFIX, auth } from '../auth';
 import { db } from '../db';
 import { apikey, user } from '../db/schema';
@@ -144,7 +144,7 @@ export function apiKeyPlugin() {
         if (!key) return;
         const url = new URL(request.url);
         const ctx: RefusalCtx = {
-          requestId: request.headers.get('x-request-id') ?? newRequestId(),
+          requestId: requestIdOf(request),
           path: url.pathname,
         };
         const deny = denier(ctx);

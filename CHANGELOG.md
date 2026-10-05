@@ -4,6 +4,11 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan versi mengikuti
 [Semantic Versioning](https://semver.org/lang/id/).
 
+## [Unreleased]
+
+### Fixed
+- Semua error `/api` kini benar-benar berbentuk `{ error, code, status, requestId }` dengan header `x-request-id` yang sama, termasuk penolakan seperti 401/403 dari `/api/engines` yang sebelumnya tanpa `status` dan `requestId`. Error `/api/v1` (mis. 401 kredensial, 400 validasi) kini juga selalu membawa header `x-request-id`, body tetap format OpenAI. Bila klien mengirim `x-request-id`, nilai itu dipakai ulang di body, header, dan log.
+
 ## [0.2.0] - 2026-10-05
 
 ### Added

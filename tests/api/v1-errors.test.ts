@@ -8,7 +8,7 @@ import { RateLimiter, rateLimitPlugin } from '../../server/middleware/rate-limit
 import * as maintenanceMod from '../../server/settings-maintenance';
 import { v1Api } from '../../server/v1';
 import { STT_MODEL_ID } from '../../server/v1/aliases';
-import { call, stubSession, withIp } from '../v1/fake-stt';
+import { call, SESSION_TOKEN, stubSession, withIp } from '../v1/fake-stt';
 
 type V1Error = {
   error: { message: string; type: string; param: string | null; code: string | null };
@@ -132,6 +132,52 @@ describe('full app', () => {
     } finally {
       gate.mockRestore();
     }
+  });
+});
+
+describe('returned (not thrown) errors carry status, requestId and x-request-id', () => {
+  test('hook-returned 401 on /api/engines has the uniform body and a matching header', async () => {
+    const res = await call('/api/engines');
+    expect(res.status).toBe(401);
+    const body = await json(res);
+    expect(body).toMatchObject({ code: 'UNAUTHORIZED', status: 401 });
+    expect(typeof body.error).toBe('string');
+    expect(typeof body.requestId).toBe('string');
+    expect(res.headers.get('x-request-id')).toBe(body.requestId as string);
+  });
+
+  test("a caller's x-request-id is reused in body and header", async () => {
+    const res = await call('/api/engines', { headers: { 'x-request-id': 'err-shape-rid-1' } });
+    expect((await json(res)).requestId).toBe('err-shape-rid-1');
+    expect(res.headers.get('x-request-id')).toBe('err-shape-rid-1');
+  });
+
+  test('v1 401 from the auth hook: x-request-id, body stays OpenAI-only', async () => {
+    const res = await call('/api/v1/audio/speech', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'tts-1', input: 'halo', voice: 'alloy' }),
+    });
+    expect(res.headers.get('x-request-id')).toBeTruthy();
+    await expectV1(res, 401, 'authentication_error', 'invalid_api_key');
+  });
+
+  test('v1 400 validation from the handler: x-request-id, body stays OpenAI-only', async () => {
+    const res = await call('/api/v1/audio/speech', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${SESSION_TOKEN}` },
+      body: JSON.stringify({ model: 'tts-1', voice: 'alloy' }),
+    });
+    expect(res.headers.get('x-request-id')).toBeTruthy();
+    await expectV1(res, 400, 'invalid_request_error');
+  });
+
+  test('a normal 200 is untouched', async () => {
+    const res = await call('/api/v1/models');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('x-request-id')).toBeNull();
+    const body = await json(res);
+    expect(Object.keys(body).sort()).toEqual(['data', 'object']);
   });
 });
 

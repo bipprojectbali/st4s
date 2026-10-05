@@ -7,8 +7,11 @@
  *    internal messages/stacks never leave the process in production.
  * Thrown `Response`s (guard redirects) and errors carrying an HTTP status
  * (Better Auth's APIError) pass through with their own status.
+ * Errors that hooks/handlers *return* (`status(401, { error, code })`, a
+ * `v1Error()` Response) are not exceptions, so onError never sees them; an
+ * afterHandle hook gives them the same `status`/`requestId` + `x-request-id`.
  */
-import { Elysia } from 'elysia';
+import { Elysia, ElysiaCustomStatusResponse } from 'elysia';
 import { isProd } from './env';
 import { logger } from './logger';
 import { isV1Path, v1Code, v1Error } from './v1/errors';
@@ -46,6 +49,23 @@ type ValidationLike = {
 type StatusLike = { statusCode?: unknown; status?: unknown; message?: unknown };
 
 export const newRequestId = () => crypto.randomUUID().slice(0, 12);
+
+const REQUEST_ID = 'x-request-id';
+const requestIds = new WeakMap<Request, string>();
+
+/** One id per request (the caller's x-request-id when sent), so logs, header and body agree. */
+export function requestIdOf(request: Request): string {
+  let id = requestIds.get(request);
+  if (!id) {
+    id = request.headers.get(REQUEST_ID) ?? newRequestId();
+    requestIds.set(request, id);
+  }
+  return id;
+}
+
+type ReturnedErrorBody = { error: string; code?: unknown; status?: unknown; requestId?: unknown };
+const isErrorBody = (v: unknown): v is ReturnedErrorBody =>
+  typeof v === 'object' && v !== null && typeof (v as ReturnedErrorBody).error === 'string';
 
 /** /api/v1 speaks OpenAI: `{ error: { message, type, param, code } }`, 422 -> 400, request id in a header. */
 function v1JsonError(body: ApiErrorBody): Response {
@@ -92,7 +112,7 @@ export function notFoundResponse(request: Request): Response {
     error: MESSAGES.NOT_FOUND,
     code: 'NOT_FOUND',
     status: 404,
-    requestId: newRequestId(),
+    requestId: requestIdOf(request),
     method: request.method,
     path: new URL(request.url).pathname,
   });
@@ -100,47 +120,78 @@ export function notFoundResponse(request: Request): Response {
 
 export function apiErrorPlugin(opts: { exposeDetails?: boolean } = {}) {
   const expose = opts.exposeDetails ?? !isProd;
-  return new Elysia({ name: 'api-error' }).onError({ as: 'global' }, ({ code, error, request }) => {
-    if (error instanceof Response) return error;
-    const requestId = newRequestId();
-    const url = new URL(request.url);
-    const base = { requestId, method: request.method, path: url.pathname };
-    const codeName = String(code);
+  return new Elysia({ name: 'api-error' })
+    .onAfterHandle({ as: 'global' }, ({ request, responseValue: rv, set, status }) => {
+      if (rv instanceof Response) {
+        if (rv.status >= 400 && !rv.headers.has(REQUEST_ID))
+          set.headers[REQUEST_ID] = requestIdOf(request);
+        return;
+      }
+      const custom = rv instanceof ElysiaCustomStatusResponse;
+      const code: unknown = custom ? rv.code : set.status;
+      if (typeof code !== 'number' || code < 400) return;
+      const body: unknown = custom ? rv.response : rv;
+      const preset = set.headers[REQUEST_ID];
+      const requestId =
+        isErrorBody(body) && typeof body.requestId === 'string'
+          ? body.requestId
+          : typeof preset === 'string'
+            ? preset
+            : requestIdOf(request);
+      set.headers[REQUEST_ID] = requestId;
+      // /v1 keeps its OpenAI body (`error` is an object there); only the header is added.
+      if (!isErrorBody(body) || isV1Path(new URL(request.url).pathname)) return;
+      if (body.status === code && body.requestId === requestId && typeof body.code === 'string')
+        return;
+      const uniform = {
+        ...body,
+        code: typeof body.code === 'string' ? body.code : 'ERROR',
+        status: code,
+        requestId,
+      };
+      return status(code as 400, uniform);
+    })
+    .onError({ as: 'global' }, ({ code, error, request }) => {
+      if (error instanceof Response) return error;
+      const requestId = requestIdOf(request);
+      const url = new URL(request.url);
+      const base = { requestId, method: request.method, path: url.pathname };
+      const codeName = String(code);
 
-    if (codeName === 'VALIDATION') {
-      const v = error as ValidationLike;
-      const issues = (v.all ?? [])
-        .filter((i) => i.path !== undefined || i.message)
-        .map((i) => ({ path: i.path || v.type || '', message: i.summary ?? i.message ?? '' }));
-      return jsonError({
-        error: MESSAGES.VALIDATION,
-        code: 'VALIDATION',
-        status: 422,
-        ...base,
-        issues,
-      });
-    }
-    if (codeName in STATUS_BY_CODE) {
-      const status = STATUS_BY_CODE[codeName];
-      const msg = MESSAGES[codeName as keyof typeof MESSAGES] ?? String((error as Error).message);
-      return jsonError({ error: msg, code: codeName, status, ...base });
-    }
-    const carried = carriedStatus(error);
-    if (carried && carried < 500) {
-      const msg = String((error as StatusLike).message ?? MESSAGES.INTERNAL);
-      return jsonError({
-        error: msg,
-        code: codeName === 'UNKNOWN' ? 'ERROR' : codeName,
-        status: carried,
-        ...base,
-      });
-    }
-    const status = carried ?? 500;
-    logger.error(
-      { err: error, requestId, method: request.method, path: url.pathname },
-      'API error',
-    );
-    const message = expose && error instanceof Error ? error.message : MESSAGES.INTERNAL;
-    return jsonError({ error: message, code: 'INTERNAL', status, ...base });
-  });
+      if (codeName === 'VALIDATION') {
+        const v = error as ValidationLike;
+        const issues = (v.all ?? [])
+          .filter((i) => i.path !== undefined || i.message)
+          .map((i) => ({ path: i.path || v.type || '', message: i.summary ?? i.message ?? '' }));
+        return jsonError({
+          error: MESSAGES.VALIDATION,
+          code: 'VALIDATION',
+          status: 422,
+          ...base,
+          issues,
+        });
+      }
+      if (codeName in STATUS_BY_CODE) {
+        const status = STATUS_BY_CODE[codeName];
+        const msg = MESSAGES[codeName as keyof typeof MESSAGES] ?? String((error as Error).message);
+        return jsonError({ error: msg, code: codeName, status, ...base });
+      }
+      const carried = carriedStatus(error);
+      if (carried && carried < 500) {
+        const msg = String((error as StatusLike).message ?? MESSAGES.INTERNAL);
+        return jsonError({
+          error: msg,
+          code: codeName === 'UNKNOWN' ? 'ERROR' : codeName,
+          status: carried,
+          ...base,
+        });
+      }
+      const status = carried ?? 500;
+      logger.error(
+        { err: error, requestId, method: request.method, path: url.pathname },
+        'API error',
+      );
+      const message = expose && error instanceof Error ? error.message : MESSAGES.INTERNAL;
+      return jsonError({ error: message, code: 'INTERNAL', status, ...base });
+    });
 }
