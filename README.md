@@ -65,8 +65,9 @@ bun install
 
 # 2. Konfigurasi env
 cp .env.example .env
-# Wajib: DATABASE_URL, BETTER_AUTH_SECRET (openssl rand -base64 32)
+# Wajib: DATABASE_URL, BETTER_AUTH_SECRET (openssl rand -base64 32); untuk test: DATABASE_URL_TEST
 # Opsional: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+# Key lain sengaja dikomentari (= default di code); buka komentar hanya untuk mengubahnya
 
 # 3. Buat database dan jalankan migrasi
 # Opsi A — pakai Postgres yang sudah ada:

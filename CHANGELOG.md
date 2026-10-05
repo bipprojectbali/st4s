@@ -6,8 +6,12 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 
 ## [Unreleased]
 
+### Changed
+- `.env.example` kini hanya mengaktifkan env yang wajib (`NODE_ENV`, `PORT`, `APP_URL`, `DATABASE_URL`, `DATABASE_URL_TEST`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `SUPER_ADMIN_EMAILS`); pengaturan lain ditulis sebagai komentar berisi nilai default. Menyalinnya ke `.env` tidak lagi mengunci nilai lama, jadi perubahan default di versi berikutnya tetap berlaku.
+
 ### Fixed
 - Semua error `/api` kini benar-benar berbentuk `{ error, code, status, requestId }` dengan header `x-request-id` yang sama, termasuk penolakan seperti 401/403 dari `/api/engines` yang sebelumnya tanpa `status` dan `requestId`. Error `/api/v1` (mis. 401 kredensial, 400 validasi) kini juga selalu membawa header `x-request-id`, body tetap format OpenAI. Bila klien mengirim `x-request-id`, nilai itu dipakai ulang di body, header, dan log.
+- Server yang baru disiapkan dengan `cp .env.example .env` tidak lagi gagal start karena `MCP_ADMIN_TOKEN` kosong.
 
 ## [0.2.0] - 2026-10-05
 
