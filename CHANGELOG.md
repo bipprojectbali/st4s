@@ -4,6 +4,14 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan versi mengikuti
 [Semantic Versioning](https://semver.org/lang/id/).
 
+## [Unreleased]
+
+### Changed
+- `.env.example` kini hanya mengaktifkan env yang wajib (`NODE_ENV`, `PORT`, `APP_URL`, `DATABASE_URL`, `DATABASE_URL_TEST`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `SUPER_ADMIN_EMAILS`); pengaturan lain ditulis sebagai komentar berisi nilai default. Menyalinnya ke `.env` tidak lagi mengunci nilai lama, jadi perubahan default di versi berikutnya tetap berlaku.
+
+### Fixed
+- Server yang baru disiapkan dengan `cp .env.example .env` tidak lagi gagal start karena `MCP_ADMIN_TOKEN` kosong.
+
 ## [0.2.0] - 2026-10-05
 
 ### Added
