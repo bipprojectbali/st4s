@@ -133,13 +133,62 @@ Seperti Go binary: copy satu file ke server, langsung jalan. Tidak perlu `build/
 
 **Verifikasi sebelum deploy:** `bun run smoke:binary` membangun binary, menjalankannya di port acak dengan `NODE_ENV=production`, lalu memeriksa versi, SSR landing/login, redirect guard, favicon, probe, halaman 404, JSON 404 API, Better Auth, penolakan API key palsu dan MCP anonim, `/README.md`, `/llms.txt`, meta OG landing, `/robots.txt`, `/sitemap.xml`, gambar OG, apple-touch-icon, header rate limit, dan aset client ber-cache immutable. `bun run smoke:prod` melakukan hal yang sama untuk mode skrip (`bun run start`). Keduanya keluar dengan kode ≠ 0 bila ada yang gagal.
 
-**NODE_ENV:** binary men-default `NODE_ENV=production`, tetapi Bun otomatis memuat `.env` dari direktori kerja — bila file itu berisi `NODE_ENV=development`, binary berjalan dalam mode development (detail error API terbuka, tanpa log file) dan mencetak peringatan saat start. Di server, gunakan `.env` tanpa `NODE_ENV` atau set `production`.
+**`.env` & NODE_ENV:** binary hanya membaca `$ST4S_HOME/.env` (default: folder tempat binary berada, mis. `~/.st4s/.env`); `.env` di direktori kerja **diabaikan** dan variabel environment asli selalu menang. `NODE_ENV` default `production`; nilai lain tetap dihormati tetapi dicetak peringatan saat start (detail error API terbuka, tanpa log file).
 
 > **Teknik:** SSR bundle di-embed via static `import * as ssrBuild from '../build/server/index.js'` — Bun bundler mengikuti static import dan mem-bundle seluruh dependensi (`@react-router/node`, `react-dom`, dll) ke dalam binary. `--asset ./build/client` embed seluruh direktori client ke VFS (tersedia di runtime sebagai `client/` — satu level parent directory di-strip). `inlineDynamicImports: true` di Vite memastikan SSR bundle adalah satu file tunggal tanpa dynamic chunk splits.
 
-**Engine suara di binary:** model, `libcrispasr`, dan ffmpeg **tidak** di-embed — binary membacanya dari path di env (lihat bagian **Speech API**). Binary menjalankan engine dengan me-re-exec dirinya sendiri sebagai `--st4s-engine-child stt|tts`, jadi tidak butuh Bun di server. STT jalan apa adanya. TTS butuh `libonnxruntime.1.dylib` (dari `node_modules/onnxruntime-node/bin/napi-v6/<os>/<arch>/`) diletakkan di samping binary dan direktorinya diset di `DYLD_LIBRARY_PATH` — `bun build --compile` meng-embed `onnxruntime_binding.node` tetapi tidak library dinamisnya. Di Linux padanannya `libonnxruntime.so.1` + `LD_LIBRARY_PATH` (belum dites).
+**Engine suara di binary:** model, library native, dan ffmpeg **tidak** di-embed — binary membacanya dari `$ST4S_HOME/lib/` dan `$ST4S_HOME/models/` (path di env tetap diutamakan, lihat bagian **Speech API**). Binary menjalankan engine dengan me-re-exec dirinya sendiri sebagai `--st4s-engine-child stt|tts`, jadi tidak butuh Bun di server. TTS memuat `lib/libonnxruntime.1.dylib` sendiri sebelum onnxruntime dipakai, tanpa `DYLD_LIBRARY_PATH` (Linux: `libonnxruntime.so.1`, belum dites).
 
 > **Catatan:** Binary lebih besar (~130 MB) karena embed Bun runtime (JavaScriptCore). Trade-off yang sama dengan semua single-binary JS runtimes (Deno, Node SEA).
+
+### Install (bundle `~/.st4s`)
+
+Rilis = satu tarball berisi binary + `lib/` (libcrispasr, libggml*, libonnxruntime) + `LICENSES/`; model, `.env`, dan log tidak ikut.
+
+```bash
+# Maintainer (macOS arm64; butuh .crispasr/build dari scripts/crispasr/build.sh)
+bash scripts/release/package.sh   # → dist/st4s-<versi>-darwin-arm64.tar.gz + .sha256 + dist/install.sh
+
+# Tim: install atau upgrade ke $ST4S_HOME (default ~/.st4s), tanpa sudo
+sh install.sh dist/st4s-<versi>-darwin-arm64.tar.gz   # .sha256 di sampingnya ikut diverifikasi
+sh install.sh                                        # tanpa argumen: unduh rilis terbaru GitHub ($ST4S_REPO) + verifikasi .sha256
+~/.st4s/st4s init && ~/.st4s/st4s models pull && ~/.st4s/st4s doctor && ~/.st4s/st4s
+```
+
+`install.sh` (sumber: `scripts/install.sh`, disalin ke `dist/` untuk diunggah ke halaman rilis) memeriksa OS/arsitektur tarball (`BUILD_INFO`), mengganti `st4s`, `lib/`, `LICENSES/` lewat direktori staging lalu rename (rollback bila gagal), **tidak pernah** menyentuh `.env`, `models/`, `logs/`, menghapus `com.apple.quarantine` di macOS (binary tidak dinotarisasi), dan hanya memperingatkan bila ffmpeg tidak ada di PATH. Test: `tests/release/install.test.ts`.
+
+### Menjalankan (`st4s init` / `doctor` / `migrate`)
+
+```bash
+~/.st4s/st4s init        # buat lib/ models/ logs/ + .env (mode 0600, BETTER_AUTH_SECRET acak); tidak pernah menimpa .env
+$EDITOR ~/.st4s/.env     # isi DATABASE_URL dan SUPER_ADMIN_EMAILS
+~/.st4s/st4s migrate     # terapkan migrasi database (ter-embed di binary)
+~/.st4s/st4s models pull # atau `models import <folder>` — lihat "Models" di bawah
+~/.st4s/st4s doctor      # checklist ✅/❌ + saran perbaikan; exit 1 bila ada yang wajib gagal
+~/.st4s/st4s             # jalankan server (PORT dari .env)
+~/.st4s/st4s --version   # versi dari package.json
+```
+
+- `init` langsung menjalankan `migrate` bila `DATABASE_URL` sudah ada di environment.
+- `doctor` memeriksa folder, `.env`, `DATABASE_URL`/`BETTER_AUTH_SECRET` (hanya terisi/kosong, nilai tidak pernah dicetak), koneksi + migrasi database, karantina macOS, `libcrispasr` (dlopen), `libonnxruntime`, file model, ffmpeg, dan RAM bebas. Jalan tanpa `.env`.
+- Server binary **menolak start** bila database belum dimigrasi atau tidak bisa dihubungi: `Database belum dimigrasi — jalankan st4s migrate`, exit 1.
+- **Upgrade:** jalankan ulang `sh install.sh`, lalu `st4s migrate`. `.env`, `models/`, dan `logs/` tetap.
+- **`ST4S_HOME`:** override folder (default folder binary). Semua perintah di atas memakainya, mis. `ST4S_HOME=/srv/st4s /srv/st4s/st4s doctor`.
+
+### Models (`st4s models`)
+
+19 file (~1,97 GB) di `$ST4S_HOME/models/`, dipin ke commit HuggingFace + sha256 di `server/models/manifest.ts`: `stt/` (Qwen3-ASR 1.7B Q4_K, Silero VAD, Whisper tiny untuk `language=auto`) dan `tts/` (Supertonic 3: `onnx/`, `voice_styles/`, `LICENSE`).
+
+```bash
+~/.st4s/st4s models list               # ada/hilang/ukuran salah, total ukuran, lisensi
+~/.st4s/st4s models pull [stt|tts|all] # unduh yang belum valid; bisa dilanjutkan (.part + Range)
+~/.st4s/st4s models import ~/pack      # offline: cari file sesuai nama (rekursif), verifikasi, salin
+~/.st4s/st4s models import             # tanpa path: ~/.cache/crispasr + ~/.wibu/tts/model (layout dev lama)
+```
+
+`pull` memeriksa ruang disk dulu, memverifikasi sha256 tiap file sebelum rename atomik, melewati file yang sudah valid, dan keluar ≠ 0 bila ada yang gagal (jalankan ulang untuk melanjutkan). `import` tidak pernah mengubah sumber kecuali dengan `--move`. Mirror: `ST4S_MODELS_BASE_URL` (default `https://huggingface.co`, path `<repo>/resolve/<commit>/<file>` sama).
+
+Lisensi: Qwen3-ASR Apache-2.0, Silero VAD & Whisper MIT, **Supertonic 3 BigScience OpenRAIL-M** — ada batasan penggunaan (Attachment A) yang mengikat setiap pengguna; teksnya ditulis ke `models/tts/LICENSE` dan wajib ikut bila paket model dibagikan ke tim.
 
 ## Struktur project
 
@@ -233,7 +282,7 @@ Perilaku saat masuk lewat Google:
    - Google: set `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`, lalu login Google dengan email di `SUPER_ADMIN_EMAILS`.
    - Tanpa Google: jalankan sementara dengan `AUTH_DISABLE_SIGNUP=false`, daftar dengan email itu, jalankan `bun run admin:verify <email>` (menolak email di luar allowlist / user yang belum ada; output hanya email ter-mask), lalu kosongkan lagi `AUTH_DISABLE_SIGNUP` dan restart.
 4. Speech: `FFMPEG_PATH`, `CRISPASR_LIB`, `STT_MODEL`, `TTS_MODEL_DIR` (lihat **Speech API**).
-5. Binary: letakkan `libonnxruntime.1.dylib` di samping binary dan set `DYLD_LIBRARY_PATH` (Linux: `libonnxruntime.so.1` + `LD_LIBRARY_PATH`) agar TTS jalan.
+5. Binary: pasang lewat `sh install.sh` (library ikut di `lib/`), lalu `st4s migrate` dan `st4s doctor` — lihat **Binary distribution**. Tidak perlu `DYLD_LIBRARY_PATH`.
 6. Di belakang reverse proxy (nginx/caddy): set `TRUSTED_PROXIES` (mis. `loopback` bila proxy di host yang sama, atau IP/CIDR proxy). Tanpa itu `X-Forwarded-For` diabaikan dan semua klien terlihat ber-IP proxy (satu bucket rate limit). Proxy juga harus membiarkan respons yang lama diam: transkripsi panjang dan antrean engine bisa tidak mengirim byte selama beberapa menit. Untuk nginx di `/api/v1/audio/` dan `/api/engines/`: `proxy_read_timeout 1800s;` dan `proxy_buffering off;` (SSE). Server sendiri menutup koneksi diam setelah 60 dtk kecuali di dua prefix itu, dan menolak body > `V1_MAX_UPLOAD_MB` + 1 MiB dengan 413 sebelum mem-buffer.
 
 **Ban & hapus akun — apa yang dilihat user.** Better Auth sendiri hanya menolak *pembuatan sesi baru* untuk user yang diblokir; template ini melengkapinya:
@@ -331,8 +380,10 @@ Yang harus ada di mesin (path diatur lewat env, lihat komentar di `.env.example`
 
 - **STT** — shared library `libcrispasr` (`CRISPASR_LIB`), model Qwen3-ASR GGUF (`STT_MODEL`), opsional Silero VAD (`STT_VAD_MODEL`) untuk memotong audio panjang dan model language-ID (`STT_LID_MODEL`). Tuning: `STT_THREADS`, `STT_MAX_CHUNK_SEC`, `STT_GPU` (default mati = decode CPU; `1` = Metal dengan fallback ke CPU).
   - **libcrispasr ber-patch (default)** — default `.crispasr/build/src/libcrispasr.dylib` di direktori kerja (root project; `.crispasr/` di-gitignore), hasil `bash scripts/crispasr/build.sh` — `CRISPASR_LIB` tidak perlu di-set. `CRISPASR_LIB` opsional untuk memakai lib lain; lib yang tidak ada atau gagal dimuat membuat engine STT gagal dengan pesan berisi path-nya dan perintah build; rilis sebelum v0.8.41 memuat GGUF dua kali sehingga puncak RAM STT ~3,5 GB (bukan ~2,1 GB). `scripts/crispasr/build.sh` meng-clone CrispASR (`CRISPASR_SRC`, default GitHub upstream; checkout lokal seperti `~/tmp/stt` menghemat unduhan) ke `CRISPASR_DIR` (default `<root project>/.crispasr`, ditentukan dari lokasi skrip, bukan cwd), checkout rilis `v0.8.41` (`CRISPASR_TAG`, harus sama dengan `CRISPASR_REF` `340d7085eaa53c40a46dcb73a6d3d0448a480006`; tag diambil dari upstream bila source lokal belum punya), menerapkan satu patch, lalu build `-j2` (`JOBS`). Salinan yang sudah ada di commit lain ditolak — pakai `CRISPASR_DIR` baru. v0.8.41 sudah memuat encoder audio yang hanya membaca tensor `audio.*` dan `-3` untuk model VAD yang tidak bisa dimuat. `crisp-vad-inference-error.patch` (belum ada di upstream) menambahkan `-3` bila inferensi Silero gagal, bukan `0` ("tidak ada suara") — tanpa patch ini VAD yang gagal jalan diam-diam menghasilkan transkrip kosong. v0.8.41 juga membawa *VAD failover*: klip ≥120 dtk yang (hampir) tanpa ucapan didecode utuh dan Qwen3-ASR mengarang teks; st4s selalu menjalankan child STT dengan `CRISPASR_VAD_FAILOVER=0` (tidak bisa ditimpa env) agar audio tanpa ucapan tetap menghasilkan transkrip kosong. Dengan patch, bila `STT_VAD_MODEL` di-set tetapi VAD gagal, transkripsi gagal dengan 500 `vad_failed` (nama file model + durasi audio di log), bukan beralih ke potongan tetap — tanpa VAD, Qwen3-ASR mengarang teks untuk audio hening; realtime `server_vad` mengirim event error `vad_failed`. Potongan tetap `STT_MAX_CHUNK_SEC` hanya dipakai bila `STT_VAD_MODEL` sengaja dikosongkan. Patch yang sudah ada di source dilewati (skrip mendeteksinya). Bila `CRISPASR_DIR` diubah, arahkan `CRISPASR_LIB` ke `<CRISPASR_DIR>/build/src/libcrispasr.dylib`. Patch itu juga yang akan dikirim ke upstream; hapus dari `build.sh` setelah upstream merilisnya.
+  - **Dekoder AMR/Opus dimatikan & lib relocatable** — `build.sh` membangun dengan `-DCRISPASR_AMR=OFF -DCRISPASR_OPUS=OFF`: st4s selalu mengirim PCM hasil decode ffmpeg dan tidak memakai `crispasr_audio_load*`, sedangkan bila hidup lib menautkan opencore-amr/opusfile Homebrew lewat path absolut sehingga tidak bisa dipindah ke mesin lain. `CRISPASR_BUILD_DIR` (default `<CRISPASR_DIR>/build`) memilih direktori build lain. Lib di direktori build memakai rpath absolut ke build tree; untuk distribusi, `bash scripts/crispasr/bundle-lib.sh <out_lib_dir> [build_dir]` menyalin `libcrispasr.dylib` + `libggml{,-base,-cpu,-blas,-metal}.0.dylib` ke satu direktori (~19 MB), mengganti rpath menjadi `@loader_path` dan id menjadi `@rpath/<nama>`, me-re-sign ad-hoc, lalu gagal bila masih ada dependensi absolut non-sistem atau `dlopen` dari `/` gagal. Build lama yang masih menautkan AMR ditolak skrip ini — bangun ulang dengan `build.sh`. Linux (`.so`, `$ORIGIN`, butuh `patchelf`) belum dites.
 - **TTS** — direktori model Supertonic berisi `onnx/` dan `voice_styles/` (`TTS_MODEL_DIR`). Tuning: `TTS_STEPS`, `TTS_THREADS`, `TTS_MAX_UNIT_CHARS`.
 - **ffmpeg** — untuk decode upload non-WAV dan encode mp3/opus/aac/flac (`FFMPEG_PATH`); default `ffmpeg` di `PATH`.
+- **`ST4S_HOME`** — folder dasar (`~` diizinkan); default untuk binary = folder binary itu sendiri, untuk `bun run dev`/`start` tidak ada (default di atas berlaku apa adanya). Bila ada, path yang env-nya kosong diambil dari `lib/libcrispasr.dylib` (`.so` di Linux), `models/stt/{qwen3-asr-1.7b-q4_k.gguf,ggml-silero-v6.2.0.bin,ggml-tiny.bin}`, `models/tts/`, dan log production ke `logs/app.log` di bawahnya. Urutan: env eksplisit > `ST4S_HOME` > default; `FFMPEG_PATH` tidak ikut (ffmpeg tidak dibundel).
 - **Cek saat boot** — server memeriksa semua path di atas dan ffmpeg sekali saat start; yang hilang dicatat satu baris log per item (`error` di production, `warn` di dev) dan tampil di field `deps` `GET /api/engines`. Server tetap jalan; engine baru gagal saat dipakai. Encode ffmpeg dihentikan setelah `TTS_FFMPEG_TIMEOUT_MS` tanpa audio baru (idle), bukan total durasi stream.
 - **Self-test saat load** — setelah model dimuat, engine diuji di child yang sama sebelum dinyatakan `ready`. STT: klip bawaan (`server/engines/stt/selftest.wav`, ter-embed juga di binary) harus ditranskrip dengan kecocokan kata ≥ 60%, VAD harus menemukan suara di klip itu, dan hening 1 dtk harus menghasilkan teks kosong (dua cek VAD dilewati bila VAD dimatikan). TTS: frasa tetap harus menghasilkan audio yang tidak kosong, tanpa NaN, berdurasi wajar, dan tidak hening. Bila gagal, engine berstatus `error`, child dihentikan, alasan (cek yang gagal + tindakan) tampil di `/dev/engines`, dan request mendapat `503 engine_unavailable` sampai engine dimuat ulang; self-test yang tidak selesai dalam batas waktu (default STT 60 dtk, TTS 30 dtk; ubah lewat `ENGINE_SELFTEST_TIMEOUT_SEC`) diperlakukan sama. Log hanya berisi nama cek, durasi, lulus/gagal, dan skor — tidak pernah transkrip. Matikan dengan `ENGINE_SELFTEST=0`.
 - **Memori** — child STT (decode CPU) memakai ~1,6 GB footprint setelah model dimuat dan ~3,45 GB sejak request pertama, lalu datar untuk audio 15 dtk maupun 60 dtk. Lonjakan sekali jalan itu berasal dari `libcrispasr`, yang memuat GGUF kedua kalinya untuk encoder audio (+1,4 GB) ditambah KV/compute (~0,4 GB). Dengan libcrispasr ber-patch (lihat atas) salinan kedua itu hilang: puncak footprint terukur turun dari ~3,48 GB ke ~2,08 GB dengan transkrip identik. Dengan lib tanpa patch dan `STT_GPU=1`, salinan itu ter-wire ke Metal di luar RSS dan bisa menghabiskan RAM bebas mesin 8 GB, jadi biarkan mati di host 8 GB. Child TTS sekitar 0,5 GB, jadi mesin 8 GB cukup untuk keduanya. Tiap upload yang sedang didecode juga memegang file + PCM float32 (±230 MB untuk audio 30 menit) dan antrean STT menyimpan PCM tiap job. Untuk host 8 GB disarankan `STT_MAX_QUEUE=2`, `V1_MAX_AUDIO_SEC=600`, dan `V1_DECODE_CONCURRENCY=1`–`2`.
