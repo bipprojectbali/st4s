@@ -3,7 +3,7 @@
 # Env: CRISPASR_SRC (git checkout or URL to clone, default upstream GitHub; a local checkout such
 # as ~/tmp/stt skips most of the download), CRISPASR_DIR (build copy, default <repo>/.crispasr,
 # gitignored, whose lib STT loads by default), CRISPASR_TAG + CRISPASR_REF (release tag and the commit it must
-# resolve to), JOBS (default 2).
+# resolve to), CRISPASR_BUILD_DIR (cmake build dir, default $CRISPASR_DIR/build), JOBS (default 2).
 set -euo pipefail
 
 UPSTREAM="https://github.com/CrispStrobe/CrispASR"
@@ -18,6 +18,7 @@ JOBS="${JOBS:-2}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 DIR="${CRISPASR_DIR:-$ROOT/.crispasr}"
+BUILD="${CRISPASR_BUILD_DIR:-$DIR/build}"
 PATCHES=("$HERE/crisp-vad-inference-error.patch")
 
 if [ ! -d "$DIR/.git" ]; then
@@ -54,11 +55,16 @@ for patch in "${PATCHES[@]}"; do
   fi
 done
 
-cmake -S "$DIR" -B "$DIR/build" -DCMAKE_BUILD_TYPE=Release \
-  -DCRISPASR_BUILD_EXAMPLES=OFF -DCRISPASR_BUILD_TESTS=OFF -DCRISPASR_BUILD_SERVER=OFF
-cmake --build "$DIR/build" --target crispasr-lib -j "$JOBS"
+# AMR/Opus only feed crispasr_audio_load*, which st4s never calls (it passes ffmpeg-decoded PCM);
+# left ON they link Homebrew opencore-amr/opusfile by absolute path and the lib cannot be bundled.
+# The build tree keeps its absolute rpaths so dev loads it in place; bundle-lib.sh makes the copy
+# relocatable (CMAKE_BUILD_WITH_INSTALL_RPATH=@loader_path breaks that: libggml is in another dir).
+cmake -S "$DIR" -B "$BUILD" -DCMAKE_BUILD_TYPE=Release \
+  -DCRISPASR_BUILD_EXAMPLES=OFF -DCRISPASR_BUILD_TESTS=OFF -DCRISPASR_BUILD_SERVER=OFF \
+  -DCRISPASR_AMR=OFF -DCRISPASR_OPUS=OFF
+cmake --build "$BUILD" --target crispasr-lib -j "$JOBS"
 
-LIB="$DIR/build/src/libcrispasr.dylib"
-if [ ! -e "$LIB" ]; then LIB="$DIR/build/src/libcrispasr.so"; fi
+LIB="$BUILD/src/libcrispasr.dylib"
+if [ ! -e "$LIB" ]; then LIB="$BUILD/src/libcrispasr.so"; fi
 echo "built: $LIB"
-if [ "$DIR" != "$ROOT/.crispasr" ]; then echo "set in .env: CRISPASR_LIB=$LIB"; fi
+if [ "$BUILD" != "$ROOT/.crispasr/build" ]; then echo "set in .env: CRISPASR_LIB=$LIB"; fi
