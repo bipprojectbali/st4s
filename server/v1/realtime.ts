@@ -1,6 +1,6 @@
 /** GET /api/v1/realtime: OpenAI Realtime WebSocket, transcription sessions only; every refusal happens before the upgrade. */
 import { Elysia } from 'elysia';
-import { newRequestId } from '../api-error';
+import { requestIdOf } from '../api-error';
 import { getApiKeyIdentity } from '../api-keys/identity';
 import { getStt } from '../engines/registry';
 import { hasVad } from '../engines/stt/vad';
@@ -49,8 +49,6 @@ function refuse(
   logger.warn({ requestId, code: opts.code, status, ...extra }, 'realtime upgrade refused');
   return v1Error(status, message, opts);
 }
-
-const requestIdOf = (request: Request) => request.headers.get('x-request-id') ?? newRequestId();
 
 function upgradeRealtime(request: Request): Response {
   const requestId = requestIdOf(request);

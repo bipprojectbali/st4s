@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia';
-import { newRequestId } from '../api-error';
+import { requestIdOf } from '../api-error';
 import { CONTENT_TYPES, NATIVE_FORMATS } from '../audio/encode';
 import { ffmpegAvailable } from '../audio/encode-ffmpeg';
 import { EngineNotReadyError, EngineUnloadedError } from '../engines/errors';
@@ -19,7 +19,7 @@ const ms = (from: number, to: number | null = performance.now()) =>
 
 async function speak(request: Request, body: unknown): Promise<Response> {
   const t0 = performance.now();
-  const requestId = request.headers.get('x-request-id') ?? newRequestId();
+  const requestId = requestIdOf(request);
   const params = parseSpeechParams(body);
   if (params instanceof Response) return params;
 
