@@ -5,8 +5,8 @@ import { v1Error, v1ModelNotFound } from './errors';
 
 export const RESPONSE_FORMATS = ['json', 'text', 'srt', 'vtt', 'verbose_json'] as const;
 export type ResponseFormat = (typeof RESPONSE_FORMATS)[number];
-const STREAMABLE: readonly ResponseFormat[] = ['json', 'text'];
-const GRANULARITIES = ['word', 'segment'];
+export const STREAMABLE: readonly ResponseFormat[] = ['json', 'text'];
+export const GRANULARITIES = ['word', 'segment'];
 
 export type TranscriptionInput = {
   file: File;

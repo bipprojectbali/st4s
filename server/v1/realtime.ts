@@ -12,6 +12,7 @@ import { normalizeIp, resolveClientIp } from '../middleware/client-ip';
 import { resolveGeo } from '../middleware/visitor-geo';
 import { requireV1Caller } from './auth';
 import { v1Error } from './errors';
+import { docs } from './openapi.doc';
 import { rtConfig } from './realtime-config';
 import { newId } from './realtime-protocol';
 import {
@@ -146,4 +147,4 @@ export const realtimeApi = new Elysia()
       );
     return denied;
   })
-  .get('/realtime', ({ request }) => upgradeRealtime(request));
+  .get('/realtime', ({ request }) => upgradeRealtime(request), { detail: docs.realtime });

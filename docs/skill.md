@@ -21,6 +21,7 @@ OpenAI-compatible: use the official openai SDK with base_url = {{BASE_URL}}/api/
 - Send `Authorization: Bearer <API key>` (the SDK does this from `api_key`) or `X-API-Key: <API key>`. Keys look like `mk_live_…`.
 - Scopes: `stt:transcribe` for transcriptions and the realtime WebSocket, `tts:speak` for speech. A key without the scope gets `403 missing_scope`.
 - Public, no key: `GET /api/v1/models`, `GET /api/v1/models/:id`, `GET /api/v1/audio/voices`.
+- OpenAPI spec (JSON, no UI): `GET /api/v1/openapi.json` — any valid key, whatever its scopes (or a session); anonymous gets `401 invalid_api_key`.
 - Getting a key: any signed-in user creates a personal key on the `/profile` page (max 10 active, scopes limited to their role; both speech scopes are allowed for every role). Super-admins can also create keys for others at `/dev/api-keys`. The key value is shown once. Default expiry 90 days.
 - A browser session cookie is also accepted (same origin), which is how the built-in playground works.
 

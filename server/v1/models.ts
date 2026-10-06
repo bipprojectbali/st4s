@@ -9,6 +9,7 @@ import {
   VOICE_ALIASES,
 } from './aliases';
 import { v1ModelNotFound } from './errors';
+import { docs } from './openapi.doc';
 
 /** Fixed `created` timestamp for every model (2026-01-01T00:00:00Z); the ids never change at runtime. */
 const MODELS_CREATED = 1_767_225_600;
@@ -34,8 +35,12 @@ function voiceList() {
 }
 
 export const modelsApi = new Elysia()
-  .get('/models', () => ({ object: 'list' as const, data: MODEL_IDS.map(model) }))
-  .get('/models/:id', ({ params }) =>
-    MODEL_IDS.includes(params.id) ? model(params.id) : v1ModelNotFound(params.id),
+  .get('/models', () => ({ object: 'list' as const, data: MODEL_IDS.map(model) }), {
+    detail: docs.models,
+  })
+  .get(
+    '/models/:id',
+    ({ params }) => (MODEL_IDS.includes(params.id) ? model(params.id) : v1ModelNotFound(params.id)),
+    { detail: docs.model },
   )
-  .get('/audio/voices', voiceList);
+  .get('/audio/voices', voiceList, { detail: docs.voices });

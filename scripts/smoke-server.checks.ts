@@ -145,6 +145,14 @@ export const SMOKE_CHECKS: SmokeCheck[] = [
     header: { name: 'x-ratelimit-limit' },
   },
   {
+    name: 'OpenAPI v1 tanpa auth',
+    path: '/api/v1/openapi.json',
+    status: 401,
+    contentType: 'application/json',
+    bodyIncludes: 'invalid_api_key',
+  },
+  { name: 'OpenAPI v1 tanpa UI', path: '/api/v1/openapi', status: 404 },
+  {
     name: 'realtime WS tanpa auth',
     path: '/api/v1/realtime',
     headers: {

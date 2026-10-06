@@ -8,6 +8,7 @@ import { logger } from '../logger';
 import { requireV1Caller } from './auth';
 import { v1Config } from './config';
 import { v1Error } from './errors';
+import { docs } from './openapi.doc';
 import { readTranscriptionForm } from './transcriptions.form';
 import { decodeUpload, queueFullError } from './transcriptions.limits';
 import { engineErrorResponse, formatResult, streamTranscript } from './transcriptions.output';
@@ -124,12 +125,15 @@ async function handle(request: Request): Promise<Response> {
 /** OpenAI audio transcription routes. */
 export const transcriptionsApi = new Elysia()
   .onBeforeHandle(requireV1Caller)
-  .post('/audio/transcriptions', ({ request }) => handle(request), { parse: 'none' })
+  .post('/audio/transcriptions', ({ request }) => handle(request), {
+    parse: 'none',
+    detail: docs.transcriptions,
+  })
   .post(
     '/audio/translations',
     () =>
       v1Error(400, 'Terjemahan audio tidak didukung server ini; pakai /audio/transcriptions.', {
         code: 'unsupported',
       }),
-    { parse: 'none' },
+    { parse: 'none', detail: docs.translations },
   );

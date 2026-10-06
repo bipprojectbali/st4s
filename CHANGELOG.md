@@ -6,6 +6,9 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 
 ## [Unreleased]
 
+### Added
+- Spec OpenAPI untuk Speech API di `GET /api/v1/openapi.json` (JSON saja, tanpa UI): body request, format respons, error, dan contoh tiap endpoint `/api/v1`. Bisa diakses dengan API key apa pun atau sesi login; tanpa autentikasi ditolak 401.
+
 ### Changed
 - `/dev/engines` tidak lagi berkedip tiap 3 detik: tombol "Muat ulang" hanya berputar saat kamu menekannya. Pembaruan otomatis kini ditandai titik kecil yang menyala sebentar di samping waktu "terakhir" (tanpa animasi bila sistem meminta gerakan dikurangi).
 - Status engine diperbarui tiap ±2,5 detik selama model dimuat, ada job/antrean, warmup/unload berjalan, atau memory guard di atas normal, dan tiap 15 detik saat semuanya diam. Pembaruan tetap berhenti saat tab tidak terlihat.

@@ -16,7 +16,7 @@ import { resolveUserRole } from '../roles';
 import { parseLines } from '../settings.core';
 import { isV1Path, v1Code, v1Error } from '../v1/errors';
 import { getApiKeyIdentity, setApiKeyIdentity } from './identity';
-import { isPublicRead, requiredScope, roleAllowsScope, type Scope } from './scopes';
+import { ANY_KEY, isPublicRead, requiredScope, roleAllowsScope } from './scopes';
 import { recordUsage } from './usage';
 
 export function extractApiKey(headers: Headers): string | null {
@@ -148,10 +148,11 @@ export function apiKeyPlugin() {
           path: url.pathname,
         };
         const deny = denier(ctx);
-        const scope = requiredScope(request.method, url.pathname);
+        const required = requiredScope(request.method, url.pathname);
         const publicRead = isPublicRead(request.method, url.pathname);
-        if (!scope && !publicRead)
+        if (!required && !publicRead)
           return deny(403, 'Endpoint ini tidak bisa diakses dengan API key');
+        const scope = required === ANY_KEY ? null : required;
 
         // Verify without `permissions`: the plugin reports a missing scope as
         // KEY_NOT_FOUND, so scope is checked here to give callers a precise 403.
@@ -218,7 +219,7 @@ export function apiKeyPlugin() {
           );
         if (owner.banned) return deny(403, 'Pemilik API key diblokir', { code: 'OWNER_BANNED' });
         const role = await resolveUserRole(owner);
-        if (scope && !roleAllowsScope(role, scope as Scope))
+        if (scope && !roleAllowsScope(role, scope))
           return deny(403, 'Role pemilik kunci tidak mengizinkan scope ini', {
             code: 'ROLE_TOO_LOW',
             scope,
