@@ -6,10 +6,22 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 
 ## [Unreleased]
 
+### Added
+- PostgreSQL bawaan: bila `DATABASE_URL` kosong, st4s menjalankan PostgreSQL 17.11 sendiri sebagai proses anak, jadi tidak perlu memasang database terpisah. Postgres ini hanya bisa diakses lewat unix socket (tanpa port TCP) dan selalu memakai zona waktu UTC. Data tersimpan di `<folder st4s>/pg/data`; saat `bun run dev`/`start` lokasinya `./data/pg`. Bila `DATABASE_URL` terisi, perilakunya tetap seperti sebelumnya.
+- `st4s init` dengan `DATABASE_URL` kosong kini memasang runtime Postgres (unduhan ±60 MB yang dicek sha256-nya; untuk offline pakai `ST4S_PG_ARCHIVE`), membuat database, lalu langsung menjalankan migrasi.
+- `st4s migrate` menyalakan Postgres bawaan bila diperlukan. Bila server sedang berjalan, Postgres milik server itu yang dipakai dan tidak dimatikan.
+- `st4s doctor` kini melaporkan runtime dan data dir Postgres bawaan.
+- Postgres bawaan dimatikan dengan bersih saat server berhenti. Setelah crash atau `kill -9`, start berikutnya memulihkannya sendiri. Satu data dir tidak bisa dipakai dua st4s sekaligus.
+- Data dir dari versi major Postgres lain ditolak dengan instruksi.
+- Linux musl/Alpine belum didukung; di sana tetap pakai `DATABASE_URL`.
+- Postgres bawaan baru terverifikasi di macOS Apple Silicon. Di macOS Intel dan Linux x64/arm64, `init`, `migrate`, `doctor`, dan start server menolak dengan pesan jelas kecuali `ST4S_PG_ALLOW_UNVERIFIED=1` di-set (untuk staging, disertai peringatan). `st4s doctor` menampilkan status verifikasi platform dan override. `DATABASE_URL` yang terisi tidak terpengaruh.
+- `install.sh` mempertahankan `pg/` dan runtime `lib/pg/` saat upgrade.
+
 ### Changed
 - `.env.example` kini hanya mengaktifkan env yang wajib (`NODE_ENV`, `PORT`, `APP_URL`, `DATABASE_URL`, `DATABASE_URL_TEST`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `SUPER_ADMIN_EMAILS`); pengaturan lain ditulis sebagai komentar berisi nilai default. Menyalinnya ke `.env` tidak lagi mengunci nilai lama, jadi perubahan default di versi berikutnya tetap berlaku.
 
 ### Fixed
+- Di produksi, server kini memakai satu pool koneksi PostgreSQL (maksimal 5 koneksi) untuk seluruh proses. Sebelumnya bagian render halaman membuka pool kedua sehingga satu proses bisa memegang hingga 10 koneksi, yang lebih cepat menghabiskan batas koneksi database.
 - Semua error `/api` kini benar-benar berbentuk `{ error, code, status, requestId }` dengan header `x-request-id` yang sama, termasuk penolakan seperti 401/403 dari `/api/engines` yang sebelumnya tanpa `status` dan `requestId`. Error `/api/v1` (mis. 401 kredensial, 400 validasi) kini juga selalu membawa header `x-request-id`, body tetap format OpenAI. Bila klien mengirim `x-request-id`, nilai itu dipakai ulang di body, header, dan log.
 - Server yang baru disiapkan dengan `cp .env.example .env` tidak lagi gagal start karena `MCP_ADMIN_TOKEN` kosong.
 

@@ -70,16 +70,17 @@ printf 'version=%s\nplatform=%s\n' "$VERSION" "$PLATFORM" >"$OUT/BUILD_INFO"
 cat >"$OUT/README.txt" <<EOF
 st4s $VERSION ($PLATFORM)
 
-Install / upgrade (keeps .env, models/ and logs/):
+Install / upgrade (keeps .env, models/, logs/ and pg/):
   sh install.sh st4s-$VERSION-$PLATFORM.tar.gz      # into \$ST4S_HOME, default ~/.st4s
 
 Then:
-  ~/.st4s/st4s init          # create ~/.st4s/.env (set DATABASE_URL), run migrations
+  ~/.st4s/st4s init          # create ~/.st4s/.env, set up the database, run migrations
   ~/.st4s/st4s models pull   # or: ~/.st4s/st4s models import <dir>
   ~/.st4s/st4s doctor        # check lib/, models, ffmpeg, .env, migrations
   ~/.st4s/st4s               # start the server
 
-Layout: st4s (binary), lib/ (libcrispasr, libggml*, libonnxruntime), models/, .env, logs/.
+Layout: st4s (binary), lib/ (libcrispasr, libggml*, libonnxruntime, pg/ = built-in Postgres runtime), models/, .env, logs/, pg/data (built-in Postgres data).
+DATABASE_URL in .env is optional: empty = st4s runs its own PostgreSQL 17 over a unix socket.
 ffmpeg is not bundled: install it on PATH or set FFMPEG_PATH.
 Not notarized: if macOS blocks it, run  xattr -dr com.apple.quarantine ~/.st4s
 Third-party licenses: LICENSES/.

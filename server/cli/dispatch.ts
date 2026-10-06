@@ -41,11 +41,12 @@ export function loadHomeEnv(env: Record<string, string | undefined> = process.en
 export const HELP_TEXT = `Pemakaian: st4s [perintah]
 
   (tanpa perintah)   jalankan server
-  init               siapkan folder ST4S_HOME dan .env (tidak menimpa yang sudah ada)
-  doctor             periksa instalasi: .env, database, lib/, model, ffmpeg, karantina
-  migrate            terapkan migrasi database
+  init               siapkan folder ST4S_HOME dan .env (tidak menimpa yang sudah ada), database, migrasi
+  doctor             periksa instalasi: .env, database/PostgreSQL bawaan, lib/, model, ffmpeg, karantina
+  migrate            terapkan migrasi database (menyalakan PostgreSQL bawaan bila perlu)
   models <…>         unduh/impor model (st4s models --help)
   --version          tampilkan versi
   --help             tampilkan bantuan ini
 
-Folder dasar: $ST4S_HOME, atau folder tempat binary berada.`;
+Folder dasar: $ST4S_HOME, atau folder tempat binary berada.
+DATABASE_URL kosong = PostgreSQL 17 bawaan (data di <folder>/pg/data, hanya unix socket).`;

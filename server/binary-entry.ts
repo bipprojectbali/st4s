@@ -7,7 +7,8 @@
  * The server defaults NODE_ENV to production before any module initializes so pino
  * picks its sync multistream and the API hides internal error details; an explicit
  * other NODE_ENV is respected but flagged. In the compiled binary the server refuses
- * to start while migrations are pending (`st4s migrate` applies them).
+ * to start while migrations are pending (`st4s migrate` applies them). An empty
+ * DATABASE_URL starts the built-in Postgres first (never in engine children).
  */
 import { type CliCommand, HELP_TEXT, loadHomeEnv, resolveCommand } from './cli/dispatch';
 import { engineChildKind } from './engines/child-argv';
@@ -52,6 +53,11 @@ if (command === 'engine-child') {
       `[st4s] NODE_ENV=${process.env.NODE_ENV} — binary berjalan bukan dalam mode production (cek ${envFile ?? 'environment'}).`,
     );
   }
+  // Before ./prod imports server/env.ts: an empty DATABASE_URL gets the built-in Postgres injected.
+  await (await import('./local-pg/boot')).bootLocalPg().catch((e: Error) => {
+    console.error(`[st4s] ${e.message}`);
+    process.exit(1);
+  });
   if (Bun.isStandaloneExecutable) {
     const error = await (await import('./cli/migrate')).bootMigrationError();
     if (error) {

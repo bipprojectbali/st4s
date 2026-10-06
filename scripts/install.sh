@@ -122,6 +122,10 @@ for n in $ITEMS; do
 done
 chmod 755 "$DEST/st4s"
 DONE=1
+# The built-in Postgres runtime (~60 MB download) lives in lib/pg; carry it over instead of re-downloading.
+if [ -d "$STAGE/old/lib/pg" ] && [ ! -e "$DEST/lib/pg" ]; then
+  mkdir -p "$DEST/lib" && mv "$STAGE/old/lib/pg" "$DEST/lib/pg"
+fi
 
 if [ "$(uname -s)" = Darwin ]; then
   if command -v xattr >/dev/null 2>&1; then
@@ -139,7 +143,7 @@ fi
 echo "st4s ${VERSION:-?} ($PLATFORM) installed in $DEST"
 if [ "$UPGRADE" = 1 ] && [ -f "$DEST/.env" ]; then
   cat <<EOF
-Upgrade done (.env, models/ and logs/ kept). Next:
+Upgrade done (.env, models/, logs/, pg/ and lib/pg kept). Next:
   $DEST/st4s migrate   # apply new database migrations, if any
   $DEST/st4s doctor    # check lib/, models, ffmpeg, .env
   $DEST/st4s           # start the server
@@ -147,7 +151,7 @@ EOF
 else
   cat <<EOF
 Next steps:
-  $DEST/st4s init          # create $DEST/.env (set DATABASE_URL), then run migrations
+  $DEST/st4s init          # create $DEST/.env, set up the database, run migrations
   $DEST/st4s models pull   # download models (offline: $DEST/st4s models import <dir>)
   $DEST/st4s doctor        # check lib/, models, ffmpeg, .env, migrations
   $DEST/st4s               # start the server

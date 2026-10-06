@@ -6,6 +6,7 @@ import path from 'node:path';
 import { loadSttConfig } from '../engines/stt/config';
 import { ttsModelDir } from '../engines/tts/config';
 import { ortLibPath } from '../engines/tts/ort-preload';
+import { localPgChecks } from '../local-pg/doctor';
 import { st4sHome, st4sLibDir } from '../st4s-home';
 import { type MigrationState, migrationState } from './migrate';
 
@@ -97,7 +98,9 @@ export async function doctorChecks(probe: DoctorProbe = {}): Promise<DoctorCheck
         },
   );
   if (home) add(fileCheck('.env', path.join(home, '.env'), 'jalankan `st4s init`'));
-  for (const key of ['DATABASE_URL', 'BETTER_AUTH_SECRET'])
+  const localPg = !env.DATABASE_URL?.trim();
+  if (localPg) for (const c of await localPgChecks(env)) add(c);
+  for (const key of localPg ? ['BETTER_AUTH_SECRET'] : ['DATABASE_URL', 'BETTER_AUTH_SECRET'])
     add(
       env[key]?.trim()
         ? { name: key, ok: true, required: true, detail: 'terisi' }

@@ -65,7 +65,8 @@ bun install
 
 # 2. Konfigurasi env
 cp .env.example .env
-# Wajib: DATABASE_URL, BETTER_AUTH_SECRET (openssl rand -base64 32); untuk test: DATABASE_URL_TEST
+# Wajib: BETTER_AUTH_SECRET (openssl rand -base64 32); untuk test: DATABASE_URL_TEST
+# DATABASE_URL: URL PostgreSQL ≥ 17, atau kosong = PostgreSQL 17 bawaan (./data/pg, hanya unix socket)
 # Opsional: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
 # Key lain sengaja dikomentari (= default di code); buka komentar hanya untuk mengubahnya
 
@@ -88,11 +89,12 @@ bun run start
 
 | Script | Fungsi |
 |---|---|
-| `bun run dev` | Dev server satu port (Elysia + Vite HMR + RR SSR) |
+| `bun run dev` | Dev server satu port (Elysia + Vite HMR + RR SSR); `DATABASE_URL` kosong → PostgreSQL bawaan dinyalakan dulu (`server/local-pg/entry.ts`) |
 | `bun run build` | Build client + server bundle |
-| `bun run start` | Production server (`server/prod.ts`, NODE_ENV=production) |
+| `bun run start` | Production server (`server/prod.ts` lewat `server/local-pg/entry.ts`, NODE_ENV=production) |
 | `bun run smoke:prod` | Build lalu boot `server/prod.ts` di port bebas dan jalankan 22 pemeriksaan black-box (`scripts/smoke-server.ts`) |
 | `bun run smoke:binary` | Sama, tetapi terhadap binary hasil `build:binary` |
+| `bun run smoke:coldboot` | Binary di `ST4S_HOME` kosong tanpa `DATABASE_URL`: `init` → `migrate` → `doctor` → server → pemeriksaan → SIGTERM, tanpa proses tersisa (`scripts/smoke-coldboot.ts`; `ST4S_PG_ARCHIVE` untuk offline) |
 | `bun run build:binary` | Build binary native (platform saat ini) |
 | `bun run build:binary:linux` | Cross-compile ke Linux x64 glibc |
 | `bun run build:binary:linux-musl` | Cross-compile ke Linux x64 musl (Alpine/Docker) |
@@ -156,13 +158,13 @@ sh install.sh                                        # tanpa argumen: unduh rili
 ~/.st4s/st4s init && ~/.st4s/st4s models pull && ~/.st4s/st4s doctor && ~/.st4s/st4s
 ```
 
-`install.sh` (sumber: `scripts/install.sh`, disalin ke `dist/` untuk diunggah ke halaman rilis) memeriksa OS/arsitektur tarball (`BUILD_INFO`), mengganti `st4s`, `lib/`, `LICENSES/` lewat direktori staging lalu rename (rollback bila gagal), **tidak pernah** menyentuh `.env`, `models/`, `logs/`, menghapus `com.apple.quarantine` di macOS (binary tidak dinotarisasi), dan hanya memperingatkan bila ffmpeg tidak ada di PATH. Test: `tests/release/install.test.ts`.
+`install.sh` (sumber: `scripts/install.sh`, disalin ke `dist/` untuk diunggah ke halaman rilis) memeriksa OS/arsitektur tarball (`BUILD_INFO`), mengganti `st4s`, `lib/`, `LICENSES/` lewat direktori staging lalu rename (rollback bila gagal), **tidak pernah** menyentuh `.env`, `models/`, `logs/`, `pg/` (runtime `lib/pg/` dibawa ke `lib/` baru), menghapus `com.apple.quarantine` di macOS (binary tidak dinotarisasi), dan hanya memperingatkan bila ffmpeg tidak ada di PATH. Test: `tests/release/install.test.ts`.
 
 ### Menjalankan (`st4s init` / `doctor` / `migrate`)
 
 ```bash
 ~/.st4s/st4s init        # buat lib/ models/ logs/ + .env (mode 0600, BETTER_AUTH_SECRET acak); tidak pernah menimpa .env
-$EDITOR ~/.st4s/.env     # isi DATABASE_URL dan SUPER_ADMIN_EMAILS
+$EDITOR ~/.st4s/.env     # isi SUPER_ADMIN_EMAILS; DATABASE_URL opsional (kosong = PostgreSQL bawaan)
 ~/.st4s/st4s migrate     # terapkan migrasi database (ter-embed di binary)
 ~/.st4s/st4s models pull # atau `models import <folder>` — lihat "Models" di bawah
 ~/.st4s/st4s doctor      # checklist ✅/❌ + saran perbaikan; exit 1 bila ada yang wajib gagal
@@ -170,10 +172,11 @@ $EDITOR ~/.st4s/.env     # isi DATABASE_URL dan SUPER_ADMIN_EMAILS
 ~/.st4s/st4s --version   # versi dari package.json
 ```
 
-- `init` langsung menjalankan `migrate` bila `DATABASE_URL` sudah ada di environment.
-- `doctor` memeriksa folder, `.env`, `DATABASE_URL`/`BETTER_AUTH_SECRET` (hanya terisi/kosong, nilai tidak pernah dicetak), koneksi + migrasi database, karantina macOS, `libcrispasr` (dlopen), `libonnxruntime`, file model, ffmpeg, dan RAM bebas. Jalan tanpa `.env`.
+- `init` langsung menjalankan `migrate`. Dengan `DATABASE_URL` kosong ia lebih dulu memasang runtime PostgreSQL 17.11 bawaan ke `lib/pg/` (unduh ±60 MB dari Maven Central, sha256 dipin; offline: `ST4S_PG_ARCHIVE=<path jar>`) dan membuat `pg/data/`.
+- **PostgreSQL bawaan** (`DATABASE_URL` kosong): server menyalakannya sebagai child process (hanya unix socket, tanpa port TCP, zona waktu UTC) dan mematikannya saat SIGINT/SIGTERM; setelah crash/`kill -9` start berikutnya memulihkan sendiri. Satu data dir hanya untuk satu st4s. `migrate` memakai Postgres server yang sedang jalan, atau menyalakan dan mematikannya sendiri. Migrasi tetap eksplisit. Override: `ST4S_PG_RUNTIME` (runtime sendiri), `ST4S_PG_DATA` (data dir). Tidak tersedia di Linux musl/Alpine — pakai `DATABASE_URL`. Data dir dari major Postgres lain ditolak. **Platform:** hanya macOS Apple Silicon (darwin-arm64) yang terverifikasi. Di macOS Intel dan Linux x64/arm64 (glibc) mode bawaan ditolak (`init`, `migrate`, `doctor`, start server) kecuali `ST4S_PG_ALLOW_UNVERIFIED=1` — untuk staging, dengan peringatan satu baris; `doctor` menampilkan status verifikasi dan override. `DATABASE_URL` yang terisi tidak terpengaruh.
+- `doctor` memeriksa folder, `.env`, `DATABASE_URL`/`BETTER_AUTH_SECRET` (hanya terisi/kosong, nilai tidak pernah dicetak), koneksi + migrasi database (atau runtime + data dir PostgreSQL bawaan), karantina macOS, `libcrispasr` (dlopen), `libonnxruntime`, file model, ffmpeg, dan RAM bebas. Jalan tanpa `.env`.
 - Server binary **menolak start** bila database belum dimigrasi atau tidak bisa dihubungi: `Database belum dimigrasi — jalankan st4s migrate`, exit 1.
-- **Upgrade:** jalankan ulang `sh install.sh`, lalu `st4s migrate`. `.env`, `models/`, dan `logs/` tetap.
+- **Upgrade:** jalankan ulang `sh install.sh`, lalu `st4s migrate`. `.env`, `models/`, `logs/`, `pg/` dan `lib/pg/` tetap.
 - **`ST4S_HOME`:** override folder (default folder binary). Semua perintah di atas memakainya, mis. `ST4S_HOME=/srv/st4s /srv/st4s/st4s doctor`.
 
 ### Models (`st4s models`)

@@ -84,6 +84,10 @@ describe('scripts/install.sh', () => {
     await writeFile(path.join(home, 'logs/app.log'), 'old log');
     await writeFile(path.join(home, 'lib/libold.dylib'), 'stale');
     await writeFile(path.join(home, 'st4s'), 'old binary');
+    await mkdir(path.join(home, 'lib/pg/17.11.0/bin'), { recursive: true });
+    await writeFile(path.join(home, 'lib/pg/17.11.0/bin/postgres'), 'pg runtime');
+    await mkdir(path.join(home, 'pg/data'), { recursive: true });
+    await writeFile(path.join(home, 'pg/data/PG_VERSION'), '17\n');
 
     const r = install(await fakeTarball({ version: '2.0.0' }));
     expect(r.code).toBe(0);
@@ -92,6 +96,11 @@ describe('scripts/install.sh', () => {
     expect(await readFile(path.join(home, 'logs/app.log'), 'utf8')).toBe('old log');
     expect(await readFile(path.join(home, 'st4s'), 'utf8')).toContain('2.0.0');
     expect(await Bun.file(path.join(home, 'lib/libold.dylib')).exists()).toBe(false);
+    expect(await readFile(path.join(home, 'lib/pg/17.11.0/bin/postgres'), 'utf8')).toBe(
+      'pg runtime',
+    );
+    expect(await readFile(path.join(home, 'pg/data/PG_VERSION'), 'utf8')).toBe('17\n');
+    expect(await Bun.file(path.join(home, 'lib/libfake.dylib')).exists()).toBe(true);
     expect(r.out).toContain('st4s migrate');
   });
 

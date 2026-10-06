@@ -1,9 +1,10 @@
-/** `st4s migrate`, the binary boot guard and doctor's DB check. Uses DATABASE_URL only (no server/env.ts). */
+/** `st4s migrate`, the binary boot guard and doctor's DB check. Uses DATABASE_URL only (no server/env.ts); empty → built-in Postgres. */
 import path from 'node:path';
 import { readMigrationFiles } from 'drizzle-orm/migrator';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
+import { acquireLocalPg } from '../local-pg/boot';
 
 type Env = Record<string, string | undefined>;
 export type MigrationState = { total: number; pending: number };
@@ -39,13 +40,16 @@ export async function migrationState(
   }
 }
 
-/** Apply pending migrations; prints the applied count. Exit code 0 on success. */
+/** Apply pending migrations; prints the applied count. Exit code 0 on success. Empty DATABASE_URL → built-in Postgres. */
 export async function runMigrate(env: Env = process.env): Promise<number> {
-  const url = env.DATABASE_URL?.trim();
-  if (!url) {
-    console.error('❌ DATABASE_URL belum di-set — isi di .env (lihat `st4s doctor`), lalu ulangi.');
+  let release: () => Promise<void>;
+  try {
+    release = await acquireLocalPg(env);
+  } catch (e) {
+    console.error(`❌ ${(e as Error).message}`);
     return 1;
   }
+  const url = env.DATABASE_URL?.trim() ?? '';
   const folder = migrationsFolder();
   const sql = connect(url);
   try {
@@ -61,6 +65,7 @@ export async function runMigrate(env: Env = process.env): Promise<number> {
     return 1;
   } finally {
     await sql.end();
+    await release();
   }
 }
 
