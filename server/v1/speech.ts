@@ -10,6 +10,7 @@ import { speechUnits } from '../text/speech-units';
 import { requireV1Caller } from './auth';
 import { v1Config } from './config';
 import { v1EngineUnloaded, v1Error } from './errors';
+import { docs } from './openapi.doc';
 import { speechConfig } from './speech-config';
 import { parseSpeechParams } from './speech-params';
 import { encodeUnits, responseBody, type SynthStats, synthUnits } from './speech-stream';
@@ -130,4 +131,4 @@ async function speak(request: Request, body: unknown): Promise<Response> {
 /** POST /api/v1/audio/speech (OpenAI-compatible TTS, streamed as units finish). */
 export const speechApi = new Elysia()
   .onBeforeHandle(requireV1Caller)
-  .post('/audio/speech', ({ request, body }) => speak(request, body));
+  .post('/audio/speech', ({ request, body }) => speak(request, body), { detail: docs.speech });

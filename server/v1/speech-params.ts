@@ -20,7 +20,11 @@ export type SpeechParams = {
 };
 
 // OpenAI: "`sse` is not supported for `tts-1` or `tts-1-hd`".
-const NO_SSE_MODELS = ['tts-1', 'tts-1-hd'];
+export const NO_SSE_MODELS = ['tts-1', 'tts-1-hd'];
+
+/** Accepted `speed` range (OpenAI's). */
+export const SPEED_MIN = 0.25;
+export const SPEED_MAX = 4;
 
 const bad = (message: string, param: string, code = 'invalid_value') =>
   v1Error(400, message, { code, param });
@@ -69,8 +73,13 @@ export function parseSpeechParams(body: unknown): SpeechParams | Response {
     );
 
   const speed = b.speed ?? 1;
-  if (typeof speed !== 'number' || !Number.isFinite(speed) || speed < 0.25 || speed > 4)
-    return bad('`speed` harus angka 0.25–4.', 'speed');
+  if (
+    typeof speed !== 'number' ||
+    !Number.isFinite(speed) ||
+    speed < SPEED_MIN ||
+    speed > SPEED_MAX
+  )
+    return bad(`\`speed\` harus angka ${SPEED_MIN}–${SPEED_MAX}.`, 'speed');
 
   const streamFormat = b.stream_format ?? 'audio';
   if (streamFormat !== 'audio' && streamFormat !== 'sse')

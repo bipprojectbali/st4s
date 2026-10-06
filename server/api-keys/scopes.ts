@@ -134,11 +134,14 @@ export function scopesForRole(role: unknown): Scope[] {
 
 const READ = new Set(['GET', 'HEAD']);
 
+/** requiredScope sentinel: any valid API key (whatever its scopes) or a signed-in session; anonymous is refused. */
+export const ANY_KEY = 'any-key';
+
 /**
  * Required scope for an API route, or null when API keys may not call it.
  * Order matters: more specific prefixes first.
  */
-export function requiredScope(method: string, pathname: string): Scope | null {
+export function requiredScope(method: string, pathname: string): Scope | typeof ANY_KEY | null {
   const m = method.toUpperCase();
   const read = READ.has(m);
   const p = pathname;
@@ -171,6 +174,7 @@ export function requiredScope(method: string, pathname: string): Scope | null {
   if (p === '/api/v1/audio/speech') return read ? null : 'tts:speak';
   // WebSocket upgrade is a GET.
   if (p === '/api/v1/realtime') return read ? 'stt:transcribe' : null;
+  if (p === '/api/v1/openapi.json') return read ? ANY_KEY : null;
   return null;
 }
 

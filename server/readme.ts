@@ -86,6 +86,7 @@ export function llmsIndex(readme: string, appUrl: string, version = APP_VERSION)
     `- [Versi build](${base}/api/version): JSON { name, version, env, bun }, publik`,
     `- [MCP server](${base}/api/mcp): Streamable HTTP, autentikasi Authorization: Bearer <API key ber-scope mcp>`,
     `- [API](${base}/api): header X-API-Key atau Authorization: Bearer mk_live_…; error selalu JSON { error, code, status, requestId }`,
+    `- [OpenAPI /api/v1](${base}/api/v1/openapi.json): spec OpenAPI JSON Speech API, butuh API key (Authorization: Bearer)`,
     '',
     '## Bagian README',
     '',

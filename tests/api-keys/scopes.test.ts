@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import {
+  ANY_KEY,
   isPublicRead,
   requiredScope,
   roleAllowsScope,
@@ -34,6 +35,9 @@ describe('requiredScope', () => {
     expect(isPublicRead('GET', '/api/v1/audio/voices')).toBe(true);
     expect(isPublicRead('POST', '/api/v1/models')).toBe(false);
     expect(isPublicRead('POST', '/api/v1/audio/transcriptions')).toBe(false);
+    expect(requiredScope('GET', '/api/v1/openapi.json')).toBe(ANY_KEY);
+    expect(requiredScope('POST', '/api/v1/openapi.json')).toBeNull();
+    expect(isPublicRead('GET', '/api/v1/openapi.json')).toBe(false);
   });
   it('blocks auth, key management (admin and personal), resets and unknown routes', () => {
     expect(requiredScope('POST', '/api/auth/sign-in/email')).toBeNull();
