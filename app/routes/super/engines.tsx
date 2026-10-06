@@ -1,21 +1,29 @@
-import { Button, Group, SimpleGrid, Stack, Text, Title } from '@mantine/core';
+import { Box, Button, Group, SimpleGrid, Stack, Text, Title } from '@mantine/core';
+import { useReducedMotion } from '@mantine/hooks';
 import { engineOverview } from '@server/api/engines';
 import { requireRole } from '@server/guard';
 import { loadGuardConfig } from '@server/memory-guard/config';
 import { ROLES } from '@server/permissions';
 import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { FiActivity, FiCpu, FiHardDrive, FiMic, FiRefreshCw } from 'react-icons/fi';
 import { Link } from 'react-router';
 import { EngineCard } from '~/components/engines/EngineCard';
 import { MemoryGuardAlert } from '~/components/engines/MemoryGuardAlert';
 import { useEngineActions } from '~/components/engines/useEngineActions';
 import { StatTile } from '~/components/logs/StatTile';
-import { depsFor, type EngineOverview, fetchEngines, formatBytes } from '~/lib/engines-api';
+import {
+  depsFor,
+  type EngineOverview,
+  enginesRefreshMs,
+  fetchEngines,
+  formatBytes,
+} from '~/lib/engines-api';
 import { toJson } from '~/lib/loader-json';
 import { useTimeFormat } from '~/lib/time-format';
 import type { Route } from './+types/engines';
 
-const REFRESH_MS = 3000;
+const FLASH_MS = 1000;
 
 export function meta() {
   return [{ title: 'Engines — st4s' }];
@@ -39,9 +47,19 @@ export default function EnginesPage({ loaderData }: Route.ComponentProps) {
     queryFn: fetchEngines,
     initialData: loaderData.overview,
     initialDataUpdatedAt: loaderData.loadedAt,
-    refetchInterval: REFRESH_MS,
+    refetchInterval: (query) => enginesRefreshMs(query.state.data, actions.busy),
   });
   const d = q.data;
+  const [manualRefresh, setManualRefresh] = useState(false);
+  const [flash, setFlash] = useState(false);
+  const reduceMotion = useReducedMotion();
+  useEffect(() => {
+    if (q.dataUpdatedAt === loaderData.loadedAt) return;
+    setFlash(true);
+    const t = setTimeout(() => setFlash(false), FLASH_MS);
+    return () => clearTimeout(t);
+  }, [q.dataUpdatedAt, loaderData.loadedAt]);
+  const updating = q.isFetching || flash;
   const mem = d.memory;
 
   return (
@@ -50,8 +68,22 @@ export default function EnginesPage({ loaderData }: Route.ComponentProps) {
         <div>
           <Title order={3}>Engines</Title>
           <Text size="sm" c="dimmed">
-            Model STT dan TTS di proses ini. Diperbarui otomatis tiap {REFRESH_MS / 1000} detik ·
-            terakhir {dateTime(d.generatedAt)}.
+            Model STT dan TTS di proses ini. Diperbarui otomatis, lebih sering saat engine sibuk ·
+            terakhir {dateTime(d.generatedAt)}{' '}
+            <Box
+              component="span"
+              aria-hidden
+              display="inline-block"
+              w={6}
+              h={6}
+              bg="teal.6"
+              style={{
+                borderRadius: '50%',
+                verticalAlign: 'middle',
+                opacity: updating ? 0.9 : 0.2,
+                transition: reduceMotion ? 'none' : 'opacity 400ms ease-in-out',
+              }}
+            />
           </Text>
         </div>
         <Group gap="xs" wrap="wrap" justify="flex-end">
@@ -68,8 +100,11 @@ export default function EnginesPage({ loaderData }: Route.ComponentProps) {
             size="sm"
             variant="light"
             leftSection={<FiRefreshCw size={14} />}
-            loading={q.isFetching}
-            onClick={() => q.refetch()}
+            loading={manualRefresh}
+            onClick={() => {
+              setManualRefresh(true);
+              void q.refetch().finally(() => setManualRefresh(false));
+            }}
           >
             Muat ulang
           </Button>

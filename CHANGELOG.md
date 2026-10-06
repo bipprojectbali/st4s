@@ -4,6 +4,12 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan versi mengikuti
 [Semantic Versioning](https://semver.org/lang/id/).
 
+## [Unreleased]
+
+### Changed
+- `/dev/engines` tidak lagi berkedip tiap 3 detik: tombol "Muat ulang" hanya berputar saat kamu menekannya. Pembaruan otomatis kini ditandai titik kecil yang menyala sebentar di samping waktu "terakhir" (tanpa animasi bila sistem meminta gerakan dikurangi).
+- Status engine diperbarui tiap ±2,5 detik selama model dimuat, ada job/antrean, warmup/unload berjalan, atau memory guard di atas normal, dan tiap 15 detik saat semuanya diam. Pembaruan tetap berhenti saat tab tidak terlihat.
+
 ## [0.4.0] - 2026-10-06
 
 ### Added
