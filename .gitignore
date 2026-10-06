@@ -32,3 +32,6 @@ service-account.json
 /.crispasr/
 # release bundles (scripts/release/package.sh)
 /dist/
+
+# Built-in Postgres in dev (runtime + data dir; see server/local-pg/paths.ts)
+data/
