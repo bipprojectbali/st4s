@@ -6,14 +6,14 @@ set -euo pipefail
 
 usage() {
   echo "usage: $0 <out_lib_dir> [build_dir]" >&2
-  echo "  build_dir: cmake build dir of scripts/crispasr/build.sh (default <repo>/.crispasr/build)" >&2
+  echo "  build_dir: cmake build dir of scripts/crispasr/build.sh (default <repo>/.crispasr/build-reloc, the release build)" >&2
   exit 2
 }
 [ $# -ge 1 ] && [ $# -le 2 ] || usage
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
-BUILD="${2:-$ROOT/.crispasr/build}"
-[ -d "$BUILD" ] || { echo "error: build dir not found: $BUILD (run: bash scripts/crispasr/build.sh)" >&2; exit 1; }
+BUILD="${2:-$ROOT/.crispasr/build-reloc}"
+[ -d "$BUILD" ] || { echo "error: build dir not found: $BUILD (run: CRISPASR_BUILD_DIR=\"$BUILD\" bash scripts/crispasr/build.sh)" >&2; exit 1; }
 mkdir -p "$1"
 OUT="$(cd "$1" && pwd -P)"
 

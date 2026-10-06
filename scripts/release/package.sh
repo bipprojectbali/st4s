@@ -2,15 +2,18 @@
 # Build the st4s release bundle for this host:
 #   dist/st4s/ (st4s binary, lib/, LICENSES/, README.txt, BUILD_INFO)
 #   -> dist/st4s-<version>-<os>-<arch>.tar.gz + .sha256, plus dist/install.sh for the release page.
-# Usage: bash scripts/release/package.sh   (needs .crispasr/build from scripts/crispasr/build.sh)
-# Env: CRISPASR_DIR (default <repo>/.crispasr), CRISPASR_BUILD_DIR (default $CRISPASR_DIR/build). Network: fetches the onnxruntime license files.
+# Usage: bash scripts/release/package.sh
+# Needs the release build of libcrispasr, kept apart from the dev lib in .crispasr/build so packaging
+# never depends on (or rebuilds) the lib a running dev server has loaded:
+#   CRISPASR_BUILD_DIR="$PWD/.crispasr/build-reloc" bash scripts/crispasr/build.sh
+# Env: CRISPASR_DIR (default <repo>/.crispasr), CRISPASR_BUILD_DIR (default $CRISPASR_DIR/build-reloc). Network: fetches the onnxruntime license files.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 cd "$ROOT"
 CRISPASR_DIR="${CRISPASR_DIR:-$ROOT/.crispasr}"
-CRISPASR_BUILD_DIR="${CRISPASR_BUILD_DIR:-$CRISPASR_DIR/build}"
+CRISPASR_BUILD_DIR="${CRISPASR_BUILD_DIR:-$CRISPASR_DIR/build-reloc}"
 LOCK=/tmp/s4s-build.lock
 MIN_FREE_PCT=25
 
@@ -28,6 +31,17 @@ ORT_VERSION="$(bun -e 'console.log((await Bun.file("node_modules/onnxruntime-nod
 [ -f "$ORT_LIB" ] || { echo "error: $ORT_LIB missing (run: bun install)" >&2; exit 1; }
 for f in "$CRISPASR_DIR/LICENSE" "$CRISPASR_DIR/ggml/LICENSE"; do
   [ -f "$f" ] || { echo "error: $f missing (run: bash scripts/crispasr/build.sh)" >&2; exit 1; }
+done
+# Fail before the slow binary build; bundle-lib.sh's otool check stays the authoritative one.
+BUILD_CMD="CRISPASR_DIR=\"$CRISPASR_DIR\" CRISPASR_BUILD_DIR=\"$CRISPASR_BUILD_DIR\" bash scripts/crispasr/build.sh"
+CACHE="$CRISPASR_BUILD_DIR/CMakeCache.txt"
+[ -f "$CACHE" ] || { printf 'error: no libcrispasr release build at %s; build it with:\n  %s\n' "$CRISPASR_BUILD_DIR" "$BUILD_CMD" >&2; exit 1; }
+for opt in CRISPASR_AMR CRISPASR_OPUS; do
+  if ! grep -qx "$opt:BOOL=OFF" "$CACHE"; then
+    printf 'error: %s is not configured with %s=OFF (links Homebrew libs, not relocatable); rebuild with:\n  %s\n' \
+      "$CRISPASR_BUILD_DIR" "$opt" "$BUILD_CMD" >&2
+    exit 1
+  fi
 done
 
 echo "== build st4s $VERSION ($PLATFORM)"
