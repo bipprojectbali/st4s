@@ -6,6 +6,16 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 
 ## [Unreleased]
 
+### Added
+- PostgreSQL bawaan: bila `DATABASE_URL` kosong, st4s menjalankan PostgreSQL 17.11 sendiri sebagai proses anak, jadi tidak perlu memasang database terpisah. Postgres ini hanya bisa diakses lewat unix socket (tanpa port TCP) dan selalu memakai zona waktu UTC. Data tersimpan di `<folder st4s>/pg/data`; saat `bun run dev`/`start` lokasinya `./data/pg`. Bila `DATABASE_URL` terisi, perilakunya tetap seperti sebelumnya.
+- `st4s init` dengan `DATABASE_URL` kosong kini memasang runtime Postgres (unduhan ±60 MB yang dicek sha256-nya; untuk offline pakai `ST4S_PG_ARCHIVE`), membuat database, lalu langsung menjalankan migrasi.
+- `st4s migrate` menyalakan Postgres bawaan bila diperlukan. Bila server sedang berjalan, Postgres milik server itu yang dipakai dan tidak dimatikan.
+- `st4s doctor` kini melaporkan runtime dan data dir Postgres bawaan.
+- Postgres bawaan dimatikan dengan bersih saat server berhenti. Setelah crash atau `kill -9`, start berikutnya memulihkannya sendiri. Satu data dir tidak bisa dipakai dua st4s sekaligus.
+- Data dir dari versi major Postgres lain ditolak dengan instruksi.
+- Linux musl/Alpine belum didukung; di sana tetap pakai `DATABASE_URL`.
+- `install.sh` mempertahankan `pg/` dan runtime `lib/pg/` saat upgrade.
+
 ### Changed
 - `.env.example` kini hanya mengaktifkan env yang wajib (`NODE_ENV`, `PORT`, `APP_URL`, `DATABASE_URL`, `DATABASE_URL_TEST`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `SUPER_ADMIN_EMAILS`); pengaturan lain ditulis sebagai komentar berisi nilai default. Menyalinnya ke `.env` tidak lagi mengunci nilai lama, jadi perubahan default di versi berikutnya tetap berlaku.
 
