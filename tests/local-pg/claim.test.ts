@@ -10,6 +10,7 @@ import {
   postmasterVerdict,
   SOCKET_FILE,
   socketDirFor,
+  statStartTime,
   versionMismatch,
 } from '../../server/local-pg/claim';
 
@@ -70,6 +71,15 @@ describe('liveOwner', () => {
       process.pid,
     );
   });
+});
+
+describe('statStartTime', () => {
+  test('field 22 of /proc/<pid>/stat, even when comm holds spaces and parens', () => {
+    const stat =
+      '1234 (a) b c) S 1 1234 1234 0 -1 4194560 100 0 0 0 1 2 0 0 20 0 1 0 98765 1000 50\n';
+    expect(statStartTime(stat)).toBe('98765');
+  });
+  test('unreadable stat → unknown', () => expect(statStartTime('')).toBe(''));
 });
 
 describe('socketDirFor', () => {

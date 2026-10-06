@@ -4,6 +4,11 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan versi mengikuti
 [Semantic Versioning](https://semver.org/lang/id/).
 
+## [Unreleased]
+
+### Fixed
+- PostgreSQL bawaan di Linux tanpa `procps` (mis. image `debian:bookworm-slim`) kini tetap aman. Sebelumnya `st4s migrate` atau restart setelah `kill -9` bisa menganggap Postgres yang sedang hidup sudah mati, menghapus file kuncinya, lalu database server ikut mati sekitar satu menit kemudian.
+
 ## [0.3.0] - 2026-10-06
 
 ### Added
