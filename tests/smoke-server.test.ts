@@ -1,5 +1,7 @@
 /** The smoke checklist itself: well-formed entries and a correct evaluator (no server needed). */
 import { describe, expect, test } from 'bun:test';
+import pkg from '../package.json';
+import { processesWith } from '../scripts/smoke-coldboot';
 import { evaluate, SMOKE_CHECKS } from '../scripts/smoke-server.checks';
 
 const res = (status: number, headers: Record<string, string> = {}, body = '') => ({
@@ -51,5 +53,19 @@ describe('smoke checks', () => {
       res(302, { location: 'http://x/login' }),
     );
     expect(redirect.ok).toBe(true);
+  });
+  test('cold-boot smoke is wired and finds postgres children that lost the data dir from argv', () => {
+    expect(pkg.scripts['smoke:coldboot']).toContain('scripts/smoke-coldboot.ts ./st4s');
+    const ps = [
+      '  101     1  9000 /h/st4s home/lib/pg/bin/postgres -D /h/st4s home/pg/data',
+      '  102   101  3000 postgres: checkpointer ',
+      '  103   101  2000 postgres: walwriter ',
+      '  200     1  5000 postgres -D /other/data',
+      '  201   200  1000 postgres: checkpointer ',
+    ].join('\n');
+    const found = processesWith(ps, '/h/st4s home/pg');
+    expect(found.map((p) => p.pid)).toEqual([101, 102, 103]);
+    expect(found.reduce((s, p) => s + p.rssKb, 0)).toBe(14000);
+    expect(processesWith(ps, '/nowhere')).toEqual([]);
   });
 });
