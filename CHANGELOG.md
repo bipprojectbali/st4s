@@ -18,6 +18,7 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 ### Fixed
 - PostgreSQL bawaan di Linux tanpa `procps` (mis. image `debian:bookworm-slim`) kini tetap aman. Sebelumnya `st4s migrate` atau restart setelah `kill -9` bisa menganggap Postgres yang sedang hidup sudah mati, menghapus file kuncinya, lalu database server ikut mati sekitar satu menit kemudian.
 - PostgreSQL bawaan tidak lagi menghapus file kunci (`postmaster.pid`, `st4s.owner`) milik proses yang masih hidup tetapi identitasnya tidak bisa dibaca. Start ditolak dengan pesan yang menyebut PID dan data dir-nya, sehingga Postgres yang sedang dipakai tidak ikut mati. `st4s doctor` menandai pemilik seperti ini sebagai "proses tak dikenal".
+- `/api/v1/audio/transcriptions` kini menolak audio yang lebih panjang dari `V1_MAX_AUDIO_SEC` tanpa mendekode seluruhnya lebih dulu. Sebelumnya upload 25 MB berbitrate rendah (mis. opus ±3,6 jam) bisa memakan ratusan MB RAM sebelum akhirnya ditolak. Kode error tetap `audio_too_long`; untuk format selain WAV pesannya tidak lagi menyebut durasi persis, cukup batasnya dan saran memotong rekaman.
 
 ## [0.3.0] - 2026-10-06
 

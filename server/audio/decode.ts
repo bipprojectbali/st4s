@@ -35,18 +35,22 @@ export function resampleLinear(input: Float32Array, fromRate: number): Float32Ar
   return out;
 }
 
-/** Decode `bytes` (any supported container) to 16 kHz mono; `durationSec` is the source duration. */
+/** Decoded audio, or `overLimit` past `maxSec`; `durationSec` is then set only when measured exactly (WAV). */
+export type Decoded =
+  | { audio: Float32Array; durationSec: number }
+  | { overLimit: true; durationSec?: number };
+
+/** Decode `bytes` (any supported container) to 16 kHz mono; never decodes much past `hint.maxSec`. */
 export async function decodeTo16kMono(
   bytes: Uint8Array<ArrayBuffer>,
-  hint: { mime?: string; filename?: string } = {},
-): Promise<{ audio: Float32Array; durationSec: number }> {
+  hint: { mime?: string; filename?: string; maxSec?: number } = {},
+): Promise<Decoded> {
+  const maxSec = hint.maxSec ?? Number.POSITIVE_INFINITY;
   if (isWav(bytes)) {
     try {
-      const { samples, sampleRate } = parseWav(bytes);
-      return {
-        audio: resampleLinear(samples, sampleRate),
-        durationSec: samples.length / sampleRate,
-      };
+      const { samples, sampleRate, durationSec } = parseWav(bytes, maxSec);
+      if (durationSec > maxSec) return { overLimit: true, durationSec };
+      return { audio: resampleLinear(samples, sampleRate), durationSec };
     } catch (err) {
       // Unusual WAV encodings (ADPCM, µ-law, 64-bit float) still have a chance with ffmpeg.
       if (!findFfmpeg())
@@ -64,8 +68,9 @@ export async function decodeTo16kMono(
     );
   }
   try {
-    const audio = await ffmpegTo16kMono(bin, bytes);
-    return { audio, durationSec: audio.length / TARGET_RATE };
+    const audio = await ffmpegTo16kMono(bin, bytes, maxSec);
+    const durationSec = audio.length / TARGET_RATE;
+    return durationSec > maxSec ? { overLimit: true } : { audio, durationSec };
   } catch (err) {
     logger.warn({ err, mime: hint.mime, bytes: bytes.length }, 'audio decode via ffmpeg failed');
     throw new AudioDecodeError(
