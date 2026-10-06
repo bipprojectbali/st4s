@@ -10,10 +10,11 @@ import {
   test,
 } from 'bun:test';
 import * as decodeMod from '../../server/audio/decode';
+import { findFfmpeg } from '../../server/audio/decode-ffmpeg';
 import { setEngines } from '../../server/engines/registry';
 import { Semaphore } from '../../server/v1/transcriptions.limits';
 import { call, DELTAS, fakeStt, form, resetFake, SESSION_TOKEN, stubSession } from '../v1/fake-stt';
-import { makeWav } from '../v1/wav-fixture';
+import { ffmpegTone, makeWav } from '../v1/wav-fixture';
 
 const wav = makeWav({ sampleRate: 16_000, channels: 1, bits: 16, frames: 16_000 });
 const post = (fd: FormData) =>
@@ -24,7 +25,12 @@ const post = (fd: FormData) =>
   });
 const errorOf = async (res: Response) =>
   ((await res.json()) as { error: Record<string, unknown> }).error;
-const ENV_KEYS = ['STT_MAX_QUEUE', 'V1_DECODE_CONCURRENCY', 'V1_DECODE_WAIT_MS'];
+const ENV_KEYS = [
+  'STT_MAX_QUEUE',
+  'V1_DECODE_CONCURRENCY',
+  'V1_DECODE_WAIT_MS',
+  'V1_MAX_AUDIO_SEC',
+];
 
 let spies: { mockRestore(): void }[] = [];
 beforeAll(() => {
@@ -113,6 +119,42 @@ describe('admission control', () => {
       decode.mockRestore();
     }
   });
+});
+
+describe('V1_MAX_AUDIO_SEC is enforced while decoding', () => {
+  const secs = (n: number) =>
+    makeWav({ sampleRate: 16_000, channels: 1, bits: 16, frames: n * 16_000 });
+
+  test('a 20 s WAV over a 5 s cap is 400 audio_too_long with its real duration; 3 s is 200', async () => {
+    process.env.V1_MAX_AUDIO_SEC = '5';
+    const long = await post(form({ model: 'whisper-1' }, secs(20)));
+    expect(long.status).toBe(400);
+    const err = await errorOf(long);
+    expect(err).toMatchObject({ code: 'audio_too_long', param: 'file' });
+    expect(err.message).toContain('20 dtk');
+    expect(fakeStt.last).toBeNull();
+
+    const ok = await post(form({ model: 'whisper-1' }, secs(3)));
+    expect(ok.status).toBe(200);
+    expect(fakeStt.last?.audio.length).toBe(48_000);
+  });
+
+  test.skipIf(!findFfmpeg())(
+    'a 20 s ffmpeg upload over a 5 s cap is 400 audio_too_long without a claimed duration',
+    async () => {
+      process.env.V1_MAX_AUDIO_SEC = '5';
+      const res = await post(
+        form({ model: 'whisper-1' }, ffmpegTone(findFfmpeg() as string, 20), 'a.flac'),
+      );
+      expect(res.status).toBe(400);
+      const err = await errorOf(res);
+      expect(err).toMatchObject({ code: 'audio_too_long', param: 'file' });
+      expect(err.message).toBe(
+        'Durasi audio melebihi batas 5 dtk. Potong rekaman menjadi beberapa bagian lalu kirim per bagian.',
+      );
+      expect(fakeStt.last).toBeNull();
+    },
+  );
 });
 
 describe('engine errors and validation', () => {

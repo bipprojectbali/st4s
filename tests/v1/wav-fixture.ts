@@ -48,3 +48,24 @@ export function makeWav(opts: {
   }
   return new Uint8Array(buf);
 }
+
+/** test-only: a `sec`-second 440 Hz FLAC made by ffmpeg's lavfi (stdout, no temp file); routes through the ffmpeg decoder. */
+export function ffmpegTone(bin: string, sec: number): Uint8Array<ArrayBuffer> {
+  const r = Bun.spawnSync(
+    [
+      bin,
+      '-loglevel',
+      'error',
+      '-f',
+      'lavfi',
+      '-i',
+      `sine=duration=${sec}`,
+      '-f',
+      'flac',
+      'pipe:1',
+    ],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+  if (!r.success) throw new Error(`ffmpeg tone failed: ${r.stderr.toString()}`);
+  return new Uint8Array(r.stdout);
+}

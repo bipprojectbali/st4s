@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it } from 'bun:test';
-import { AudioDecodeError, decodeTo16kMono, resampleLinear } from '../../server/audio/decode';
+import {
+  AudioDecodeError,
+  type Decoded,
+  decodeTo16kMono as decodeAny,
+  resampleLinear,
+} from '../../server/audio/decode';
 import { findFfmpeg } from '../../server/audio/decode-ffmpeg';
-import { makeWav } from '../v1/wav-fixture';
+import { ffmpegTone, makeWav } from '../v1/wav-fixture';
 
 const ORIGINAL_FFMPEG = process.env.FFMPEG_PATH;
 afterEach(() => {
@@ -11,6 +16,12 @@ afterEach(() => {
 const noFfmpeg = () => {
   process.env.FFMPEG_PATH = '/nonexistent/ffmpeg-for-test';
 };
+const decoded = (d: Decoded) => {
+  if ('overLimit' in d) throw new Error('unexpected overLimit');
+  return d;
+};
+const decodeTo16kMono = async (...args: Parameters<typeof decodeAny>) =>
+  decoded(await decodeAny(...args));
 const rms = (a: Float32Array) => Math.sqrt(a.reduce((s, x) => s + x * x, 0) / a.length);
 
 describe('decodeTo16kMono — WAV (native)', () => {
@@ -65,24 +76,57 @@ describe('decodeTo16kMono — WAV (native)', () => {
     noFfmpeg();
     const wav = makeWav({ sampleRate: 16_000, channels: 1, bits: 16, frames: 10 });
     const broken = wav.slice(0, 36); // header without a data chunk
-    const err = await decodeTo16kMono(broken).catch((e: unknown) => e);
+    const err = await decodeAny(broken).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AudioDecodeError);
     expect((err as AudioDecodeError).code).toBe('invalid_audio');
   });
+});
+
+describe('decodeTo16kMono — maxSec cap', () => {
+  // 10 s of 8 kHz 8-bit: the case where resampling would multiply memory 8x before the old check.
+  const long = makeWav({ sampleRate: 8_000, channels: 1, bits: 8, frames: 80_000 });
+
+  it('a WAV over the cap is overLimit with its exact duration and no audio', async () => {
+    noFfmpeg();
+    const d = await decodeAny(long, { maxSec: 5 });
+    expect(d).toEqual({ overLimit: true, durationSec: 10 });
+    expect('audio' in d).toBe(false);
+  });
+
+  it('a WAV under the cap decodes unchanged', async () => {
+    noFfmpeg();
+    const d = await decodeTo16kMono(long, { maxSec: 60 });
+    expect(d.durationSec).toBe(10);
+    expect(d.audio.length).toBe(160_000);
+  });
+
+  it.skipIf(!findFfmpeg())(
+    'ffmpeg stops at cap + 1 s and reports overLimit without a duration',
+    async () => {
+      const bin = findFfmpeg() as string;
+      const tone = ffmpegTone(bin, 20);
+      const { ffmpegTo16kMono } = await import('../../server/audio/decode-ffmpeg');
+      expect((await ffmpegTo16kMono(bin, tone, 5)).length).toBeLessThanOrEqual(6 * 16_000);
+      expect(await decodeAny(tone, { filename: 'a.flac', maxSec: 5 })).toEqual({ overLimit: true });
+
+      const full = await decodeTo16kMono(tone, { filename: 'a.flac', maxSec: 60 });
+      expect(full.durationSec).toBeCloseTo(20, 1);
+    },
+  );
 });
 
 describe('decodeTo16kMono — other formats', () => {
   it('without ffmpeg, non-WAV input is unsupported_format', async () => {
     noFfmpeg();
     const mp3ish = new Uint8Array([0x49, 0x44, 0x33, 3, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4]);
-    const err = await decodeTo16kMono(mp3ish, { filename: 'clip.mp3' }).catch((e: unknown) => e);
+    const err = await decodeAny(mp3ish, { filename: 'clip.mp3' }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AudioDecodeError);
     expect((err as AudioDecodeError).code).toBe('unsupported_format');
     expect((err as Error).message).toContain('clip.mp3');
   });
 
   it.skipIf(!findFfmpeg())('with ffmpeg, garbage input is invalid_audio', async () => {
-    const err = await decodeTo16kMono(new Uint8Array(64).fill(7), { filename: 'x.ogg' }).catch(
+    const err = await decodeAny(new Uint8Array(64).fill(7), { filename: 'x.ogg' }).catch(
       (e: unknown) => e,
     );
     expect((err as AudioDecodeError).code).toBe('invalid_audio');

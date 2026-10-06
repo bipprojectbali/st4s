@@ -4,7 +4,8 @@ const PCM = 1;
 const FLOAT = 3;
 const EXTENSIBLE = 0xfffe;
 
-export type WavMono = { samples: Float32Array; sampleRate: number };
+/** `samples` is empty when `durationSec` exceeds the caller's `maxSec` (nothing was decoded). */
+export type WavMono = { samples: Float32Array; sampleRate: number; durationSec: number };
 
 /** True when the bytes start with a RIFF/WAVE header. */
 export function isWav(bytes: Uint8Array): boolean {
@@ -15,7 +16,7 @@ export function isWav(bytes: Uint8Array): boolean {
 }
 
 /** Decode a WAV file to mono (channels averaged) at its native rate; throws with a reason on malformed input. */
-export function parseWav(bytes: Uint8Array): WavMono {
+export function parseWav(bytes: Uint8Array, maxSec = Number.POSITIVE_INFINITY): WavMono {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let fmt: { format: number; channels: number; sampleRate: number; bits: number } | null = null;
   let offset = 12;
@@ -43,7 +44,13 @@ export function parseWav(bytes: Uint8Array): WavMono {
       if (!fmt) throw new Error('chunk data WAV muncul sebelum chunk fmt');
       // Streamed WAVs may carry 0xFFFFFFFF or a too-large size: clamp to what was uploaded.
       const len = Math.min(size, bytes.length - body);
-      return { samples: toMono(view, body, len, fmt), sampleRate: fmt.sampleRate };
+      const read = sampleReader(view, fmt.format, fmt.bits);
+      if (fmt.channels < 1 || fmt.sampleRate < 1)
+        throw new Error('header WAV tidak punya jumlah kanal atau sample rate');
+      const frames = Math.floor(len / ((fmt.bits / 8) * fmt.channels));
+      const durationSec = frames / fmt.sampleRate;
+      const samples = durationSec > maxSec ? new Float32Array(0) : toMono(body, frames, fmt, read);
+      return { samples, sampleRate: fmt.sampleRate, durationSec };
     }
     offset = body + size + (size % 2);
   }
@@ -51,17 +58,13 @@ export function parseWav(bytes: Uint8Array): WavMono {
 }
 
 function toMono(
-  view: DataView,
   start: number,
-  len: number,
-  f: { format: number; channels: number; sampleRate: number; bits: number },
+  frames: number,
+  f: { channels: number; bits: number },
+  read: (o: number) => number,
 ): Float32Array {
-  const read = sampleReader(view, f.format, f.bits);
-  if (f.channels < 1 || f.sampleRate < 1)
-    throw new Error('header WAV tidak punya jumlah kanal atau sample rate');
   const width = f.bits / 8;
   const frameBytes = width * f.channels;
-  const frames = Math.floor(len / frameBytes);
   const out = new Float32Array(frames);
   for (let i = 0; i < frames; i++) {
     let sum = 0;

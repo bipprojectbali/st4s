@@ -1,7 +1,7 @@
 /** POST /api/v1/audio/transcriptions (OpenAI-compatible STT) and the unsupported /audio/translations. */
 import { Elysia } from 'elysia';
 import { requestIdOf } from '../api-error';
-import { AudioDecodeError } from '../audio/decode';
+import { AudioDecodeError, type Decoded } from '../audio/decode';
 import { getStt } from '../engines/registry';
 import type { SttEngine } from '../engines/types';
 import { logger } from '../logger';
@@ -37,23 +37,24 @@ async function transcribe(
   if (input instanceof Response) return input;
   Object.assign(meta, { model: input.model, bytes: input.file.size, stream: input.stream });
 
-  let decoded: { audio: Float32Array; durationSec: number };
+  const maxSec = v1Config.maxAudioSec;
+  let decoded: Decoded;
   try {
-    decoded = await decodeUpload(input.file);
+    decoded = await decodeUpload(input.file, maxSec);
   } catch (err) {
     if (err instanceof AudioDecodeError)
       return v1Error(400, err.message, { code: err.code, param: 'file' });
     return engineErrorResponse(err, requestId);
   }
-  meta.durationSec = Math.round(decoded.durationSec * 100) / 100;
-  if (decoded.durationSec > v1Config.maxAudioSec)
+  if (decoded.durationSec !== undefined)
+    meta.durationSec = Math.round(decoded.durationSec * 100) / 100;
+  if ('overLimit' in decoded)
     return v1Error(
       400,
-      `Durasi audio ${Math.round(decoded.durationSec)} dtk melebihi batas ${v1Config.maxAudioSec} dtk.`,
-      {
-        code: 'audio_too_long',
-        param: 'file',
-      },
+      decoded.durationSec === undefined
+        ? `Durasi audio melebihi batas ${maxSec} dtk. Potong rekaman menjadi beberapa bagian lalu kirim per bagian.`
+        : `Durasi audio ${Math.round(decoded.durationSec)} dtk melebihi batas ${maxSec} dtk.`,
+      { code: 'audio_too_long', param: 'file' },
     );
 
   const ctrl = new AbortController();

@@ -1,5 +1,5 @@
 /** Cheap admission control for /audio/transcriptions: queue-full check before reading audio, bounded decoding. */
-import { decodeTo16kMono } from '../audio/decode';
+import { type Decoded, decodeTo16kMono } from '../audio/decode';
 import { loadSttConfig } from '../engines/stt/config';
 import { EngineBusyError, type SttEngine } from '../engines/types';
 import { v1Config } from './config';
@@ -61,14 +61,16 @@ export function queueFullError(engine: SttEngine): EngineBusyError | null {
 }
 
 /** decodeTo16kMono under the V1_DECODE_CONCURRENCY limit; throws EngineBusyError when no slot frees in time. */
-export async function decodeUpload(
-  file: File,
-): Promise<{ audio: Float32Array; durationSec: number }> {
+export async function decodeUpload(file: File, maxSec: number): Promise<Decoded> {
   const waitMs = v1Config.decodeWaitMs;
   const release = await decodeSlots.acquire(waitMs);
   if (!release) throw new EngineBusyError('stt', Math.max(1, Math.ceil(waitMs / 1000)));
   try {
-    return await decodeTo16kMono(await file.bytes(), { mime: file.type, filename: file.name });
+    return await decodeTo16kMono(await file.bytes(), {
+      mime: file.type,
+      filename: file.name,
+      maxSec,
+    });
   } finally {
     release();
   }

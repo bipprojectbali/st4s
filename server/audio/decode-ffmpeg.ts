@@ -6,10 +6,14 @@ export function findFfmpeg(): string | null {
   return Bun.which(v1Config.ffmpegPath);
 }
 
-/** Runs ffmpeg with an argv array (no shell); rejects with ffmpeg's last stderr line on failure or timeout. */
+/**
+ * Runs ffmpeg with an argv array (no shell); rejects with ffmpeg's last stderr line on failure or timeout.
+ * Output stops at `maxSec + 1` s, so a result longer than `maxSec` means the source is over the limit.
+ */
 export async function ffmpegTo16kMono(
   bin: string,
   bytes: Uint8Array<ArrayBuffer>,
+  maxSec = Number.POSITIVE_INFINITY,
 ): Promise<Float32Array> {
   // ponytail: pipe input, so MP4/M4A with the moov atom at the end may fail; temp file if that shows up.
   const proc = Bun.spawn(
@@ -20,6 +24,7 @@ export async function ffmpegTo16kMono(
       'error',
       '-i',
       'pipe:0',
+      ...(Number.isFinite(maxSec) ? ['-t', String(maxSec + 1)] : []),
       '-f',
       'f32le',
       '-ar',
@@ -28,6 +33,8 @@ export async function ffmpegTo16kMono(
       '1',
       'pipe:1',
     ],
+    // With -t ffmpeg exits before reading all of stdin; Bun drops the EPIPE on a Uint8Array stdin
+    // (verified on a 25 MB input), and real failures still surface as a non-zero exit below.
     { stdin: bytes, stdout: 'pipe', stderr: 'pipe', timeout: v1Config.ffmpegTimeoutMs },
   );
   const [out, err, code] = await Promise.all([
