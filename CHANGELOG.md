@@ -4,7 +4,7 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan versi mengikuti
 [Semantic Versioning](https://semver.org/lang/id/).
 
-## [Unreleased]
+## [0.4.0] - 2026-10-06
 
 ### Added
 - `st4s db backup [--out <file>]` membuat backup PostgreSQL bawaan menjadi satu file `.tar.gz` (default `<folder st4s>/backups/st4s-db-<waktu>Z.tar.gz`, hanya bisa dibaca pemiliknya). File yang sudah ada tidak pernah ditimpa, dan backup yang gagal tidak meninggalkan file setengah jadi.
