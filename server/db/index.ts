@@ -7,11 +7,10 @@ import * as schema from './schema';
 const dbUrl =
   env.NODE_ENV === 'test' && env.DATABASE_URL_TEST ? env.DATABASE_URL_TEST : env.DATABASE_URL;
 
-// Reuse a single connection in dev/test to survive hot reloads.
-const globalForDb = globalThis as unknown as { client?: ReturnType<typeof postgres> };
-
-const client = globalForDb.client ?? postgres(dbUrl, { max: 5 });
-if (env.NODE_ENV !== 'production') globalForDb.client = client;
+// Process-wide pool: the SSR bundle (build/server/index.js) is a second copy of this module, and dev hot reloads re-evaluate it.
+const g = globalThis as typeof globalThis & { __st4sDbClient?: ReturnType<typeof postgres> };
+g.__st4sDbClient ??= postgres(dbUrl, { max: 5 });
+const client = g.__st4sDbClient;
 
 export const db = drizzle(client, { schema });
 export { schema };
