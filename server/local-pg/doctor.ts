@@ -2,6 +2,7 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import type { DoctorCheck } from '../cli/doctor';
+import { backupsDir, newestBackup } from './archive';
 import { liveOwner, OWNER_FILE, versionMismatch } from './claim';
 import { PG_MAJOR, pgDataDir, pgRuntimeDir, pgRuntimeIsManual } from './paths';
 import {
@@ -98,5 +99,29 @@ export async function localPgChecks(
             detail: `${dataDir} (PG ${dataMajor}, ${owner ? `dipakai ${owner.known ? 'st4s' : 'proses tak dikenal'} PID ${owner.pid}` : 'tidak sedang berjalan'})`,
           },
   );
+  const last = newestBackup(backupsDir(env));
+  checks.push(
+    last
+      ? {
+          name: 'backup Postgres',
+          ok: true,
+          required: false,
+          detail: `${last.name} (${age(last.at)})`,
+        }
+      : {
+          name: 'backup Postgres',
+          ok: false,
+          required: false,
+          detail: `belum ada backup di ${backupsDir(env)}`,
+          fix: 'hentikan st4s, lalu `st4s db backup`',
+        },
+  );
   return checks;
 }
+
+const age = (at: Date, now = Date.now()) => {
+  const min = Math.max(0, Math.round((now - at.getTime()) / 60_000));
+  if (min < 60) return `${min} menit lalu`;
+  if (min < 48 * 60) return `${Math.round(min / 60)} jam lalu`;
+  return `${Math.round(min / 1440)} hari lalu`;
+};

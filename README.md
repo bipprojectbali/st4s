@@ -160,7 +160,7 @@ sh install.sh                                        # tanpa argumen: unduh rili
 
 `install.sh` (sumber: `scripts/install.sh`, disalin ke `dist/` untuk diunggah ke halaman rilis) memeriksa OS/arsitektur tarball (`BUILD_INFO`), mengganti `st4s`, `lib/`, `LICENSES/` lewat direktori staging lalu rename (rollback bila gagal), **tidak pernah** menyentuh `.env`, `models/`, `logs/`, `pg/` (runtime `lib/pg/` dibawa ke `lib/` baru), menghapus `com.apple.quarantine` di macOS (binary tidak dinotarisasi), dan hanya memperingatkan bila ffmpeg tidak ada di PATH. Test: `tests/release/install.test.ts`.
 
-### Menjalankan (`st4s init` / `doctor` / `migrate`)
+### Menjalankan (`st4s init` / `doctor` / `migrate` / `db`)
 
 ```bash
 ~/.st4s/st4s init        # buat lib/ models/ logs/ + .env (mode 0600, BETTER_AUTH_SECRET acak); tidak pernah menimpa .env
@@ -176,6 +176,13 @@ $EDITOR ~/.st4s/.env     # isi SUPER_ADMIN_EMAILS; DATABASE_URL opsional (kosong
 - **PostgreSQL bawaan** (`DATABASE_URL` kosong): server menyalakannya sebagai child process (hanya unix socket, tanpa port TCP, zona waktu UTC) dan mematikannya saat SIGINT/SIGTERM; setelah crash/`kill -9` start berikutnya memulihkan sendiri. Satu data dir hanya untuk satu st4s. `migrate` memakai Postgres server yang sedang jalan, atau menyalakan dan mematikannya sendiri. Migrasi tetap eksplisit. Override: `ST4S_PG_RUNTIME` (runtime sendiri), `ST4S_PG_DATA` (data dir). Tidak tersedia di Linux musl/Alpine — pakai `DATABASE_URL`. Data dir dari major Postgres lain ditolak. **Platform:** terverifikasi di macOS Apple Silicon (darwin-arm64) dan Linux x64/arm64 (glibc). Di Linux, jalankan sebagai user non-root (initdb menolak root) dan pasang `xz-utils` (tar harus bisa membuka `.xz`); `procps` tidak diperlukan. Belum ada tarball rilis Linux, jadi jalankan dari source (`bun run start`) atau binary yang Anda build sendiri (mis. `bun run build:binary:linux` untuk x64). Di macOS Intel mode bawaan ditolak (`init`, `migrate`, `doctor`, start server) kecuali `ST4S_PG_ALLOW_UNVERIFIED=1` — untuk staging, dengan peringatan satu baris; `doctor` menampilkan status verifikasi dan override. `DATABASE_URL` yang terisi tidak terpengaruh.
 - `doctor` memeriksa folder, `.env`, `DATABASE_URL`/`BETTER_AUTH_SECRET` (hanya terisi/kosong, nilai tidak pernah dicetak), koneksi + migrasi database (atau runtime + data dir PostgreSQL bawaan), karantina macOS, `libcrispasr` (dlopen), `libonnxruntime`, file model, ffmpeg, dan RAM bebas. Jalan tanpa `.env`.
 - Server binary **menolak start** bila database belum dimigrasi atau tidak bisa dihubungi: `Database belum dimigrasi — jalankan st4s migrate`, exit 1.
+- **Backup PostgreSQL bawaan** (`DATABASE_URL` kosong): hentikan st4s dulu (Ctrl+C / SIGTERM), lalu
+  ```bash
+  ~/.st4s/st4s db backup                    # → ~/.st4s/backups/st4s-db-<YYYYMMDD-HHMMSS>Z.tar.gz (mode 0600)
+  ~/.st4s/st4s db backup --out /mnt/usb/st4s.tar.gz   # tidak pernah menimpa file yang sudah ada
+  ~/.st4s/st4s db restore <file> [--yes]    # tanpa --yes: konfirmasi y/N (di luar terminal wajib --yes)
+  ```
+  Arsipnya **snapshot fisik dingin** dari `pg/data` (tar.gz + `st4s-backup.json`), jadi hanya bisa dibuat saat st4s/Postgres berhenti; keduanya menolak dengan PID-nya bila data dir sedang dipakai (Postgres yatim setelah `kill -9`: jalankan `st4s migrate` sekali). Restore hanya ke major yang sama (PostgreSQL 17) dan sebaiknya ke OS/arsitektur yang sama. Arsip divalidasi dulu (manifest, semua entri di `data/`, tanpa link). Data saat ini **dipindah** ke `pg/data.before-restore-<waktu>` (tidak dihapus — hapus manual bila sudah yakin), lalu jalankan `st4s migrate` bila backup berasal dari versi st4s lebih lama. `doctor` menampilkan backup terbaru. Backup panas tanpa menghentikan server, atau lintas major: pakai `pg_dump` (mis. Homebrew `postgresql@17`) ke socket Postgres bawaan. Dengan `DATABASE_URL` terisi `st4s db` menolak — backup database itu dengan `pg_dump`/`pg_restore`.
 - **Upgrade:** jalankan ulang `sh install.sh`, lalu `st4s migrate`. `.env`, `models/`, `logs/`, `pg/` dan `lib/pg/` tetap.
 - **`ST4S_HOME`:** override folder (default folder binary). Semua perintah di atas memakainya, mis. `ST4S_HOME=/srv/st4s /srv/st4s/st4s doctor`.
 

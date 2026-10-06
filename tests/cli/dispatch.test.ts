@@ -16,7 +16,7 @@ describe('resolveCommand', () => {
     expect(resolveCommand(argv('--st4s-engine-child', 'init'))).toBe('engine-child');
   });
   test('subcommands and flags', () => {
-    for (const c of ['init', 'doctor', 'migrate', 'models'] as const)
+    for (const c of ['init', 'doctor', 'migrate', 'models', 'db'] as const)
       expect(resolveCommand(argv(c, 'x'))).toBe(c);
     expect(resolveCommand(argv('--version'))).toBe('version');
     expect(resolveCommand(argv('-h'))).toBe('help');
