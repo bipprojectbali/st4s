@@ -4,6 +4,15 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan versi mengikuti
 [Semantic Versioning](https://semver.org/lang/id/).
 
+## [Unreleased]
+
+### Changed
+- PostgreSQL bawaan kini terverifikasi di Linux x64 dan arm64 (glibc), sehingga `init`, `migrate`, `doctor`, dan start server di sana tidak lagi butuh `ST4S_PG_ALLOW_UNVERIFIED=1`. Jalankan sebagai user non-root dan pasang `xz-utils`; `procps` tidak diperlukan. Belum ada tarball rilis Linux, jadi jalankan dari source atau binary yang di-build sendiri. macOS Intel tetap butuh override.
+
+### Fixed
+- PostgreSQL bawaan di Linux tanpa `procps` (mis. image `debian:bookworm-slim`) kini tetap aman. Sebelumnya `st4s migrate` atau restart setelah `kill -9` bisa menganggap Postgres yang sedang hidup sudah mati, menghapus file kuncinya, lalu database server ikut mati sekitar satu menit kemudian.
+- PostgreSQL bawaan tidak lagi menghapus file kunci (`postmaster.pid`, `st4s.owner`) milik proses yang masih hidup tetapi identitasnya tidak bisa dibaca. Start ditolak dengan pesan yang menyebut PID dan data dir-nya, sehingga Postgres yang sedang dipakai tidak ikut mati. `st4s doctor` menandai pemilik seperti ini sebagai "proses tak dikenal".
+
 ## [0.3.0] - 2026-10-06
 
 ### Added

@@ -1,6 +1,15 @@
 /** Sidecar claim decisions: postmaster.pid liveness (pid + comm + data dir), owner PID reuse, socket fallback, major check. */
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, rmSync, statSync, symlinkSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
@@ -10,8 +19,10 @@ import {
   postmasterVerdict,
   SOCKET_FILE,
   socketDirFor,
+  statStartTime,
   versionMismatch,
 } from '../../server/local-pg/claim';
+import { claimDataDir } from '../../server/local-pg/server';
 
 const fakeProc = (table: Record<number, { comm: string; started: string }>): ProcInfo => ({
   alive: (pid) => pid in table,
@@ -32,6 +43,7 @@ describe('postmasterVerdict', () => {
   const proc = fakeProc({
     11: { comm: '/rt/bin/postgres', started: 'x' },
     22: { comm: '/usr/bin/ssh', started: 'y' },
+    55: { comm: '', started: '' },
   });
   test('no file → none', () => expect(postmasterVerdict(null, tmp, proc)).toBe('none'));
   test('live postgres on this data dir → running (orphan after kill -9)', () => {
@@ -45,6 +57,9 @@ describe('postmasterVerdict', () => {
   test('postgres alive but serving another data dir → stale', () => {
     expect(postmasterVerdict(pidFile(11, '/elsewhere/data'), tmp, proc)).toBe('stale');
   });
+  test('alive but comm unreadable → unknown, never stale', () => {
+    expect(postmasterVerdict(pidFile(55, tmp), tmp, proc)).toBe('unknown');
+  });
   test('same dir through a symlink still counts', () => {
     const link = path.join(tmp, 'link');
     symlinkSync(tmp, link);
@@ -55,7 +70,13 @@ describe('postmasterVerdict', () => {
 describe('liveOwner', () => {
   const proc = fakeProc({ 33: { comm: 'bun', started: 'Mon Oct  6 10:00:00 2026' } });
   test('live owner with the same start time is returned', () => {
-    expect(liveOwner('33 Mon Oct  6 10:00:00 2026\n', proc, 1)).toBe(33);
+    expect(liveOwner('33 Mon Oct  6 10:00:00 2026\n', proc, 1)).toEqual({ pid: 33, known: true });
+  });
+  test('live PID with an unreadable or unrecorded start time is never free', () => {
+    const blind = fakeProc({ 33: { comm: 'bun', started: '' } });
+    expect(liveOwner('33 Mon Oct  6 10:00:00 2026', blind, 1)).toEqual({ pid: 33, known: false });
+    expect(liveOwner('33 \n', proc, 1)).toEqual({ pid: 33, known: false });
+    expect(liveOwner('44 \n', proc, 1)).toBeNull();
   });
   test('reused PID (different start time), dead PID, ourselves or garbage → free', () => {
     expect(liveOwner('33 Sun Oct  5 09:00:00 2026', proc, 1)).toBeNull();
@@ -66,10 +87,52 @@ describe('liveOwner', () => {
   });
   test('the real process table recognises this process as a live owner', async () => {
     const { systemProc } = await import('../../server/local-pg/claim');
-    expect(liveOwner(`${process.pid} ${systemProc.started(process.pid)}`, systemProc, 1)).toBe(
-      process.pid,
+    expect(liveOwner(`${process.pid} ${systemProc.started(process.pid)}`, systemProc, 1)).toEqual({
+      pid: process.pid,
+      known: true,
+    });
+  });
+});
+
+describe('claimDataDir', () => {
+  const proc = fakeProc({
+    55: { comm: '', started: '' },
+    66: { comm: 'bun', started: '' },
+  });
+  const write = (name: string, body: string) => writeFileSync(path.join(tmp, name), body);
+  const claim = () => claimDataDir('/no/runtime', tmp, tmp, proc);
+
+  test('live postmaster with unreadable comm → refused, lock and socket untouched', () => {
+    write('postmaster.pid', pidFile(55, tmp));
+    write('.s.PGSQL.5432', '');
+    expect(claim).toThrow('Tidak bisa memastikan proses PID 55');
+    expect(readFileSync(path.join(tmp, 'postmaster.pid'), 'utf8')).toBe(pidFile(55, tmp));
+    expect(existsSync(path.join(tmp, '.s.PGSQL.5432'))).toBe(true);
+    expect(existsSync(path.join(tmp, 'st4s.owner'))).toBe(false);
+  });
+  test('live owner with unreadable start time → refused, owner file untouched', () => {
+    write('st4s.owner', '66 Mon Oct  6 10:00:00 2026\n');
+    expect(claim).toThrow('Tidak bisa memastikan proses PID 66');
+    expect(claim).toThrow('st4s.owner');
+    expect(readFileSync(path.join(tmp, 'st4s.owner'), 'utf8')).toBe(
+      '66 Mon Oct  6 10:00:00 2026\n',
     );
   });
+  test('dead postmaster and dead owner → stale lock removed, claimed by us', () => {
+    write('postmaster.pid', pidFile(99, tmp));
+    write('st4s.owner', '98 whenever\n');
+    expect(claim()).toBe(path.join(tmp, 'st4s.owner'));
+    expect(existsSync(path.join(tmp, 'postmaster.pid'))).toBe(false);
+  });
+});
+
+describe('statStartTime', () => {
+  test('field 22 of /proc/<pid>/stat, even when comm holds spaces and parens', () => {
+    const stat =
+      '1234 (a) b c) S 1 1234 1234 0 -1 4194560 100 0 0 0 1 2 0 0 20 0 1 0 98765 1000 50\n';
+    expect(statStartTime(stat)).toBe('98765');
+  });
+  test('unreadable stat → unknown', () => expect(statStartTime('')).toBe(''));
 });
 
 describe('socketDirFor', () => {

@@ -95,7 +95,7 @@ export async function localPgChecks(
             name: 'data Postgres',
             ok: true,
             required: true,
-            detail: `${dataDir} (PG ${dataMajor}, ${owner ? `dipakai st4s PID ${owner}` : 'tidak sedang berjalan'})`,
+            detail: `${dataDir} (PG ${dataMajor}, ${owner ? `dipakai ${owner.known ? 'st4s' : 'proses tak dikenal'} PID ${owner.pid}` : 'tidak sedang berjalan'})`,
           },
   );
   return checks;

@@ -27,13 +27,13 @@ export const PG_ARTIFACTS: Record<PgPlatform, PgArtifact> = {
     zonky: 'linux-amd64',
     sha256: '0dd7b72b6f335b8ecfb355fa24c5781e8a93edd09880bb77eb52ebbf29b3e96d',
     size: 14987378,
-    verified: false,
+    verified: true,
   },
   'linux-arm64': {
     zonky: 'linux-arm64v8',
     sha256: '8b042e0ea418b1927d95399207950da0734d27fe01e29503ade3bdc464ad4c2b',
     size: 14015430,
-    verified: false,
+    verified: true,
   },
 };
 

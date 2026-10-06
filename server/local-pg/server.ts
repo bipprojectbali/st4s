@@ -16,11 +16,13 @@ import {
   ensurePrivateDir,
   liveOwner,
   OWNER_FILE,
+  type ProcInfo,
   postmasterVerdict,
   SOCKET_FILE,
   SOCKET_PORT,
   socketDirFor,
   systemProc,
+  unidentifiedProcess,
   versionMismatch,
 } from './claim';
 import { PG_DATABASE, PG_USER } from './paths';
@@ -69,16 +71,31 @@ function ensureCluster(runtime: string, dataDir: string): void {
   renameSync(tmp, dataDir);
 }
 
-/** Refuse a live st4s owner; stop an orphan postmaster left by a kill -9'd st4s; clear stale lock files. */
-function claimDataDir(runtime: string, dataDir: string, socketDir: string): string {
+/**
+ * Refuse a live (or unidentifiable) owner/postmaster before touching anything; stop an orphan
+ * postmaster left by a kill -9'd st4s; clear stale lock files.
+ */
+export function claimDataDir(
+  runtime: string,
+  dataDir: string,
+  socketDir: string,
+  proc: ProcInfo = systemProc,
+): string {
   const ownerPath = path.join(dataDir, OWNER_FILE);
-  const owner = liveOwner(readOrNull(ownerPath));
-  if (owner) throw new Error(`Data dir ${dataDir} sedang dipakai st4s lain (PID ${owner}).`);
-  // ponytail: two st4s starting in the same instant can both pass this; postgres' own postmaster.pid interlock stops the second.
-  writeFileSync(ownerPath, `${process.pid} ${systemProc.started(process.pid)}\n`);
-
+  const owner = liveOwner(readOrNull(ownerPath), proc);
+  if (owner?.known)
+    throw new Error(`Data dir ${dataDir} sedang dipakai st4s lain (PID ${owner.pid}).`);
+  if (owner) throw new Error(unidentifiedProcess(owner.pid, dataDir, OWNER_FILE));
   const pidPath = path.join(dataDir, 'postmaster.pid');
-  const verdict = postmasterVerdict(readOrNull(pidPath), dataDir);
+  const pidFile = readOrNull(pidPath);
+  const verdict = postmasterVerdict(pidFile, dataDir, proc);
+  if (verdict === 'unknown')
+    throw new Error(
+      unidentifiedProcess(Number(pidFile?.split('\n')[0]), dataDir, 'postmaster.pid'),
+    );
+  // ponytail: two st4s starting in the same instant can both pass this; postgres' own postmaster.pid interlock stops the second.
+  writeFileSync(ownerPath, `${process.pid} ${proc.started(process.pid)}\n`);
+
   if (verdict === 'running')
     run(pgBin(runtime, 'pg_ctl'), ['-D', dataDir, 'stop', '-m', 'fast', '-w', '-t', '30']);
   // Postgres itself only checks kill(pid, 0) on these, so a reused PID would block the start.

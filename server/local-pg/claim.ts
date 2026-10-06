@@ -1,7 +1,7 @@
 /** Pure-ish decisions for the sidecar: is a postmaster/owner live, where the socket goes, does the data major match. */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, lstatSync, mkdirSync, realpathSync } from 'node:fs';
+import { chmodSync, lstatSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 
 // Only names the socket file `.s.PGSQL.5432`: listen_addresses='' means no TCP listener at all.
@@ -14,9 +14,9 @@ const MAX_SOCKET_PATH = 90;
 /** Process lookups behind a seam so the pid/comm/stale decisions are unit-testable. */
 export type ProcInfo = {
   alive(pid: number): boolean;
-  /** Executable name or path (`ps -o comm=`), '' when unknown. */
+  /** Executable name or path (`ps -o comm=`; Linux `/proc/<pid>/comm`), '' when unknown. */
   comm(pid: number): string;
-  /** Start time (`ps -o lstart=`), '' when unknown; tells a reused PID apart. */
+  /** Start time (`ps -o lstart=`; Linux boot ticks), '' when unknown; tells a reused PID apart. */
   started(pid: number): string;
 };
 
@@ -25,6 +25,22 @@ const ps = (field: string, pid: number) =>
     encoding: 'utf8',
     env: { PATH: '/usr/bin:/bin', LC_ALL: 'C' },
   }).stdout?.trim() ?? '';
+
+const readProc = (pid: number, file: string) => {
+  try {
+    return readFileSync(`/proc/${pid}/${file}`, 'utf8');
+  } catch {
+    return ''; // process gone → unknown
+  }
+};
+
+/** Field 22 (starttime, ticks since boot) of `/proc/<pid>/stat`; parsed after the last `)` since comm may hold spaces. */
+export const statStartTime = (stat: string) =>
+  stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19] ?? '';
+
+// Linux reads /proc: slim images (debian-slim, ubuntu) ship without procps, and an empty comm
+// would mark a live postmaster stale and delete its lock file.
+const linux = process.platform === 'linux';
 
 export const systemProc: ProcInfo = {
   alive(pid) {
@@ -35,8 +51,8 @@ export const systemProc: ProcInfo = {
       return (e as NodeJS.ErrnoException).code === 'EPERM';
     }
   },
-  comm: (pid) => ps('comm', pid),
-  started: (pid) => ps('lstart', pid),
+  comm: (pid) => (linux ? readProc(pid, 'comm').trim() : ps('comm', pid)),
+  started: (pid) => (linux ? statStartTime(readProc(pid, 'stat')) : ps('lstart', pid)),
 };
 
 const samePath = (a: string, b: string) => {
@@ -50,33 +66,47 @@ const samePath = (a: string, b: string) => {
 
 /**
  * postmaster.pid → 'running' only when its PID is alive, is a `postgres` executable and the file's
- * data-dir line names this data dir; anything else is a stale file (crash, reboot, PID reuse).
+ * data-dir line names this data dir; 'unknown' when the PID is alive but its name can't be read
+ * (deleting the lock file under a live postmaster makes it shut down); anything else is stale.
  */
 export function postmasterVerdict(
   pidFile: string | null,
   dataDir: string,
   proc: ProcInfo = systemProc,
-): 'none' | 'running' | 'stale' {
+): 'none' | 'running' | 'stale' | 'unknown' {
   if (pidFile === null) return 'none';
   const [pidLine, dirLine] = pidFile.split('\n');
   const pid = Number(pidLine);
   if (!Number.isInteger(pid) || pid <= 0 || !proc.alive(pid)) return 'stale';
-  if (path.basename(proc.comm(pid)) !== 'postgres') return 'stale';
+  const comm = proc.comm(pid);
+  if (comm === '') return 'unknown';
+  if (path.basename(comm) !== 'postgres') return 'stale';
   return dirLine && samePath(dirLine.trim(), dataDir) ? 'running' : 'stale';
 }
 
-/** st4s.owner holds `<pid> <start time>`; returns the live owner's PID, or null when free/stale/ours. */
+/**
+ * st4s.owner holds `<pid> <start time>`; null when free/stale/ours. A live PID whose start time
+ * can't be compared (either side unknown) is never free: `known: false`.
+ */
 export function liveOwner(
   ownerFile: string | null,
   proc: ProcInfo = systemProc,
   self = process.pid,
-): number | null {
-  const m = ownerFile?.trim().match(/^(\d+) (.+)$/);
+): { pid: number; known: boolean } | null {
+  const m = ownerFile?.trim().match(/^(\d+)(?: (.+))?$/);
   if (!m) return null;
   const pid = Number(m[1]);
   if (pid === self || !proc.alive(pid)) return null;
-  return proc.started(pid) === m[2] ? pid : null;
+  const started = proc.started(pid);
+  if (!m[2] || started === '') return { pid, known: false };
+  return started === m[2] ? { pid, known: true } : null;
 }
+
+/** Refusal when a live PID guards `lockFile` but can't be identified; the file is never deleted then. */
+export const unidentifiedProcess = (pid: number, dataDir: string, lockFile: string) =>
+  `Tidak bisa memastikan proses PID ${pid} bukan Postgres/st4s yang memakai data dir ${dataDir}. ` +
+  'Pastikan tidak ada Postgres atau st4s lain yang memakai data dir ini, lalu ulangi. ' +
+  `Bila PID itu jelas proses lain, hapus ${path.join(dataDir, lockFile)} lalu ulangi.`;
 
 /** The data dir itself when the socket path fits sun_path, else a private `/tmp/st4s-<uid>-<hash>`. */
 export function socketDirFor(dataDir: string, uid = process.getuid?.() ?? 0): string {
