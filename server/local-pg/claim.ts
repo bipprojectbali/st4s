@@ -66,33 +66,47 @@ const samePath = (a: string, b: string) => {
 
 /**
  * postmaster.pid → 'running' only when its PID is alive, is a `postgres` executable and the file's
- * data-dir line names this data dir; anything else is a stale file (crash, reboot, PID reuse).
+ * data-dir line names this data dir; 'unknown' when the PID is alive but its name can't be read
+ * (deleting the lock file under a live postmaster makes it shut down); anything else is stale.
  */
 export function postmasterVerdict(
   pidFile: string | null,
   dataDir: string,
   proc: ProcInfo = systemProc,
-): 'none' | 'running' | 'stale' {
+): 'none' | 'running' | 'stale' | 'unknown' {
   if (pidFile === null) return 'none';
   const [pidLine, dirLine] = pidFile.split('\n');
   const pid = Number(pidLine);
   if (!Number.isInteger(pid) || pid <= 0 || !proc.alive(pid)) return 'stale';
-  if (path.basename(proc.comm(pid)) !== 'postgres') return 'stale';
+  const comm = proc.comm(pid);
+  if (comm === '') return 'unknown';
+  if (path.basename(comm) !== 'postgres') return 'stale';
   return dirLine && samePath(dirLine.trim(), dataDir) ? 'running' : 'stale';
 }
 
-/** st4s.owner holds `<pid> <start time>`; returns the live owner's PID, or null when free/stale/ours. */
+/**
+ * st4s.owner holds `<pid> <start time>`; null when free/stale/ours. A live PID whose start time
+ * can't be compared (either side unknown) is never free: `known: false`.
+ */
 export function liveOwner(
   ownerFile: string | null,
   proc: ProcInfo = systemProc,
   self = process.pid,
-): number | null {
-  const m = ownerFile?.trim().match(/^(\d+) (.+)$/);
+): { pid: number; known: boolean } | null {
+  const m = ownerFile?.trim().match(/^(\d+)(?: (.+))?$/);
   if (!m) return null;
   const pid = Number(m[1]);
   if (pid === self || !proc.alive(pid)) return null;
-  return proc.started(pid) === m[2] ? pid : null;
+  const started = proc.started(pid);
+  if (!m[2] || started === '') return { pid, known: false };
+  return started === m[2] ? { pid, known: true } : null;
 }
+
+/** Refusal when a live PID guards `lockFile` but can't be identified; the file is never deleted then. */
+export const unidentifiedProcess = (pid: number, dataDir: string, lockFile: string) =>
+  `Tidak bisa memastikan proses PID ${pid} bukan Postgres/st4s yang memakai data dir ${dataDir}. ` +
+  'Pastikan tidak ada Postgres atau st4s lain yang memakai data dir ini, lalu ulangi. ' +
+  `Bila PID itu jelas proses lain, hapus ${path.join(dataDir, lockFile)} lalu ulangi.`;
 
 /** The data dir itself when the socket path fits sun_path, else a private `/tmp/st4s-<uid>-<hash>`. */
 export function socketDirFor(dataDir: string, uid = process.getuid?.() ?? 0): string {
