@@ -123,13 +123,13 @@ describe('detectPlatform', () => {
     const win = detectPlatform({ platform: 'win32', arch: 'x64', musl: false });
     expect('error' in win && win.error).toContain('DATABASE_URL');
   });
-  test('every pin is a sha256; only darwin-arm64 is marked verified', () => {
+  test('every pin is a sha256; only darwin-x64 is still unverified', () => {
     for (const a of Object.values(PG_ARTIFACTS)) expect(a.sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(
       Object.entries(PG_ARTIFACTS)
-        .filter(([, a]) => a.verified)
+        .filter(([, a]) => !a.verified)
         .map(([k]) => k),
-    ).toEqual(['darwin-arm64']);
+    ).toEqual(['darwin-x64']);
   });
 });
 
