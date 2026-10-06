@@ -4,7 +4,7 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan versi mengikuti
 [Semantic Versioning](https://semver.org/lang/id/).
 
-## [Unreleased]
+## [0.3.0] - 2026-10-06
 
 ### Added
 - PostgreSQL bawaan: bila `DATABASE_URL` kosong, st4s menjalankan PostgreSQL 17.11 sendiri sebagai proses anak, jadi tidak perlu memasang database terpisah. Postgres ini hanya bisa diakses lewat unix socket (tanpa port TCP) dan selalu memakai zona waktu UTC. Data tersimpan di `<folder st4s>/pg/data`; saat `bun run dev`/`start` lokasinya `./data/pg`. Bila `DATABASE_URL` terisi, perilakunya tetap seperti sebelumnya.
