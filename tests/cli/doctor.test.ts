@@ -26,7 +26,6 @@ describe('doctor', () => {
     const c = await byName({ env, loadLib: noLoad, freePct: () => 80 });
     for (const name of [
       '.env',
-      'DATABASE_URL',
       'BETTER_AUTH_SECRET',
       'libcrispasr',
       'model STT',
@@ -34,6 +33,12 @@ describe('doctor', () => {
     ])
       expect(c[name]?.ok).toBe(false);
     expect(c['folder st4s']?.ok).toBe(true);
+    // Empty DATABASE_URL = built-in Postgres: not installed yet is a warning, never a DB connection.
+    expect(c.DATABASE_URL?.detail).toContain('PostgreSQL bawaan');
+    expect(c['runtime Postgres']?.detail).toContain(path.join(home, 'lib', 'pg', '17.11.0'));
+    expect(c['runtime Postgres']?.required).toBe(false);
+    expect(c['data Postgres']?.detail).toContain(path.join(home, 'pg', 'data'));
+    expect(c.database).toBeUndefined();
     expect(c['.env']?.fix).toContain('st4s init');
     expect(c['model STT']?.detail).toContain(path.join(home, 'models', 'stt'));
     const log = spyOn(console, 'log').mockImplementation(() => {});

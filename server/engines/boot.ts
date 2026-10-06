@@ -1,4 +1,5 @@
 import { isProd } from '../env';
+import { stopLocalPg } from '../local-pg/boot';
 import { logger } from '../logger';
 import { startMemoryGuard, stopMemoryGuard } from '../memory-guard/lifecycle';
 import { checkEngineDeps, logEngineDeps } from './deps';
@@ -39,7 +40,7 @@ export async function shutdownEngines(): Promise<void> {
   await Promise.all([engines.stt.unload(), engines.tts.unload()]);
 }
 
-/** On SIGINT/SIGTERM unload the engines, then exit, so engine children never outlive the server. */
+/** On SIGINT/SIGTERM unload the engines and stop the built-in Postgres, then exit, so no child outlives the server. */
 export function exitOnShutdownSignals(): void {
   if (g.__st4sShutdownHooked) return;
   g.__st4sShutdownHooked = true;
@@ -53,13 +54,15 @@ export function exitOnShutdownSignals(): void {
         );
         process.exit(1);
       }, SHUTDOWN_TIMEOUT_MS).unref();
-      shutdownEngines().then(
-        () => process.exit(0),
-        (err: unknown) => {
-          logger.error({ err, signal }, 'engine unload failed during shutdown');
-          process.exit(1);
-        },
-      );
+      shutdownEngines()
+        .finally(stopLocalPg)
+        .then(
+          () => process.exit(0),
+          (err: unknown) => {
+            logger.error({ err, signal }, 'engine unload failed during shutdown');
+            process.exit(1);
+          },
+        );
     });
   }
 }
