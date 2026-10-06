@@ -3,7 +3,8 @@
 # Env: CRISPASR_SRC (git checkout or URL to clone, default upstream GitHub; a local checkout such
 # as ~/tmp/stt skips most of the download), CRISPASR_DIR (build copy, default <repo>/.crispasr,
 # gitignored, whose lib STT loads by default), CRISPASR_TAG + CRISPASR_REF (release tag and the commit it must
-# resolve to), CRISPASR_BUILD_DIR (cmake build dir, default $CRISPASR_DIR/build), JOBS (default 2).
+# resolve to), CRISPASR_BUILD_DIR (cmake build dir, default $CRISPASR_DIR/build = the dev lib; the release
+# build that scripts/release/package.sh bundles is $CRISPASR_DIR/build-reloc), JOBS (default 2).
 set -euo pipefail
 
 UPSTREAM="https://github.com/CrispStrobe/CrispASR"
@@ -67,4 +68,4 @@ cmake --build "$BUILD" --target crispasr-lib -j "$JOBS"
 LIB="$BUILD/src/libcrispasr.dylib"
 if [ ! -e "$LIB" ]; then LIB="$BUILD/src/libcrispasr.so"; fi
 echo "built: $LIB"
-if [ "$BUILD" != "$ROOT/.crispasr/build" ]; then echo "set in .env: CRISPASR_LIB=$LIB"; fi
+if [ "$BUILD" != "$ROOT/.crispasr/build" ]; then echo "to load this lib in dev, set in .env: CRISPASR_LIB=$LIB"; fi
