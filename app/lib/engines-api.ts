@@ -37,6 +37,23 @@ export const runEngineAction = (kind: EngineKind, action: EngineAction) =>
     method: 'POST',
   });
 
+export const REFRESH_FAST_MS = 2500;
+export const REFRESH_SLOW_MS = 15_000;
+
+/** True while something on /dev/engines is changing: a model loading, a job running or queued, a cold load reserving RAM, or the memory guard above normal. */
+export function enginesBusy(o: EngineOverview): boolean {
+  const engineBusy = [o.stt, o.tts].some(
+    (s) => s && (s.state === 'loading' || s.state === 'busy' || s.queued > 0),
+  );
+  const g = o.memoryGuard;
+  return engineBusy || g.shedding || g.level !== 'normal' || g.reservedMb > 0;
+}
+
+/** Poll interval for /dev/engines: fast while busy, an action is pending, or nothing is known yet; slow when idle. */
+export function enginesRefreshMs(o: EngineOverview | undefined, actionPending = false): number {
+  return !o || actionPending || enginesBusy(o) ? REFRESH_FAST_MS : REFRESH_SLOW_MS;
+}
+
 export const STATE_META: Record<EngineState, { label: string; color: string }> = {
   unloaded: { label: 'Belum dimuat', color: 'gray' },
   loading: { label: 'Memuat', color: 'blue' },
