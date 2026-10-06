@@ -1,15 +1,15 @@
-import { Box, Button, Group, SimpleGrid, Stack, Text, Title } from '@mantine/core';
-import { useReducedMotion } from '@mantine/hooks';
+import { Button, Group, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { engineOverview } from '@server/api/engines';
 import { requireRole } from '@server/guard';
 import { loadGuardConfig } from '@server/memory-guard/config';
 import { ROLES } from '@server/permissions';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { FiActivity, FiCpu, FiHardDrive, FiMic, FiRefreshCw } from 'react-icons/fi';
 import { Link } from 'react-router';
 import { EngineCard } from '~/components/engines/EngineCard';
 import { MemoryGuardAlert } from '~/components/engines/MemoryGuardAlert';
+import { RefreshDot } from '~/components/engines/RefreshDot';
 import { useEngineActions } from '~/components/engines/useEngineActions';
 import { StatTile } from '~/components/logs/StatTile';
 import {
@@ -22,8 +22,6 @@ import {
 import { toJson } from '~/lib/loader-json';
 import { useTimeFormat } from '~/lib/time-format';
 import type { Route } from './+types/engines';
-
-const FLASH_MS = 1000;
 
 export function meta() {
   return [{ title: 'Engines — st4s' }];
@@ -51,15 +49,6 @@ export default function EnginesPage({ loaderData }: Route.ComponentProps) {
   });
   const d = q.data;
   const [manualRefresh, setManualRefresh] = useState(false);
-  const [flash, setFlash] = useState(false);
-  const reduceMotion = useReducedMotion();
-  useEffect(() => {
-    if (q.dataUpdatedAt === loaderData.loadedAt) return;
-    setFlash(true);
-    const t = setTimeout(() => setFlash(false), FLASH_MS);
-    return () => clearTimeout(t);
-  }, [q.dataUpdatedAt, loaderData.loadedAt]);
-  const updating = q.isFetching || flash;
   const mem = d.memory;
 
   return (
@@ -70,19 +59,10 @@ export default function EnginesPage({ loaderData }: Route.ComponentProps) {
           <Text size="sm" c="dimmed">
             Model STT dan TTS di proses ini. Diperbarui otomatis, lebih sering saat engine sibuk ·
             terakhir {dateTime(d.generatedAt)}{' '}
-            <Box
-              component="span"
-              aria-hidden
-              display="inline-block"
-              w={6}
-              h={6}
-              bg="teal.6"
-              style={{
-                borderRadius: '50%',
-                verticalAlign: 'middle',
-                opacity: updating ? 0.9 : 0.2,
-                transition: reduceMotion ? 'none' : 'opacity 400ms ease-in-out',
-              }}
+            <RefreshDot
+              isFetching={q.isFetching}
+              dataUpdatedAt={q.dataUpdatedAt}
+              loadedAt={loaderData.loadedAt}
             />
           </Text>
         </div>
