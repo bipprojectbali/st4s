@@ -22,7 +22,8 @@ afterEach(() => rmSync(home, { recursive: true, force: true }));
 
 describe('doctor', () => {
   test('empty home reports missing items and exits 1', async () => {
-    const env = { ST4S_HOME: home, PATH: process.env.PATH };
+    // Override keeps the built-in-Postgres lines present on unverified hosts (Linux CI) too.
+    const env = { ST4S_HOME: home, PATH: process.env.PATH, ST4S_PG_ALLOW_UNVERIFIED: '1' };
     const c = await byName({ env, loadLib: noLoad, freePct: () => 80 });
     for (const name of [
       '.env',

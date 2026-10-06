@@ -67,6 +67,30 @@ export function detectPlatform(
   return { error: `Postgres bawaan tidak tersedia untuk ${key} — ${USE_URL}.` };
 }
 
+export const ALLOW_UNVERIFIED_ENV = 'ST4S_PG_ALLOW_UNVERIFIED';
+export const allowUnverified = (env: Env) => env[ALLOW_UNVERIFIED_ENV]?.trim() === '1';
+
+/**
+ * Platform gate for built-in mode: unverified platforms are refused unless ST4S_PG_ALLOW_UNVERIFIED=1,
+ * which proceeds with a warning. Unsupported hosts (musl, win32, …) stay refused regardless.
+ */
+export function resolvePlatform(
+  env: Env,
+  detected: ReturnType<typeof detectPlatform> = detectPlatform(),
+): { platform: PgPlatform; warning?: string } | { error: string } {
+  if ('error' in detected) return detected;
+  const p = detected.platform;
+  if (PG_ARTIFACTS[p].verified) return { platform: p };
+  if (allowUnverified(env))
+    return {
+      platform: p,
+      warning: `PERINGATAN: Postgres bawaan belum diverifikasi di ${p} — dilanjutkan karena ${ALLOW_UNVERIFIED_ENV}=1 (staging).`,
+    };
+  return {
+    error: `Postgres bawaan belum diverifikasi di ${p}. Isi DATABASE_URL, atau set ${ALLOW_UNVERIFIED_ENV}=1 untuk mencoba (staging).`,
+  };
+}
+
 export const pgBin = (dir: string, name: 'initdb' | 'pg_ctl' | 'postgres') =>
   path.join(dir, 'bin', name);
 
@@ -168,8 +192,13 @@ export type EnsureRuntimeOptions = {
  */
 export async function ensureRuntime(opts: EnsureRuntimeOptions = {}): Promise<string> {
   const env = opts.env ?? process.env;
-  const detected = opts.platform ? { platform: opts.platform } : detectPlatform();
+  const detected = resolvePlatform(
+    env,
+    opts.platform ? { platform: opts.platform } : detectPlatform(),
+  );
   if ('error' in detected) throw new Error(detected.error);
+  const progress = opts.onProgress ?? ((m: string) => console.error(`[st4s] ${m}`));
+  if (detected.warning) progress(detected.warning);
   const dir = pgRuntimeDir(detected.platform, env);
   if (pgRuntimeIsManual(env)) {
     if (existsSync(pgBin(dir, 'postgres'))) return dir;
@@ -178,7 +207,6 @@ export async function ensureRuntime(opts: EnsureRuntimeOptions = {}): Promise<st
   const artifact = opts.artifact ?? PG_ARTIFACTS[detected.platform];
   if ((await installedSha256(dir)) === artifact.sha256) return dir;
 
-  const progress = opts.onProgress ?? ((m: string) => console.error(`[st4s] ${m}`));
   await fs.mkdir(path.dirname(dir), { recursive: true });
   const stage = `${dir}.tmp-${process.pid}`;
   const tmpJar = `${stage}.jar`;
@@ -189,7 +217,6 @@ export async function ensureRuntime(opts: EnsureRuntimeOptions = {}): Promise<st
       progress(
         `Mengunduh Postgres ${PG_RELEASE} (${Math.round(artifact.size / 1e6)} MB) dari ${url}`,
       );
-      if (!artifact.verified) progress(`Catatan: runtime ${detected.platform} belum diuji st4s.`);
       await download(url, tmpJar, progress).catch((e: Error) => {
         throw new Error(
           `Gagal mengunduh runtime Postgres (${e.message}) dari ${url}. Offline: unduh jar itu di mesin lain lalu set ST4S_PG_ARCHIVE=<path jar>, atau ${USE_URL}.`,

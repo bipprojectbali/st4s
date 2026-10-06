@@ -14,6 +14,7 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 - Postgres bawaan dimatikan dengan bersih saat server berhenti. Setelah crash atau `kill -9`, start berikutnya memulihkannya sendiri. Satu data dir tidak bisa dipakai dua st4s sekaligus.
 - Data dir dari versi major Postgres lain ditolak dengan instruksi.
 - Linux musl/Alpine belum didukung; di sana tetap pakai `DATABASE_URL`.
+- Postgres bawaan baru terverifikasi di macOS Apple Silicon. Di macOS Intel dan Linux x64/arm64, `init`, `migrate`, `doctor`, dan start server menolak dengan pesan jelas kecuali `ST4S_PG_ALLOW_UNVERIFIED=1` di-set (untuk staging, disertai peringatan). `st4s doctor` menampilkan status verifikasi platform dan override. `DATABASE_URL` yang terisi tidak terpengaruh.
 - `install.sh` mempertahankan `pg/` dan runtime `lib/pg/` saat upgrade.
 
 ### Changed

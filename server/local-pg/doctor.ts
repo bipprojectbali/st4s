@@ -4,16 +4,27 @@ import path from 'node:path';
 import type { DoctorCheck } from '../cli/doctor';
 import { liveOwner, OWNER_FILE, versionMismatch } from './claim';
 import { PG_MAJOR, pgDataDir, pgRuntimeDir, pgRuntimeIsManual } from './paths';
-import { detectPlatform, installedSha256, PG_ARTIFACTS, pgBin } from './runtime';
+import {
+  ALLOW_UNVERIFIED_ENV,
+  allowUnverified,
+  detectPlatform,
+  installedSha256,
+  PG_ARTIFACTS,
+  pgBin,
+  resolvePlatform,
+} from './runtime';
 import { readOrNull } from './server';
 
 type Env = Record<string, string | undefined>;
 
-export async function localPgChecks(env: Env): Promise<DoctorCheck[]> {
+export async function localPgChecks(
+  env: Env,
+  host: ReturnType<typeof detectPlatform> = detectPlatform(),
+): Promise<DoctorCheck[]> {
   const checks: DoctorCheck[] = [
     { name: 'DATABASE_URL', ok: true, required: true, detail: 'kosong — PostgreSQL bawaan' },
   ];
-  const detected = detectPlatform();
+  const detected = resolvePlatform(env, host);
   if ('error' in detected) {
     checks.push({
       name: 'PostgreSQL bawaan',
@@ -24,6 +35,15 @@ export async function localPgChecks(env: Env): Promise<DoctorCheck[]> {
     });
     return checks;
   }
+  const override = `${ALLOW_UNVERIFIED_ENV}=${allowUnverified(env) ? '1 aktif' : 'tidak aktif'}`;
+  checks.push({
+    name: 'platform Postgres',
+    ok: true,
+    required: true,
+    detail: PG_ARTIFACTS[detected.platform].verified
+      ? `${detected.platform} (terverifikasi; ${override})`
+      : `${detected.platform} (BELUM diverifikasi — staging; ${override})`,
+  });
   const runtime = pgRuntimeDir(detected.platform, env);
   const artifact = PG_ARTIFACTS[detected.platform];
   const installFix = 'jalankan `st4s init` (mengunduh ±60 MB, atau set ST4S_PG_ARCHIVE)';
@@ -44,7 +64,7 @@ export async function localPgChecks(env: Env): Promise<DoctorCheck[]> {
             name: 'runtime Postgres',
             ok: true,
             required: true,
-            detail: `${runtime} (sha256 ${sha.slice(0, 12)}… cocok${artifact.verified ? '' : ', platform belum diuji'})`,
+            detail: `${runtime} (sha256 ${sha.slice(0, 12)}… cocok)`,
           }
         : {
             name: 'runtime Postgres',
