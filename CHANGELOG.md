@@ -6,6 +6,12 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 
 ## [Unreleased]
 
+### Added
+- `st4s db backup [--out <file>]` membuat backup PostgreSQL bawaan menjadi satu file `.tar.gz` (default `<folder st4s>/backups/st4s-db-<waktu>Z.tar.gz`, hanya bisa dibaca pemiliknya). File yang sudah ada tidak pernah ditimpa, dan backup yang gagal tidak meninggalkan file setengah jadi.
+- `st4s db restore <file> [--yes]` memulihkan backup itu. Arsip diperiksa dulu (manifest, versi PostgreSQL, isi hanya di `data/`), lalu ada konfirmasi. Data saat ini tidak dihapus, hanya dipindah ke `pg/data.before-restore-<waktu>`.
+- Keduanya hanya berjalan saat st4s berhenti, karena backup ini adalah salinan fisik data dir. Selama server jalan, keduanya menolak dan menyebut PID-nya. Restore hanya bisa ke PostgreSQL 17. Untuk backup tanpa menghentikan server, atau bila `DATABASE_URL` terisi, pakai `pg_dump`.
+- `st4s doctor` menampilkan backup terbaru beserta umurnya, atau "belum ada backup".
+
 ### Changed
 - PostgreSQL bawaan kini terverifikasi di Linux x64 dan arm64 (glibc), sehingga `init`, `migrate`, `doctor`, dan start server di sana tidak lagi butuh `ST4S_PG_ALLOW_UNVERIFIED=1`. Jalankan sebagai user non-root dan pasang `xz-utils`; `procps` tidak diperlukan. Belum ada tarball rilis Linux, jadi jalankan dari source atau binary yang di-build sendiri. macOS Intel tetap butuh override.
 

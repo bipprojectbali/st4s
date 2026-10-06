@@ -24,6 +24,8 @@ async function runSubcommand(command: CliCommand, args: string[]): Promise<numbe
       return (await import('./cli/migrate')).runMigrate();
     case 'models':
       return (await import('./cli/models')).runModels(args);
+    case 'db':
+      return (await import('./cli/db')).runDb(args);
     case 'version':
       console.log((await import('./cli/version')).versionLine());
       return 0;

@@ -10,12 +10,13 @@ export type CliCommand =
   | 'doctor'
   | 'migrate'
   | 'models'
+  | 'db'
   | 'version'
   | 'help'
   | 'server'
   | 'unknown';
 
-const SUBCOMMANDS = new Set<CliCommand>(['init', 'doctor', 'migrate', 'models']);
+const SUBCOMMANDS = new Set<CliCommand>(['init', 'doctor', 'migrate', 'models', 'db']);
 
 /** Engine child wins over everything; none or an unknown `-flag` starts the server; an unknown word is an error. */
 export function resolveCommand(argv: readonly string[]): CliCommand {
@@ -45,6 +46,8 @@ export const HELP_TEXT = `Pemakaian: st4s [perintah]
   doctor             periksa instalasi: .env, database/PostgreSQL bawaan, lib/, model, ffmpeg, karantina
   migrate            terapkan migrasi database (menyalakan PostgreSQL bawaan bila perlu)
   models <…>         unduh/impor model (st4s models --help)
+  db backup [--out <file>]   backup PostgreSQL bawaan (st4s harus berhenti dulu)
+  db restore <file> [--yes]  pulihkan backup; data lama dipindah, tidak dihapus
   --version          tampilkan versi
   --help             tampilkan bantuan ini
 
