@@ -77,8 +77,8 @@ describe('db/index guard', () => {
   test('assertTestDatabase needs the marker and a *_test name', () => {
     const url = 'postgres://u@h/x_test'; // test-only
     expect(() => assertTestDatabase({ DATABASE_URL: url })).toThrow('tanpa preload');
-    expect(() =>
-      assertTestDatabase({ DATABASE_URL: 'postgres://u@h/x', [TEST_DB_MARKER]: '1' }),
+    expect(
+      () => assertTestDatabase({ DATABASE_URL: 'postgres://u@h/x', [TEST_DB_MARKER]: '1' }), // test-only
     ).toThrow('berakhiran "_test"');
     expect(() => assertTestDatabase({ DATABASE_URL: url, [TEST_DB_MARKER]: '1' })).not.toThrow();
   });

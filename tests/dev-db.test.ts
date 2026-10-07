@@ -20,15 +20,15 @@ function recorder() {
 
 describe('testDbError', () => {
   test('refuses a *_test database, from the URL path or PGDATABASE', () => {
-    expect(testDbError({ DATABASE_URL: 'postgres://u:p@h:5432/app_test' })).toContain('"app_test"');
-    expect(testDbError({ DATABASE_URL: 'postgres://u@h/APP_TEST?sslmode=disable' })).not.toBeNull();
-    expect(testDbError({ DATABASE_URL: 'postgres://u@h', PGDATABASE: 'x_test' })).not.toBeNull();
+    expect(testDbError({ DATABASE_URL: 'postgres://u:p@h:5432/app_test' })).toContain('"app_test"'); // test-only
+    expect(testDbError({ DATABASE_URL: 'postgres://u@h/APP_TEST?sslmode=disable' })).not.toBeNull(); // test-only
+    expect(testDbError({ DATABASE_URL: 'postgres://u@h', PGDATABASE: 'x_test' })).not.toBeNull(); // test-only
     expect(testDbError({ DATABASE_URL: 'not a url' })).toContain('tidak valid');
   });
 
   test('allows a dev database and the built-in Postgres (empty URL)', () => {
-    expect(testDbError({ DATABASE_URL: 'postgres://u@h/app' })).toBeNull();
-    expect(testDbError({ DATABASE_URL: 'postgres://u@h/test_app' })).toBeNull();
+    expect(testDbError({ DATABASE_URL: 'postgres://u@h/app' })).toBeNull(); // test-only
+    expect(testDbError({ DATABASE_URL: 'postgres://u@h/test_app' })).toBeNull(); // test-only
     expect(testDbError({ DATABASE_URL: ' ' })).toBeNull();
     expect(testDbError({})).toBeNull();
   });
@@ -37,7 +37,7 @@ describe('testDbError', () => {
 describe('runDrizzleKit', () => {
   test('DATABASE_URL set: passthrough, argv without a shell, nothing started', async () => {
     const { calls, spawn } = recorder();
-    const env = { DATABASE_URL: 'postgres://u@h/app' };
+    const env = { DATABASE_URL: 'postgres://u@h/app' }; // test-only
     // Real acquireLocalPg: with a URL it must return a no-op without touching Postgres.
     expect(
       await runDrizzleKit(['push', '--x=a;rm -rf /'], env, { acquire: acquireLocalPg, spawn }),
@@ -45,7 +45,7 @@ describe('runDrizzleKit', () => {
     expect(calls).toEqual([
       {
         cmd: [process.execPath, 'x', 'drizzle-kit', 'push', '--x=a;rm -rf /'],
-        url: 'postgres://u@h/app',
+        url: 'postgres://u@h/app', // test-only
       },
     ]);
     expect(Object.keys(env)).toEqual(['DATABASE_URL']);
@@ -55,7 +55,7 @@ describe('runDrizzleKit', () => {
     const events: string[] = [];
     const acquire = async (env: Env = {}) => {
       events.push('acquire');
-      env.DATABASE_URL = 'postgres:///st4s';
+      env.DATABASE_URL = 'postgres:///st4s'; // test-only
       return async () => {
         events.push('release');
       };
