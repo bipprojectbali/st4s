@@ -89,11 +89,9 @@ Pola wajib per elemen (AppShell header, tabel + card view, page header, layout, 
 
 ## Test
 
-- Jalankan: `bun run test` — script ini yang men-set `NODE_ENV=test`. **Jangan** jalankan `bun test tests` langsung: tanpa `NODE_ENV=test`, `server/db/index.ts` memakai `DATABASE_URL` (dev/prod), bukan test DB.
+- Jalankan: `bun run test` atau `bun test <file>` dari root repo — keduanya aman.
 - Lokasi test: semua di root `tests/**/*.test.ts`, mirror struktur `server/` (`tests/api/`, `tests/db/`, `tests/mcp/`, `tests/middleware/`, sisanya di `tests/`). Import ke source relatif ke `server/` (mis. `../../server/api/admin` dari `tests/api/`, `../server/roles` dari `tests/`).
-- **Test database:** set `DATABASE_URL_TEST` di `.env` — ketika `NODE_ENV=test`, `server/db/index.ts` otomatis pakai `DATABASE_URL_TEST` bukan `DATABASE_URL`. Jika tidak di-set, fallback ke `DATABASE_URL` (berbahaya untuk data produksi).
-- Migrasi test DB: `DATABASE_URL=<url_test> bun run db:migrate`
-- Migrasi baru wajib dijalankan ke **dua** DB sebelum test: `bun run db:migrate` (dev) dan `DATABASE_URL=$DATABASE_URL_TEST bun run db:migrate` (test).
+- **Test database dijaga sistem:** `bunfig.toml` → preload `tests/setup/test-db.ts` memaksa `NODE_ENV=test`, menaruh satu database `*_test` di `DATABASE_URL` (`DATABASE_URL_TEST`, harus berakhiran `_test` dan ≠ `DATABASE_URL`; kosong = cluster bawaan `./data/pg-test`) lalu memigrasikannya otomatis. `server/db/index.ts` menolak proses test tanpa marker preload. Aturan ada di `server/db/test-guard.ts` — jangan buat koneksi DB di test dari env lain selain `DATABASE_URL`.
 - **Autentikasi di integration test — pakai `spyOn`, bukan `mock.module`:** stub `spyOn(auth.api, 'getSession')` + `spyOn(rolesMod, 'resolveUserRole')` lalu biarkan guard asli bekerja (pola: `tests/api/posts.test.ts`, `tests/api/me-api-keys.test.ts`). `mock.module('../../server/guard', …)` hanya boleh untuk route yang semata memakai `requireRole` (pola: `tests/api/api-keys-api.test.ts`); mock yang mengganti `resolveActor` **bocor ke file test lain** dalam satu run dan membuat test tak terkait gagal. Faktor pada `mock.module` juga tidak boleh merujuk variabel modul (hoisting) — pakai literal atau `globalThis`.
 - User test ber-role `super-admin` akan **diturunkan otomatis** oleh `resolveUserRole` (sumber kebenarannya `SUPER_ADMIN_EMAILS`); seed `admin` untuk skenario admin, atau stub `resolveUserRole`.
 - Identitas API key disimulasikan dengan `setApiKeyIdentity(request, {...})` dari `server/api-keys/identity.ts`; hook `onAfterResponse` berjalan setelah `app.handle()` resolve — `await Bun.sleep(20)` sebelum `flushUsage()`.
@@ -110,7 +108,7 @@ Pola wajib per elemen (AppShell header, tabel + card view, page header, layout, 
 - **Tanggal di fragmen `sql` mentah:** kirim `${d.toISOString()}::timestamp`, bukan objek `Date` (fragmen raw tidak mendapat pemetaan kolom).
 - **Request non-halaman sebelum SSR:** probe browser (`/favicon.ico`, `/.well-known/`, `apple-touch-icon`) ditangani `server/http-probes.ts`; dokumentasi agent (`/README.md`, `/llms*.txt`) oleh `server/readme.ts`. Keduanya harus tetap masuk daftar pengecualian `visitor.ts` dan `settings-maintenance.ts`. Tambahkan di sana bila ada path statis baru, jangan biarkan jatuh ke React Router (menghasilkan stack trace 404).
 - **Dev server `--hot`** tidak selalu memuat ulang plugin Elysia baru — minta user restart `bun run dev` setelah menambah plugin/hook.
-- **Tooling DB dev** (`db:migrate|push|studio`, `bun run st4s`) lewat `scripts/dev-db.ts`: menolak DB `*_test`, `DATABASE_URL` kosong → PostgreSQL bawaan (`acquireLocalPg`). Jangan kembalikan URL fallback di `drizzle.config.ts`.
+- **Tooling DB dev** (`db:migrate|push|studio`, `bun run st4s`) lewat `scripts/dev-db.ts`: menolak DB `*_test` (DB test hanya dimigrasikan preload test, lihat "Test"), `DATABASE_URL` kosong → PostgreSQL bawaan (`acquireLocalPg`). Jangan kembalikan URL fallback di `drizzle.config.ts`.
 - **Versi** hanya dari `package.json` (`server/app-info.ts`); jangan hardcode di tempat lain.
 - **Error OpenAI hanya di `/api/v1`:** `server/api-error.ts` dan plugin (rate limit, maintenance, API key) bercabang lewat `isV1Path()` dan memakai `v1ErrorBody()`/`v1Error()` dari `server/v1/errors.ts`. Route `/api/*` lain tetap `{ error, code, status, requestId }` — jangan campur keduanya.
 

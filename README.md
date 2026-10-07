@@ -65,7 +65,8 @@ bun install
 
 # 2. Konfigurasi env
 cp .env.example .env
-# Wajib: BETTER_AUTH_SECRET (openssl rand -base64 32); untuk test: DATABASE_URL_TEST
+# Wajib: BETTER_AUTH_SECRET (openssl rand -base64 32)
+# Opsional untuk test: DATABASE_URL_TEST (nama berakhiran _test); kosong = PostgreSQL test bawaan (./data/pg-test)
 # DATABASE_URL: URL PostgreSQL ≥ 17, atau kosong = PostgreSQL 17 bawaan (./data/pg, hanya unix socket)
 # Opsional: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
 # Key lain sengaja dikomentari (= default di code); buka komentar hanya untuk mengubahnya
@@ -108,7 +109,7 @@ bun run start
 | `bun run db:studio` | Drizzle Studio; database sama seperti `db:migrate` (Ctrl+C mematikan PostgreSQL bawaan yang dinyalakannya) |
 | `bun run st4s <perintah>` | CLI `st4s` dari source: `doctor`, `migrate`, `db backup` (→ `./data/backups`), `db restore <file> [--yes]`, `--version`. `init` dan mode server ditolak — pakai `bun run dev`/`start` |
 | `bun run admin:verify <email>` | Tandai email user di `SUPER_ADMIN_EMAILS` sebagai terverifikasi (bootstrap super-admin tanpa Google) |
-| `bun run test` | Test suite (bun:test, `tests/`, pakai DATABASE_URL_TEST) |
+| `bun run test` | Test suite (bun:test, `tests/`; selalu di database `*_test`, lihat [Testing](#testing)) |
 
 ## Binary distribution (tanpa Bun di server)
 
@@ -249,7 +250,7 @@ server/
     migrations/         SQL migration idempotent (0001…0012)
   http-bridge.ts        Node ↔ Fetch Request/Response bridge
   dev.ts  prod.ts       Dev server (Vite middleware) dan Bun.serve produksi
-tests/                  bun:test, mirror struktur server/ (DATABASE_URL_TEST)
+tests/                  bun:test, mirror struktur server/ (setup/test-db.ts = preload database test)
 ```
 
 ## Cara single-port bekerja
@@ -423,11 +424,18 @@ Agent bisa mengecek sendiri lewat tool MCP `check_file_health` (server `st4s-deb
 ## Testing
 
 ```bash
-# Pastikan DATABASE_URL_TEST di .env
-bun run test
+bun run test                      # seluruh suite
+bun test tests/auth-flow.test.ts  # satu file — sama amannya
 ```
 
-Semua test ada di root `tests/` (mirror struktur `server/`). Gunakan `bun run test` — script inilah yang men-set `NODE_ENV=test`; menjalankan `bun test tests` langsung tidak akan memakai test database. Test database dipisah dari dev/prod (`DATABASE_URL_TEST`); migrasi baru harus dijalankan ke keduanya.
+Semua test ada di root `tests/` (mirror struktur `server/`). Setiap `bun test` dari root repo memuat preload `tests/setup/test-db.ts` (lewat `bunfig.toml`), yang:
+
+- memaksa `NODE_ENV=test` (mengalahkan `.env`) dan mengarahkan `DATABASE_URL` ke **satu** database test;
+- memakai `DATABASE_URL_TEST` bila diisi — ditolak bila nama database-nya tidak berakhiran `_test` atau sama dengan `DATABASE_URL` (tidak ada fallback ke database dev);
+- bila `DATABASE_URL_TEST` kosong, menyalakan PostgreSQL test bawaan di `./data/pg-test` (database `st4s_test`, terpisah dari `./data/pg` milik `bun run dev`, bisa jalan bersamaan) dan mematikannya saat run selesai/dihentikan. Run kedua pada cluster yang sama ditolak ("Test lain sedang berjalan");
+- menjalankan migrasi ke database test di setiap run (idempotent, diserialkan dengan advisory lock).
+
+`server/db/index.ts` menolak koneksi dalam proses test yang tidak melewati preload ini (mis. `NODE_ENV=test bun run <script>`).
 
 Pola autentikasi di integration test: stub `auth.api.getSession` dan `resolveUserRole` dengan `spyOn` lalu pakai guard asli (lihat `tests/api/posts.test.ts`, `tests/api/me-api-keys.test.ts`). `mock.module('../../server/guard', …)` hanya aman untuk route yang cuma memakai `requireRole`; mock yang mengganti `resolveActor` bocor ke file test lain dalam satu run. Identitas API key bisa disimulasikan dengan `setApiKeyIdentity(request, …)`. Hook `onAfterResponse` (log pemakaian) berjalan setelah `app.handle()` selesai — tunggu sejenak sebelum `flushUsage()`.
 

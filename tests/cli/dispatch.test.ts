@@ -7,6 +7,7 @@ import pkg from '../../package.json' with { type: 'json' };
 import { loadHomeEnv, resolveCommand } from '../../server/cli/dispatch';
 import { bootMigrationError, migrationState, migrationsFolder } from '../../server/cli/migrate';
 import { versionLine } from '../../server/cli/version';
+import { assertTestDatabase } from '../../server/db/test-guard';
 
 const argv = (...args: string[]) => ['/x/st4s', '/$bunfs/root/st4s', ...args];
 
@@ -75,8 +76,8 @@ describe('version and migrations', () => {
     expect(await bootMigrationError({})).toContain('DATABASE_URL');
   });
   test('test database has no pending migrations', async () => {
-    const url = process.env.DATABASE_URL_TEST;
-    if (!url) throw new Error('DATABASE_URL_TEST missing');
+    assertTestDatabase(process.env);
+    const url = process.env.DATABASE_URL as string;
     const s = await migrationState(url);
     expect(s.total).toBeGreaterThan(0);
     expect(s.pending).toBe(0);

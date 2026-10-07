@@ -1,6 +1,6 @@
 /**
  * Integration tests for the full authentication flow.
- * Uses DATABASE_URL_TEST to avoid polluting the main database.
+ * Runs against the *_test database the bun test preload (tests/setup/test-db.ts) selects.
  *
  * Flow tested:
  *  1. sign-up → 200 + Set-Cookie session header
