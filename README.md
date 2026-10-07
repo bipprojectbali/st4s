@@ -71,6 +71,7 @@ cp .env.example .env
 # Key lain sengaja dikomentari (= default di code); buka komentar hanya untuk mengubahnya
 
 # 3. Buat database dan jalankan migrasi
+# DATABASE_URL kosong: db:migrate menyiapkan PostgreSQL bawaan (./data/pg) sendiri — lewati opsi A/B
 # Opsi A — pakai Postgres yang sudah ada:
 #   psql -c "CREATE DATABASE makuro;"
 # Opsi B — spin up lokal dengan Docker:
@@ -101,10 +102,11 @@ bun run start
 | `bun run typecheck` | `react-router typegen` + `tsc --noEmit` |
 | `bun run lint` | Biome check |
 | `bun run format` | Biome format --write |
-| `bun run db:generate` | Generate SQL migration dari Drizzle schema |
-| `bun run db:migrate` | Apply migration |
-| `bun run db:push` | Push schema langsung (interaktif) |
-| `bun run db:studio` | Drizzle Studio |
+| `bun run db:generate` | Generate SQL migration dari Drizzle schema (tanpa koneksi database) |
+| `bun run db:migrate` | Apply migration — sama dengan `st4s migrate` (`DATABASE_URL` kosong → PostgreSQL bawaan dinyalakan lalu dimatikan, atau memakai milik `bun run dev` yang sedang jalan) |
+| `bun run db:push` | Push schema langsung (interaktif); database sama seperti `db:migrate` |
+| `bun run db:studio` | Drizzle Studio; database sama seperti `db:migrate` (Ctrl+C mematikan PostgreSQL bawaan yang dinyalakannya) |
+| `bun run st4s <perintah>` | CLI `st4s` dari source: `doctor`, `migrate`, `db backup` (→ `./data/backups`), `db restore <file> [--yes]`, `--version`. `init` dan mode server ditolak — pakai `bun run dev`/`start` |
 | `bun run admin:verify <email>` | Tandai email user di `SUPER_ADMIN_EMAILS` sebagai terverifikasi (bootstrap super-admin tanpa Google) |
 | `bun run test` | Test suite (bun:test, `tests/`, pakai DATABASE_URL_TEST) |
 

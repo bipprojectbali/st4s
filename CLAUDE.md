@@ -110,6 +110,7 @@ Pola wajib per elemen (AppShell header, tabel + card view, page header, layout, 
 - **Tanggal di fragmen `sql` mentah:** kirim `${d.toISOString()}::timestamp`, bukan objek `Date` (fragmen raw tidak mendapat pemetaan kolom).
 - **Request non-halaman sebelum SSR:** probe browser (`/favicon.ico`, `/.well-known/`, `apple-touch-icon`) ditangani `server/http-probes.ts`; dokumentasi agent (`/README.md`, `/llms*.txt`) oleh `server/readme.ts`. Keduanya harus tetap masuk daftar pengecualian `visitor.ts` dan `settings-maintenance.ts`. Tambahkan di sana bila ada path statis baru, jangan biarkan jatuh ke React Router (menghasilkan stack trace 404).
 - **Dev server `--hot`** tidak selalu memuat ulang plugin Elysia baru — minta user restart `bun run dev` setelah menambah plugin/hook.
+- **Tooling DB dev** (`db:migrate|push|studio`, `bun run st4s`) lewat `scripts/dev-db.ts`: menolak DB `*_test`, `DATABASE_URL` kosong → PostgreSQL bawaan (`acquireLocalPg`). Jangan kembalikan URL fallback di `drizzle.config.ts`.
 - **Versi** hanya dari `package.json` (`server/app-info.ts`); jangan hardcode di tempat lain.
 - **Error OpenAI hanya di `/api/v1`:** `server/api-error.ts` dan plugin (rate limit, maintenance, API key) bercabang lewat `isV1Path()` dan memakai `v1ErrorBody()`/`v1Error()` dari `server/v1/errors.ts`. Route `/api/*` lain tetap `{ error, code, status, requestId }` — jangan campur keduanya.
 

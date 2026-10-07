@@ -18,9 +18,10 @@
     "lint": "biome check .",
     "format": "biome format --write .",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio",
+    "db:migrate": "bun scripts/dev-db.ts migrate",
+    "db:push": "bun scripts/dev-db.ts drizzle-kit push",
+    "db:studio": "bun scripts/dev-db.ts drizzle-kit studio",
+    "st4s": "bun scripts/dev-db.ts",
     "auth:generate": "bunx @better-auth/cli generate --output server/db/auth.schema.ts",
     "admin:verify": "bun scripts/verify-super-admin.ts"
   },

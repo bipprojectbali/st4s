@@ -86,16 +86,24 @@ export async function doctorChecks(probe: DoctorProbe = {}): Promise<DoctorCheck
   const add = (c: DoctorCheck) => checks.push(c);
   const home = st4sHome(env);
 
+  // No home only happens from source (`bun run st4s doctor`): the repo .env and ./data are used.
   add(
-    home && existsSync(home)
-      ? { name: 'folder st4s', ok: true, required: true, detail: home }
-      : {
+    !home
+      ? {
           name: 'folder st4s',
-          ok: false,
-          required: true,
-          detail: home ? `tidak ditemukan: ${home}` : 'ST4S_HOME tidak di-set',
-          fix: home ? 'jalankan `st4s init`' : 'set ST4S_HOME atau jalankan dari binary st4s',
-        },
+          ok: true,
+          required: false,
+          detail: 'dev (tanpa ST4S_HOME): .env folder repo, data di ./data',
+        }
+      : existsSync(home)
+        ? { name: 'folder st4s', ok: true, required: true, detail: home }
+        : {
+            name: 'folder st4s',
+            ok: false,
+            required: true,
+            detail: `tidak ditemukan: ${home}`,
+            fix: 'jalankan `st4s init`',
+          },
   );
   if (home) add(fileCheck('.env', path.join(home, '.env'), 'jalankan `st4s init`'));
   const localPg = !env.DATABASE_URL?.trim();

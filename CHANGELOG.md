@@ -8,11 +8,16 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 
 ### Added
 - Spec OpenAPI untuk Speech API di `GET /api/v1/openapi.json` (JSON saja, tanpa UI): body request, format respons, error, dan contoh tiap endpoint `/api/v1`. Bisa diakses dengan API key apa pun atau sesi login; tanpa autentikasi ditolak 401.
+- `bun run st4s <perintah>` menjalankan CLI st4s dari source (`doctor`, `migrate`, `db backup`, `db restore`, `--version`). Data dan backup tetap di `./data` repo, tidak pernah di `~/.st4s`; `init` ditolak dengan petunjuk langkah dev.
 
 ### Changed
 - `/dev/engines` tidak lagi berkedip tiap 3 detik: tombol "Muat ulang" hanya berputar saat kamu menekannya. Pembaruan otomatis kini ditandai titik kecil yang menyala sebentar di samping waktu "terakhir" (tanpa animasi bila sistem meminta gerakan dikurangi).
 - Status engine diperbarui tiap ±2,5 detik selama model dimuat, ada job/antrean, warmup/unload berjalan, atau memory guard di atas normal, dan tiap 15 detik saat semuanya diam. Pembaruan tetap berhenti saat tab tidak terlihat.
 - Rilis kini membundel libcrispasr dari `.crispasr/build-reloc` (bukan lib dev di `.crispasr/build`); `package.sh` berhenti dengan perintah build bila direktori itu belum ada atau AMR/Opus belum dimatikan.
+- `bun run db:migrate`, `db:push`, dan `db:studio` kini memakai PostgreSQL bawaan bila `DATABASE_URL` kosong, tanpa langkah manual. Bila `bun run dev` sedang jalan, Postgres-nya dipakai bersama; bila tidak, dinyalakan lalu dimatikan lagi setelah selesai.
+- Perintah DB dev menolak `DATABASE_URL` yang menunjuk database berakhiran `_test`, sehingga database test tidak tersentuh tanpa sengaja.
+- `drizzle.config.ts` tidak lagi punya URL database cadangan yang tertanam; `drizzle-kit` yang dijalankan langsung tanpa `DATABASE_URL` berhenti dengan pesan jelas (kecuali `db:generate`, yang tidak butuh database).
+- `st4s doctor` dari source tidak lagi gagal karena `ST4S_HOME` tidak di-set.
 
 ## [0.4.0] - 2026-10-06
 
