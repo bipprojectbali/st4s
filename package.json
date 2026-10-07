@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun run --hot server/local-pg/entry.ts dev",
-    "test": "NODE_ENV=test bun test tests",
+    "test": "bun test tests",
     "build": "react-router build",
     "start": "NODE_ENV=production bun run server/local-pg/entry.ts prod",
     "smoke:prod": "bun run build && bun scripts/smoke-server.ts bun run server/prod.ts",

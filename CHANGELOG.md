@@ -13,6 +13,10 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 - `/dev/engines` tidak lagi berkedip tiap 3 detik: tombol "Muat ulang" hanya berputar saat kamu menekannya. Pembaruan otomatis kini ditandai titik kecil yang menyala sebentar di samping waktu "terakhir" (tanpa animasi bila sistem meminta gerakan dikurangi).
 - Status engine diperbarui tiap ±2,5 detik selama model dimuat, ada job/antrean, warmup/unload berjalan, atau memory guard di atas normal, dan tiap 15 detik saat semuanya diam. Pembaruan tetap berhenti saat tab tidak terlihat.
 - Rilis kini membundel libcrispasr dari `.crispasr/build-reloc` (bukan lib dev di `.crispasr/build`); `package.sh` berhenti dengan perintah build bila direktori itu belum ada atau AMR/Opus belum dimatikan.
+- Test tidak lagi butuh langkah manual: database test dimigrasikan otomatis setiap run, dan `DATABASE_URL_TEST` kini opsional. Bila kosong, test memakai PostgreSQL bawaan terpisah di `./data/pg-test` (database `st4s_test`) yang dinyalakan dan dimatikan sendiri, dan bisa jalan bersamaan dengan `bun run dev`.
+
+### Fixed
+- Test tidak bisa lagi menyentuh database dev. Sebelumnya `bun test <file>` (tanpa `bun run test`) memakai `NODE_ENV` dari `.env` sehingga terhubung ke `DATABASE_URL`, dan `DATABASE_URL_TEST` yang kosong diam-diam jatuh ke database dev. Kini setiap `bun test` memaksa mode test, memakai hanya database berakhiran `_test` yang berbeda dari `DATABASE_URL`, dan menolak berjalan dengan pesan yang jelas bila tidak.
 
 ## [0.4.0] - 2026-10-06
 
