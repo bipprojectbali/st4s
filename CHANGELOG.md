@@ -4,24 +4,24 @@ Semua perubahan penting di project ini dicatat di sini. Format mengikuti
 [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan versi mengikuti
 [Semantic Versioning](https://semver.org/lang/id/).
 
-## [Unreleased]
+## [0.5.0] - 2026-10-07
 
 ### Added
 - Spec OpenAPI untuk Speech API di `GET /api/v1/openapi.json` (JSON saja, tanpa UI): body request, format respons, error, dan contoh tiap endpoint `/api/v1`. Bisa diakses dengan API key apa pun atau sesi login; tanpa autentikasi ditolak 401.
-- `bun run st4s <perintah>` menjalankan CLI st4s dari source (`doctor`, `migrate`, `db backup`, `db restore`, `--version`). Data dan backup tetap di `./data` repo, tidak pernah di `~/.st4s`; `init` ditolak dengan petunjuk langkah dev.
+- Pengembangan dari source: `bun run st4s <perintah>` menjalankan CLI st4s dari source (`doctor`, `migrate`, `db backup`, `db restore`, `--version`). Data dan backup tetap di `./data` repo, tidak pernah di `~/.st4s`; `init` ditolak dengan petunjuk langkah dev.
 
 ### Changed
 - `/dev/engines` tidak lagi berkedip tiap 3 detik: tombol "Muat ulang" hanya berputar saat kamu menekannya. Pembaruan otomatis kini ditandai titik kecil yang menyala sebentar di samping waktu "terakhir" (tanpa animasi bila sistem meminta gerakan dikurangi).
 - Status engine diperbarui tiap ±2,5 detik selama model dimuat, ada job/antrean, warmup/unload berjalan, atau memory guard di atas normal, dan tiap 15 detik saat semuanya diam. Pembaruan tetap berhenti saat tab tidak terlihat.
-- Rilis kini membundel libcrispasr dari `.crispasr/build-reloc` (bukan lib dev di `.crispasr/build`); `package.sh` berhenti dengan perintah build bila direktori itu belum ada atau AMR/Opus belum dimatikan.
-- `bun run db:migrate`, `db:push`, dan `db:studio` kini memakai PostgreSQL bawaan bila `DATABASE_URL` kosong, tanpa langkah manual. Bila `bun run dev` sedang jalan, Postgres-nya dipakai bersama; bila tidak, dinyalakan lalu dimatikan lagi setelah selesai.
-- Perintah DB dev menolak `DATABASE_URL` yang menunjuk database berakhiran `_test`, sehingga database test tidak tersentuh tanpa sengaja.
-- `drizzle.config.ts` tidak lagi punya URL database cadangan yang tertanam; `drizzle-kit` yang dijalankan langsung tanpa `DATABASE_URL` berhenti dengan pesan jelas (kecuali `db:generate`, yang tidak butuh database).
-- Test tidak lagi butuh langkah manual: database test dimigrasikan otomatis setiap run, dan `DATABASE_URL_TEST` kini opsional. Bila kosong, test memakai PostgreSQL bawaan terpisah di `./data/pg-test` (database `st4s_test`) yang dinyalakan dan dimatikan sendiri, dan bisa jalan bersamaan dengan `bun run dev`.
+- Pengembangan dari source: rilis kini membundel libcrispasr dari `.crispasr/build-reloc` (bukan lib dev di `.crispasr/build`); `package.sh` berhenti dengan perintah build bila direktori itu belum ada atau AMR/Opus belum dimatikan.
+- Pengembangan dari source: `bun run db:migrate`, `db:push`, dan `db:studio` kini memakai PostgreSQL bawaan bila `DATABASE_URL` kosong, tanpa langkah manual. Bila `bun run dev` sedang jalan, Postgres-nya dipakai bersama; bila tidak, dinyalakan lalu dimatikan lagi setelah selesai.
+- Pengembangan dari source: perintah DB dev menolak `DATABASE_URL` yang menunjuk database berakhiran `_test`, sehingga database test tidak tersentuh tanpa sengaja.
+- Pengembangan dari source: `drizzle.config.ts` tidak lagi punya URL database cadangan yang tertanam; `drizzle-kit` yang dijalankan langsung tanpa `DATABASE_URL` berhenti dengan pesan jelas (kecuali `db:generate`, yang tidak butuh database).
+- Pengembangan dari source: test tidak lagi butuh langkah manual: database test dimigrasikan otomatis setiap run, dan `DATABASE_URL_TEST` kini opsional. Bila kosong, test memakai PostgreSQL bawaan terpisah di `./data/pg-test` (database `st4s_test`) yang dinyalakan dan dimatikan sendiri, dan bisa jalan bersamaan dengan `bun run dev`.
 
 ### Fixed
-- Test tidak bisa lagi menyentuh database dev. Sebelumnya `bun test <file>` (tanpa `bun run test`) memakai `NODE_ENV` dari `.env` sehingga terhubung ke `DATABASE_URL`, dan `DATABASE_URL_TEST` yang kosong diam-diam jatuh ke database dev. Kini setiap `bun test` memaksa mode test, memakai hanya database berakhiran `_test` yang berbeda dari `DATABASE_URL`, dan menolak berjalan dengan pesan yang jelas bila tidak.
-- `st4s doctor` dari source tidak lagi gagal karena `ST4S_HOME` tidak di-set.
+- Pengembangan dari source: test tidak bisa lagi menyentuh database dev. Sebelumnya `bun test <file>` (tanpa `bun run test`) memakai `NODE_ENV` dari `.env` sehingga terhubung ke `DATABASE_URL`, dan `DATABASE_URL_TEST` yang kosong diam-diam jatuh ke database dev. Kini setiap `bun test` memaksa mode test, memakai hanya database berakhiran `_test` yang berbeda dari `DATABASE_URL`, dan menolak berjalan dengan pesan yang jelas bila tidak.
+- Pengembangan dari source: `st4s doctor` dari source tidak lagi gagal karena `ST4S_HOME` tidak di-set.
 
 ## [0.4.0] - 2026-10-06
 
