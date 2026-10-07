@@ -62,7 +62,7 @@ describe('runDrizzleKit', () => {
     };
     const { calls, spawn } = recorder();
     expect(await runDrizzleKit(['studio'], { DATABASE_URL: '' }, { acquire, spawn })).toBe(0);
-    expect(calls[0]?.url).toBe('postgres:///st4s');
+    expect(calls[0]?.url).toBe('postgres:///st4s'); // test-only
     expect(events).toEqual(['acquire', 'release']);
 
     const failing = async () => {
